@@ -57,7 +57,7 @@ input{font-family:inherit}
 .waves{position:absolute;left:0;right:0;bottom:0;height:120px;opacity:.35}
 
 /* ---------- Layout ---------- */
-#app{position:relative;z-index:1;max-width:520px;margin:0 auto;padding:12px 12px 230px}
+#app{position:relative;z-index:1;max-width:520px;margin:0 auto;padding:12px 12px 260px}
 .topbar{display:flex;align-items:center;gap:8px;margin-bottom:10px}
 .iconbtn{width:40px;height:40px;border-radius:14px;background:var(--glass);border:1px solid var(--line);font-size:18px;display:grid;place-items:center}
 .iconbtn:active{transform:scale(.94)}
@@ -202,6 +202,28 @@ h2.sec{font-size:15px;color:var(--dim);font-weight:500;margin:22px 4px 8px;lette
 .chips button.sel{border-color:var(--aqua);background:rgba(62,230,255,.16);box-shadow:0 0 12px rgba(62,230,255,.35)}
 .setnote{font-size:12px;color:var(--dim);margin-top:6px}
 .sheet{max-height:92vh;overflow:auto}
+.res-rank{display:flex;flex-direction:column;gap:8px;margin:10px 0 4px}
+.res-p{display:grid;grid-template-columns:34px 1fr auto;align-items:center;gap:8px;padding:10px 12px;border-radius:16px;background:rgba(0,0,0,.22);border:1px solid var(--line)}
+.res-p.win{background:linear-gradient(135deg,rgba(255,211,110,.25),rgba(249,168,212,.18));border-color:rgba(255,211,110,.7)}
+.res-p .pos{font-size:24px;text-align:center}
+.res-p .nm{font-weight:600;font-size:17px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.res-p .sub{font-size:12px;color:var(--dim);font-weight:400}
+.res-p .sc{font-size:28px;font-weight:700}
+.res-hl{font-size:14px;color:#cdeeff;margin:10px 2px 0;line-height:1.5}
+.res-hl b{color:var(--gold)}
+.stats h2.sec{margin-top:18px}
+.kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+.kpi{padding:10px 6px;border-radius:16px;background:var(--glass);border:1px solid var(--line);text-align:center}
+.kpi b{display:block;font-size:24px}
+.kpi span{font-size:12px;color:var(--dim)}
+.stbl{border-radius:18px;background:rgba(6,20,55,.55);border:1px solid var(--line);overflow:hidden}
+.stbl .tr{display:grid;grid-template-columns:1fr auto auto;gap:10px;align-items:center;padding:9px 12px;border-bottom:1px solid rgba(140,210,255,.09);font-size:15px}
+.stbl .tr:last-child{border-bottom:0}
+.stbl .tr.h{font-size:12px;color:var(--dim);background:rgba(62,230,255,.07)}
+.stbl .tr .r{text-align:right;font-weight:600;white-space:nowrap}
+.stbl .tr .m{color:var(--dim);font-size:13px;white-space:nowrap}
+.stbl .tr .l{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.wl{font-weight:600}.wl .w{color:#86efac}.wl .f{color:#fda4af}.wl .o{color:var(--dim)}
 .reactbtn{width:58px;height:58px;flex:none;border-radius:20px;font-size:28px;background:var(--glass2);border:1px solid var(--line)}
 .reactbtn.on{border-color:var(--aqua);box-shadow:0 0 16px rgba(62,230,255,.45)}
 .reactbtn.wide{width:auto;flex:1;font-size:18px;font-weight:600}
@@ -310,7 +332,7 @@ const HELP = {
   three:'Tretal: tre lika – summan av dem', four:'Fyrtal: fyra lika – summan av dem',
   small:'Liten stege: 1-2-3-4-5 = 15 poäng', large:'Stor stege: 2-3-4-5-6 = 20 poäng',
   house:'Kåk: tretal + par (olika) – summan av alla', chance:'Chans: summan av alla tärningar',
-  yatzy:'Yatzy: fem lika = 50 poäng! 🐬', bonus:'Bonus'
+  yatzy:'Yatzy: fem lika = 50 poäng! Bara på den här raden, och bara en gång per spel 🐬', bonus:'Bonus'
 };
 const PIPS = {1:[4],2:[0,8],3:[0,4,8],4:[0,2,6,8],5:[0,2,4,6,8],6:[0,2,3,5,6,8]};
 
@@ -481,7 +503,7 @@ const nextCat = s => { const c=CATS.find(([k])=>!(k in (s||{}))); return c?c[0]:
 const allowed = (k,i) => !G || G.order!=='down' || nextCat(G.scores[i])===k;
 
 function newState(names, starter=0, order='free', seq=0, ai=null){
-  return {names, order, ai, cur:starter, starter, dice:[rnd(),rnd(),rnd(),rnd(),rnd()], held:F5(), rolls:0, rollSeq:0,
+  return {id:Math.random().toString(36).slice(2,9)+Date.now().toString(36), names, order, ai, cur:starter, starter, dice:[rnd(),rnd(),rnd(),rnd(),rnd()], held:F5(), rolls:0, rollSeq:0,
           scores:names.map(()=>({})), over:false, record:false, last:null, seq, createdAt:Date.now(), updatedAt:Date.now()};
 }
 const NP = () => G ? G.names.length : 2;
@@ -548,6 +570,7 @@ function pickCore(cat, byAI){
   const next = done ? p : (p+1)%P;
   commit({scores, cur:next, rolls:0, held:F5(), over:done, record, last:{p,cat,val,t:Date.now()}, rollSeq:(G.rollSeq||0)+1});
   if(done){
+    finishGame();
     setTimeout(()=>{ sfx.win(); sparkles(record?60:40); if(record) celebrate('REKORD!'); },400);
     try{ window.scrollTo({top:0,behavior:'smooth'}) }catch(e){}
   } else if(mode==='local'){
@@ -556,6 +579,7 @@ function pickCore(cat, byAI){
   }
 }
 function rematch(){
+  closeModal();
   const P=NP(), starter = ((G.starter||0)+1)%P;
   const st = newState(G.names.slice(), starter, G.order||'free', G.seq||0, G.ai||null);
   shown = st.dice.slice(); freshCell=null;
@@ -824,7 +848,8 @@ function onGameData(d){
       if(!d.over && d.cur===mySeat) setTimeout(()=>notifyTurn(`Din tur, ${pname(mySeat)}!`),700);
       if(d.over){ setTimeout(()=>{ sfx.win(); sparkles(40); },500); try{ window.scrollTo({top:0,behavior:'smooth'}) }catch(e){} }
     }
-    if(prev.over && !d.over) { freshCell=null; toast(`Ny match! ${pname(d.cur)} börjar 🚀`); if(d.cur===mySeat) setTimeout(()=>notifyTurn(`Din tur, ${pname(mySeat)}!`),900); }
+    if(d.over && !prev.over) finishGame();
+    if(prev.over && !d.over) { freshCell=null; if(M().classList.contains('show')) closeModal(); toast(`Ny match! ${pname(d.cur)} börjar 🚀`); if(d.cur===mySeat) setTimeout(()=>notifyTurn(`Din tur, ${pname(mySeat)}!`),900); }
   }
   saveNet();
   render();
@@ -891,6 +916,131 @@ async function invite(){
   try{ await navigator.clipboard.writeText(text+' '+url); toast('Länken är kopierad – klistra in den i Messenger 📋',3500); }
   catch(e){ toast('Länk: '+url,6000); }
 }
+
+/* ================= Statistik ================= */
+function loadStats(){ try{ const s=JSON.parse(lsGet('ry_stats')); if(s && Array.isArray(s.games)) return s; }catch(e){} return {games:[]}; }
+function saveStats(st){ lsSet('ry_stats', JSON.stringify(st)); }
+function gameType(g){
+  if(g.mode==='online') return 'online';
+  if(g.names.length===1) return 'solo';
+  const lv = g.ai && g.ai.find(Boolean); if(lv) return 'ai-'+lv;
+  return 'local';
+}
+const TYPE_LABEL = {online:'🚀 Varsin mobil', solo:'🧑‍🚀 Ensam', 'ai-easy':'🤖 Mot Blixt (lätt)', 'ai-hard':'🤖 Mot Blixt (svår)', local:'📱 Två på samma mobil'};
+const typeLabel = (t,o) => (TYPE_LABEL[t]||t) + (o==='down' ? ' · i ordning' : ' · valfritt');
+const MAXROW = {ones:5,twos:10,threes:15,fours:20,fives:25,sixes:30,pair:12,twopair:22,three:18,four:24,small:15,large:20,house:28,chance:30,yatzy:50};
+function recordGame(){
+  if(!G || !G.over) return;
+  const id = G.id || ((gameId||'local')+'-'+(G.createdAt||0));
+  const st=loadStats(); if(st.games.some(g=>g.id===id)) return;
+  const type=gameType({mode, names:G.names, ai:G.ai});
+  st.games.push({id, d:Date.now(), type, order:G.order||'free',
+    players:G.names.map((n,i)=>{ const t=totals(G.scores[i]); return {n, s:t.total, up:t.up, bonus:t.bonus, rows:{...G.scores[i]}, ai:isAI(i)?G.ai[i]:null, human: mode==='online' ? i===mySeat : !isAI(i)}; })});
+  if(st.games.length>600) st.games=st.games.slice(-600);
+  saveStats(st);
+}
+const oppLabel = p => p.ai ? `${p.n.replace(' 🤖','')} 🤖 ${p.ai==='hard'?'svår':'lätt'}` : p.n;
+function statsFor(who){
+  const st=loadStats(), mine=[];
+  st.games.forEach(g=>{ const i=g.players.findIndex(p=>p.human && p.n===who); if(i>=0) mine.push({g,me:g.players[i],opps:g.players.filter((_,j)=>j!==i)}); });
+  return mine;
+}
+function resultOf(me,opps){ if(!opps.length) return null; const best=Math.max(...opps.map(o=>o.s)); return me.s>best?'W':me.s<best?'L':'T'; }
+function subjects(){
+  const cnt={}; loadStats().games.forEach(g=>g.players.forEach(p=>{ if(p.human) cnt[p.n]=(cnt[p.n]||0)+1; }));
+  return Object.keys(cnt).sort((a,b)=>cnt[b]-cnt[a]);
+}
+function h2hText(){
+  // sammanställning mot motståndaren efter en tvåpersonersmatch
+  if(!G || G.names.length!==2) return '';
+  const meI = mode==='online' ? mySeat : (isAI(0)?1:0); if(meI===null || meI===undefined) return '';
+  const me=G.names[meI], opp=G.names[1-meI];
+  let w=0,l=0,t=0;
+  statsFor(me).forEach(x=>{ if(x.opps.length===1 && x.opps[0].n===opp){ const r=resultOf(x.me,x.opps); r==='W'?w++:r==='L'?l++:t++; } });
+  return `<div class="res-hl">Totalt ${esc(me)} mot ${esc(opp)}: <b>${w}</b> vinster, <b>${l}</b> förluster${t?`, <b>${t}</b> oavgjorda`:''}</div>`;
+}
+function resultHTML(){
+  const P=G.names.length, T=G.scores.map(sc=>totals(sc));
+  const order=G.names.map((_,i)=>i).sort((a,b)=>T[b].total-T[a].total);
+  const max=T[order[0]].total, winners=order.filter(i=>T[i].total===max);
+  const medals=['🥇','🥈','🥉'];
+  let title, icon;
+  if(P===1){ icon=G.record?'🏆':'🌟'; title=G.record?'NYTT REKORD!':'Bra spelat!'; }
+  else if(winners.length>1){ icon='🤝'; title='Oavgjort!'; }
+  else { icon='🏆'; title=`${esc(pname(winners[0]))} vinner!`; }
+  const rows=order.map((i,k)=>{
+    const t=T[i], s=G.scores[i];
+    const best=CATS.map(c=>c[0]).filter(c=>s[c]>0).sort((a,b)=>(s[b]/MAXROW[b])-(s[a]/MAXROW[a]))[0];
+    const zeros=CATS.filter(c=>s[c[0]]===0).length;
+    const rank=T.filter(x=>x.total>t.total).length;
+    return `<div class="res-p ${P>1&&winners.includes(i)&&winners.length===1?'win':''}"><div class="pos">${P===1?'🐬':medals[rank]||'⭐'}</div>
+      <div><div class="nm">${esc(G.names[i])}</div><div class="sub">Övre ${t.up}${t.bonus?' + bonus 50':` (bonus vid ${bonusLimit(G.order)})`} · Nedre ${t.low}${best?` · Bäst: ${NAME[best]} ${s[best]}`:''}${s.yatzy===50?' · YATZY! 🐬':''}${zeros?` · ${zeros} streck`:''}</div></div>
+      <div class="sc">${t.total}</div></div>`;
+  }).join('');
+  let extra='';
+  if(P===1){ const b=bestList(G.order||'free'); extra=`<div class="res-hl">Rekord (${G.order==='down'?'i ordning':'valfritt'}): <b>${b[0]?b[0].s:T[0].total}</b>${b[0]?' – '+esc(b[0].n):''}</div>`; }
+  else extra=h2hText();
+  return `<div style="text-align:center;font-size:52px;line-height:1">${icon}</div>
+    <h3 style="text-align:center;margin:6px 0 2px">${title}</h3>
+    <p style="text-align:center;margin:0">${typeLabel(gameType({mode,names:G.names,ai:G.ai}),G.order)}</p>
+    <div class="res-rank">${rows}</div>${extra}
+    <div class="btns" style="flex-wrap:wrap"><button class="pri" data-act="rematch" style="flex-basis:100%">🐬 Spela igen</button>
+      <button data-act="stats">📊 Statistik</button><button data-act="close">📋 Protokoll</button><button data-act="lobby">🏠 Lobby</button></div>`;
+}
+let resultShownFor=null;
+function finishGame(){
+  // anropas när sista raden är ifylld – på alla enheter
+  recordGame();
+  const id=G && (G.id||G.createdAt);
+  if(resultShownFor===id) return; resultShownFor=id;
+  setTimeout(()=>{ if(G && G.over && view==='game'){ openModal(resultHTML()); } },1600);
+}
+let statsWho=null, armedReset=false;
+function statsHTML(){
+  const subs=subjects();
+  if(!statsWho || !subs.includes(statsWho)) statsWho = subs.includes(lsGet('ry_name')) ? lsGet('ry_name') : subs[0];
+  let h=`<div class="topbar"><button class="iconbtn" data-act="lobby" aria-label="Tillbaka">‹</button><div class="tb-title">📊 <b>Statistik</b></div><button class="iconbtn" data-act="settings" aria-label="Inställningar">⚙️</button></div><div class="stats">`;
+  if(!subs.length) return h+`<div class="note" style="margin-top:20px">Ingen statistik än – spela en match så dyker den upp här! 🐬</div></div>`;
+  if(subs.length>1) h+=`<div class="chips" style="margin:4px 0 6px">${subs.map(n=>`<button data-act="statswho" data-n="${esc(n)}" class="${n===statsWho?'sel':''}">${esc(n)}</button>`).join('')}</div>`;
+  const mine=statsFor(statsWho);
+  const duels=mine.filter(x=>x.opps.length);
+  let W=0,L=0,Tt=0; duels.forEach(x=>{ const r=resultOf(x.me,x.opps); r==='W'?W++:r==='L'?L++:Tt++; });
+  h+=`<h2 class="sec">${esc(statsWho)}</h2><div class="kpis">
+    <div class="kpi"><b>${mine.length}</b><span>matcher</span></div>
+    <div class="kpi"><b style="color:#86efac">${W}</b><span>vinster</span></div>
+    <div class="kpi"><b style="color:#fda4af">${L}</b><span>förluster</span></div>
+    <div class="kpi"><b>${duels.length?Math.round(100*W/duels.length):0}%</b><span>vinst${Tt?` · ${Tt} oavg.`:''}</span></div></div>`;
+  // mot motståndare
+  const opp={}; duels.forEach(x=>{ if(x.opps.length!==1) return; const o=x.opps[0], k=oppLabel(o); const e=opp[k]||(opp[k]={n:0,w:0,l:0,t:0,best:0}); e.n++; const r=resultOf(x.me,x.opps); r==='W'?e.w++:r==='L'?e.l++:e.t++; e.best=Math.max(e.best,x.me.s); });
+  const ok=Object.keys(opp).sort((a,b)=>opp[b].n-opp[a].n);
+  if(ok.length){
+    h+=`<h2 class="sec">Mot motståndare</h2><div class="stbl"><div class="tr h"><div>Motståndare</div><div class="r">V – F${Object.values(opp).some(e=>e.t)?' – O':''}</div><div class="r">Bäst</div></div>`;
+    ok.forEach(k=>{ const e=opp[k]; h+=`<div class="tr"><div class="l">${esc(k)} <span class="m">· ${e.n} st</span></div><div class="r wl"><span class="w">${e.w}</span> – <span class="f">${e.l}</span>${Object.values(opp).some(x=>x.t)?` – <span class="o">${e.t}</span>`:''}</div><div class="r">${e.best}</div></div>`; });
+    h+='</div>';
+  }
+  // per speltyp
+  const tp={}; mine.forEach(x=>{ const k=x.g.type+'|'+x.g.order; const e=tp[k]||(tp[k]={n:0,best:0,sum:0,d:0}); e.n++; e.sum+=x.me.s; if(x.me.s>e.best){ e.best=x.me.s; e.d=x.g.d; } });
+  h+=`<h2 class="sec">Högsta poäng per typ av spel</h2><div class="stbl"><div class="tr h"><div>Speltyp</div><div class="r">Snitt</div><div class="r">Max</div></div>`;
+  Object.keys(tp).sort().forEach(k=>{ const [t,o]=k.split('|'), e=tp[k]; h+=`<div class="tr"><div class="l">${typeLabel(t,o)} <span class="m">· ${e.n} st</span></div><div class="r m">${Math.round(e.sum/e.n)}</div><div class="r">${e.best}</div></div>`; });
+  h+='</div>';
+  // per rad
+  let yz=0; const rb={}; mine.forEach(x=>{ CATS.forEach(([c])=>{ const v=x.me.rows[c]; if(typeof v==='number' && v>(rb[c]||0)) rb[c]=v; }); if(x.me.rows.yatzy===50) yz++; });
+  const bon=mine.filter(x=>x.me.bonus).length;
+  h+=`<h2 class="sec">Högsta poäng per rad</h2><div class="stbl"><div class="tr h"><div>Rad</div><div class="r">Max möjligt</div><div class="r">Ditt bästa</div></div>`;
+  CATS.forEach(([c,n])=>{ const v=rb[c]||0; h+=`<div class="tr"><div class="l">${n}${v===MAXROW[c]?' 🌟':''}</div><div class="r m">${MAXROW[c]}</div><div class="r">${v||'–'}</div></div>`; });
+  h+=`<div class="tr"><div class="l">Antal Yatzy 🐬</div><div class="r m"></div><div class="r">${yz}</div></div>
+      <div class="tr"><div class="l">Antal bonusar ⭐</div><div class="r m"></div><div class="r">${bon}</div></div></div>`;
+  // senaste
+  h+=`<h2 class="sec">Senaste matcherna</h2><div class="stbl">`;
+  mine.slice(-12).reverse().forEach(x=>{
+    const r=resultOf(x.me,x.opps), em=r==='W'?'🏆':r==='L'?'💧':r==='T'?'🤝':'🐬';
+    const dt=new Date(x.g.d), ds=dt.toLocaleDateString('sv-SE',{day:'numeric',month:'short'});
+    h+=`<div class="tr"><div class="l">${em} ${x.opps.length?'mot '+esc(oppLabel(x.opps[0])):'Ensam'} <span class="m">· ${ds}</span></div><div class="r m">${x.opps.length?x.opps[0].s:''}</div><div class="r">${x.me.s}</div></div>`;
+  });
+  h+=`</div><button class="bigbtn alt" data-act="resetstats" style="margin-top:22px;font-size:15px">${armedReset?'Tryck igen för att radera all statistik':'🗑️ Rensa statistik'}</button></div>`;
+  return h;
+}
+function openStats(){ closeModal(); clearTimeout(aiTimer); if(mode!=='online'){ stopNet(); } view='stats'; render(); try{ window.scrollTo(0,0) }catch(e){} }
 
 /* ================= Lokalt ================= */
 function startLocal(names,order,ai){
@@ -978,12 +1128,21 @@ document.addEventListener('input',e=>{
 /* ================= Rendering ================= */
 function render(){
   const app=document.getElementById('app'), dock=document.getElementById('dockRoot');
-  if(view==='lobby'){ app.innerHTML=lobbyHTML(); dock.innerHTML=''; return; }
+  if(view==='lobby'){ app.innerHTML=lobbyHTML(); dock.innerHTML=''; fitDock(); return; }
+  if(view==='stats'){ app.innerHTML=statsHTML(); dock.innerHTML=''; fitDock(); return; }
   if(!G){ app.innerHTML=topbar()+`<div class="loading">${DOLPHIN('ld')}<p>Simmar till spelet <b>${esc(gameId||'')}</b>…</p><p style="font-size:14px">${NETTXT[net]||''}</p><button class="bigbtn alt" data-act="lobby" style="max-width:260px;margin:20px auto">Avbryt</button></div>`; dock.innerHTML=''; return; }
   app.innerHTML = topbar() + playersHTML() + (G.over?overHTML():'') + (!ready()?waitingHTML():'') + sheetHTML();
   dock.innerHTML = G.over ? reactDockHTML() : dockHTML();
   freshCell=null;
+  fitDock();
 }
+// Se till att hela protokollet (även Yatzy och Totalt) alltid går att scrolla fram ovanför tärningspanelen
+function fitDock(){
+  const app=document.getElementById('app'), d=document.querySelector('#dockRoot .dock');
+  const h = d ? d.offsetHeight : 0;
+  app.style.paddingBottom = (d ? h+28 : 40)+'px';
+}
+window.addEventListener('resize', ()=>fitDock());
 function topbar(){
   return `<div class="topbar"><button class="iconbtn" data-act="lobby" aria-label="Tillbaka">‹</button>
     <div class="tb-title">Stjärndelfin <b>Yatzy</b>${mode==='online'&&gameId?` · ${esc(gameId)}`:''}${mode==='online'?`<div class="net ns-${net}">${NETTXT[net]||''}</div>`:''}</div>
@@ -1010,7 +1169,9 @@ function lobbyHTML(){
     if(g && !g.over) h+=`<button class="bigbtn" data-act="resumelocal">↩︎ Fortsätt ${g.names.length===1?'ensamspelet ('+esc(g.names[0])+')':esc(g.names.join(' vs '))}</button>`; }catch(e){} }
   h += `<button class="bigbtn alt" data-act="newai">🤖 Spela mot Blixt (datorn)</button>
     <button class="bigbtn alt" data-act="newsolo">🧑‍🚀 Spela ensam</button>
-    <button class="bigbtn alt" data-act="newlocal">📱 Två på samma mobil</button>`;
+    <button class="bigbtn alt" data-act="newlocal">📱 Två på samma mobil</button>
+    <h2 class="sec">Statistik</h2>
+    <button class="bigbtn alt" data-act="stats">📊 Statistik & rekord</button>`;
   const bf=bestList('free')[0], bd=bestList('down')[0];
   if(bf||bd) h += `<div class="note" style="margin-top:6px">🏆 Rekord ensam: ${bf?`<b>${bf.s}</b> valfritt (${esc(bf.n)})`:''}${bf&&bd?' · ':''}${bd?`<b>${bd.s}</b> i ordning (${esc(bd.n)})`:''}</div>`;
   return h;
@@ -1045,7 +1206,7 @@ function waitingHTML(){
 }
 function overHTML(){
   const T=G.scores.map(sc=>totals(sc).total);
-  const btns=`<button class="bigbtn" data-act="rematch">🐬 Spela igen</button><button class="bigbtn alt" data-act="lobby">Till lobbyn</button>`;
+  const btns=`<button class="bigbtn" data-act="rematch">🐬 Spela igen</button><button class="bigbtn alt" data-act="showresult">📋 Visa resultatet</button><button class="bigbtn alt" data-act="lobby">Till lobbyn</button>`;
   if(G.names.length===1){
     return `<div class="over"><div class="tr">${G.record?'🏆':'🌟'}</div>
       <h2>${G.record?'NYTT REKORD!':'Bra spelat!'}</h2><p>${esc(pname(0))} fick <b>${T[0]}</b> poäng</p>${btns}</div>`;
@@ -1154,6 +1315,10 @@ document.addEventListener('click', e=>{
     case 'resumelocal': resumeLocal(); break;
     case 'close': closeModal(); break;
     case 'rematch': rematch(); break;
+    case 'stats': armedReset=false; if(view==='game' && mode==='online'){ goLobby(); } openStats(); break;
+    case 'statswho': statsWho=b.dataset.n; render(); break;
+    case 'showresult': if(G && G.over) openModal(resultHTML()); break;
+    case 'resetstats': if(!armedReset){ armedReset=true; render(); setTimeout(()=>{ armedReset=false; if(view==='stats') render(); },3500); } else { armedReset=false; saveStats({games:[]}); toast('Statistiken är rensad'); render(); } break;
     case 'create': { const n=val('nm'); if(!n){ toast('Skriv ditt namn 🐬'); return; } lsSet('ry_name',n); closeModal(); hostGame(n, chosenOrder); break; }
     case 'join': { const c=val('cd').toUpperCase(), n=val('nm'); if(c.length!==4){ toast('Koden har fyra tecken 🔭'); return; } if(!n){ toast('Skriv ditt namn 🐬'); return; } lsSet('ry_name',n); closeModal(); joinGame(c,n); break; }
     case 'local': { const a0=val('n0')||'Spelare 1', a1=val('n1')||'Spelare 2'; lsSet('ry_name',a0); closeModal(); startLocal([a0,a1],chosenOrder,null); break; }
