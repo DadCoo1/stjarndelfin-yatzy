@@ -202,6 +202,46 @@ h2.sec{font-size:15px;color:var(--dim);font-weight:500;margin:22px 4px 8px;lette
 .chips button.sel{border-color:var(--aqua);background:rgba(62,230,255,.16);box-shadow:0 0 12px rgba(62,230,255,.35)}
 .setnote{font-size:12px;color:var(--dim);margin-top:6px}
 .sheet{max-height:92vh;overflow:auto}
+#bubbles{position:fixed;inset:0;z-index:3;pointer-events:none;overflow:hidden}
+.pbub{position:absolute;bottom:-90px;border-radius:50%;pointer-events:auto;cursor:pointer;touch-action:manipulation;
+  border:2px solid rgba(190,245,255,.7);background:radial-gradient(circle at 30% 26%,rgba(255,255,255,.75),rgba(140,230,255,.18) 38%,rgba(90,170,255,.08) 70%);
+  box-shadow:inset 0 0 12px rgba(170,240,255,.35),0 0 14px rgba(62,230,255,.25);animation:pbrise linear forwards;display:grid;place-items:center}
+.pbub i{font-style:normal;font-size:55%;filter:drop-shadow(0 0 4px rgba(255,255,255,.6))}
+.pbub.gold{border-color:rgba(255,215,120,.95);background:radial-gradient(circle at 30% 26%,rgba(255,255,255,.85),rgba(255,211,110,.35) 40%,rgba(255,170,60,.12) 72%);box-shadow:0 0 22px rgba(255,211,110,.6)}
+.pbub.pink{border-color:rgba(249,168,212,.9);background:radial-gradient(circle at 30% 26%,rgba(255,255,255,.8),rgba(249,168,212,.3) 40%,rgba(167,139,250,.12) 72%);box-shadow:0 0 18px rgba(249,168,212,.5)}
+@keyframes pbrise{0%{transform:translate(0,0)}25%{transform:translate(var(--sway),-30vh)}50%{transform:translate(calc(var(--sway)*-1),-60vh)}75%{transform:translate(var(--sway),-90vh)}100%{transform:translate(0,-125vh)}}
+.popring{position:fixed;transform:translate(-50%,-50%);border-radius:50%;border:3px solid rgba(200,248,255,.9);animation:pr .42s ease-out forwards;pointer-events:none}
+@keyframes pr{from{transform:translate(-50%,-50%) scale(.8);opacity:1}to{transform:translate(-50%,-50%) scale(1.7);opacity:0}}
+.drop{position:fixed;width:7px;height:7px;margin:-3.5px;border-radius:50%;background:#c9f6ff;box-shadow:0 0 8px #7df9ff;animation:dr .5s ease-out forwards;pointer-events:none}
+@keyframes dr{to{transform:translate(var(--dx),var(--dy)) scale(.3);opacity:0}}
+.popc{min-width:40px;height:40px;padding:0 12px;border-radius:14px;background:var(--glass);border:1px solid var(--line);display:grid;place-items:center;font-weight:600;font-size:15px}
+.popc.bump{animation:bump .3s ease}
+@keyframes bump{50%{transform:scale(1.25);color:var(--aqua)}}
+.sp-tab{position:fixed;right:0;top:42%;z-index:24;width:42px;height:58px;border-radius:18px 0 0 18px;font-size:22px;
+  background:linear-gradient(135deg,rgba(30,215,96,.9),rgba(14,165,233,.9));box-shadow:0 6px 20px rgba(0,0,0,.4),0 0 18px rgba(30,215,96,.35);transition:right .35s ease}
+.sp-tab.open{right:min(360px,88vw)}
+.ingame .sp-tab:not(.open){display:none}
+.iconbtn.sp-on{box-shadow:0 0 14px rgba(30,215,96,.6);border-color:#1ed760}
+.sp-tab.playing{animation:spp 1.6s ease-in-out infinite}
+@keyframes spp{50%{box-shadow:0 0 30px rgba(30,215,96,.8)}}
+.sp-panel{position:fixed;top:0;right:0;bottom:0;z-index:25;width:min(360px,88vw);padding:14px 14px calc(16px + env(safe-area-inset-bottom));overflow-y:auto;
+  background:linear-gradient(170deg,rgba(9,30,78,.97),rgba(20,16,70,.97));border-left:1px solid var(--line);box-shadow:-12px 0 40px rgba(0,0,0,.5);
+  transform:translateX(102%);transition:transform .35s ease;backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px)}
+.sp-panel.open{transform:none}
+.sp-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;font-size:17px}
+.sp-row{display:flex;gap:8px}
+.sp-row input{flex:1;min-width:0;padding:12px;border-radius:14px;border:1px solid var(--line);background:rgba(0,0,0,.28);color:var(--txt);font-size:15px;outline:none}
+.sp-row input:focus{border-color:#1ed760}
+.sp-go{padding:0 16px;border-radius:14px;font-weight:600;background:linear-gradient(135deg,#1ed760,#0ea5e9)}
+.sp-wrap{border-radius:14px;overflow:hidden;min-height:80px}
+.sp-wrap iframe{display:block;border:0;border-radius:14px}
+.sp-empty{padding:28px 10px;text-align:center;color:var(--dim);border:1.5px dashed var(--line);border-radius:14px}
+.sp-recent{display:flex;flex-wrap:wrap;gap:6px}
+.sp-recent button{padding:7px 11px;border-radius:999px;background:rgba(0,0,0,.25);border:1px solid var(--line);font-size:13px}
+.sp-recent button span{color:var(--dim)}
+.sp-recent button.sel{border-color:#1ed760}
+.sp-duck{margin-top:14px;font-size:13px;color:var(--dim)}
+.sp-duck .seg{margin-top:6px}
 .lobbyp{display:flex;flex-wrap:wrap;justify-content:center;gap:6px;margin-top:10px}
 .lobbyp span{padding:6px 12px;border-radius:999px;background:rgba(62,230,255,.14);border:1px solid rgba(125,249,255,.4);font-weight:500}
 .lobbyp span.me{border-color:var(--gold);color:#fff3c9}
@@ -300,6 +340,7 @@ h2.sec{font-size:15px;color:var(--dim);font-weight:500;margin:22px 4px 8px;lette
 <div id="app"></div>
 <div id="dockRoot"></div>
 <div id="toasts"></div>
+<div id="bubbles"></div>
 <div id="party"></div>
 <div id="modal"></div>
 
@@ -443,6 +484,7 @@ function impulse(sec){ const n=Math.floor(AC.sampleRate*sec), b=AC.createBuffer(
   for(let c=0;c<2;c++){ const d=b.getChannelData(c); for(let i=0;i<n;i++) d[i]=(Math.random()*2-1)*Math.pow(1-i/n,2.6); } return b; }
 function startMusic(){
   if(!AC || MUS || !musicOn) return;
+  if(typeof spPlaying!=='undefined' && spPlaying && spDuck) return;
   try{
     const out=AC.createGain(); out.gain.setValueAtTime(0,AC.currentTime); out.gain.linearRampToValueAtTime(.55,AC.currentTime+4); out.connect(AC.destination);
     const rev=AC.createConvolver(); rev.buffer=impulse(4); const wet=AC.createGain(); wet.gain.value=.6; rev.connect(wet).connect(out);
@@ -1088,7 +1130,7 @@ let statsWho=null, armedReset=false;
 function statsHTML(){
   const subs=subjects();
   if(!statsWho || !subs.includes(statsWho)) statsWho = subs.includes(lsGet('ry_name')) ? lsGet('ry_name') : subs[0];
-  let h=`<div class="topbar"><button class="iconbtn" data-act="lobby" aria-label="Tillbaka">‹</button><div class="tb-title">📊 <b>Statistik</b></div><button class="iconbtn" data-act="settings" aria-label="Inställningar">⚙️</button></div><div class="stats">`;
+  let h=`<div class="topbar"><button class="iconbtn" data-act="lobby" aria-label="Tillbaka">‹</button><div class="tb-title">📊 <b>Statistik</b></div><button class="iconbtn" data-act="sptoggle" aria-label="Musik">🎵</button><button class="iconbtn" data-act="settings" aria-label="Inställningar">⚙️</button></div><div class="stats">`;
   if(!subs.length) return h+`<div class="note" style="margin-top:20px">Ingen statistik än – spela en match så dyker den upp här! 🐬</div></div>`;
   if(subs.length>1) h+=`<div class="chips" style="margin:4px 0 6px">${subs.map(n=>`<button data-act="statswho" data-n="${esc(n)}" class="${n===statsWho?'sel':''}">${esc(n)}</button>`).join('')}</div>`;
   const mine=statsFor(statsWho);
@@ -1131,6 +1173,143 @@ function statsHTML(){
   return h;
 }
 function openStats(){ closeModal(); clearTimeout(aiTimer); if(mode!=='online'){ stopNet(); } view='stats'; render(); try{ window.scrollTo(0,0) }catch(e){} }
+
+/* ================= Poppa bubblor i lobbyn ================= */
+let bubT=null, popCount=+(lsGet('ry_pops')||0);
+const BL = () => document.getElementById('bubbles');
+function startBubbles(){
+  if(bubT) return;
+  bubT=setInterval(spawnBubble, 850);
+  for(let i=0;i<6;i++) setTimeout(spawnBubble, i*250);
+}
+function stopBubbles(){ clearInterval(bubT); bubT=null; const l=BL(); if(l) l.innerHTML=''; }
+function spawnBubble(){
+  const L=BL(); if(!L || document.hidden || L.children.length>16) return;
+  const b=document.createElement('div'), sz=30+Math.random()*46, r=Math.random();
+  const kind = r<.05 ? 'gold' : r<.10 ? 'pink' : '';
+  b.className='pbub '+kind; b.style.width=b.style.height=sz+'px';
+  b.style.left=(Math.random()*92)+'%';
+  const dur=7+Math.random()*7; b.style.animationDuration=dur+'s';
+  b.style.setProperty('--sway',(Math.random()*70-35)+'px');
+  if(kind==='gold') b.innerHTML='<i>⭐</i>'; else if(kind==='pink') b.innerHTML='<i>🐬</i>';
+  b.addEventListener('pointerdown',e=>{ e.preventDefault(); e.stopPropagation(); popBubble(b,kind,sz); });
+  L.appendChild(b); setTimeout(()=>b.remove(), dur*1000+200);
+}
+function popBubble(b,kind,sz){
+  unlockAudio();
+  const rc=b.getBoundingClientRect(), cx=rc.left+rc.width/2, cy=rc.top+rc.height/2;
+  b.remove();
+  const party=document.getElementById('party');
+  const ring=document.createElement('div'); ring.className='popring'; ring.style.left=cx+'px'; ring.style.top=cy+'px'; ring.style.width=ring.style.height=sz+'px';
+  party.appendChild(ring); setTimeout(()=>ring.remove(),450);
+  for(let i=0;i<8;i++){
+    const d=document.createElement('div'); d.className='drop'; const a=i/8*Math.PI*2+Math.random()*.4, rr=sz*.6+Math.random()*24;
+    d.style.left=cx+'px'; d.style.top=cy+'px'; d.style.setProperty('--dx',Math.cos(a)*rr+'px'); d.style.setProperty('--dy',Math.sin(a)*rr+'px');
+    party.appendChild(d); setTimeout(()=>d.remove(),550);
+  }
+  const f=900+(76-sz)*22+Math.random()*120;
+  tone(f,.07,'sine',.16,0,f*1.8); tone(f*2.2,.05,'triangle',.05,.02);
+  buzz(8);
+  const pts = kind==='gold' ? 10 : kind==='pink' ? 5 : 1;
+  popCount+=pts; lsSet('ry_pops',String(popCount));
+  if(kind==='gold'){ toast('Guldbubbla! +10 ⭐'); sparkles(10); }
+  else if(kind==='pink') toast('Delfinbubbla! +5 🐬');
+  if(pts===1 && popCount%100===0){ toast(`${popCount} poppade bubblor! 🫧🎉`); sparkles(16); }
+  const c=document.getElementById('popc'); if(c){ c.textContent='🫧 '+popCount; c.classList.remove('bump'); void c.offsetWidth; c.classList.add('bump'); }
+}
+
+/* ================= Spotify i utfällbar sidopanel ================= */
+let spOpen=false, spCtrl=null, spApiState='none', spPlaying=false, spLoadedUri=null;
+let spDuck = lsGet('ry_spduck')!=='0';
+function spGet(){ try{ return JSON.parse(lsGet('ry_sp'))||{uri:null,recent:[]} }catch(e){ return {uri:null,recent:[]} } }
+function spSave(o){ lsSet('ry_sp', JSON.stringify(o)); }
+function spParse(txt){
+  txt=(txt||'').trim();
+  let m=txt.match(/^spotify:(playlist|album|track|artist|episode|show):([A-Za-z0-9]{10,40})$/);
+  if(m) return {type:m[1], id:m[2]};
+  m=txt.match(/open\.spotify\.com\/(?:intl-[a-z-]+\/)?(?:embed\/)?(playlist|album|track|artist|episode|show)\/([A-Za-z0-9]{10,40})/);
+  if(m) return {type:m[1], id:m[2]};
+  return null;
+}
+const spUri = p => `spotify:${p.type}:${p.id}`;
+const SP_TYPE = {playlist:'Spellista',album:'Album',track:'Låt',artist:'Artist',episode:'Avsnitt',show:'Podd'};
+function spPanelHTML(){
+  const st=spGet();
+  return `<div class="sp-head"><b>🎵 Musik från Spotify</b><button class="iconbtn" data-act="spclose" aria-label="Stäng">›</button></div>
+    <div class="sp-row"><input id="splink" placeholder="Klistra in Spotify-länk…" autocomplete="off" spellcheck="false"><button class="sp-go" data-act="spplay">Spela</button></div>
+    <div class="setnote" style="margin:4px 2px 10px">I Spotify: tryck <b>⋯ → Dela → Kopiera länk</b> på en spellista, ett album eller en låt.</div>
+    <div id="spWrap" class="sp-wrap">${st.uri?'':'<div class="sp-empty">🐬 Ingen musik vald än</div>'}<div id="spPlayer"></div></div>
+    ${st.recent.length?`<div class="setnote" style="margin:12px 2px 6px">Senast spelade</div><div class="sp-recent">${st.recent.map((r,i)=>`<button data-act="sprecent" data-i="${i}" class="${r.uri===st.uri?'sel':''}">${SP_TYPE[r.type]||'Spotify'} · <span>${esc(r.id.slice(0,6))}…</span></button>`).join('')}</div>`:''}
+    <div class="sp-duck"><span>Pausa spelets egen musik när Spotify spelar</span><div class="seg"><button data-act="spduck" data-v="1" class="${spDuck?'sel':''}">På</button><button data-act="spduck" data-v="0" class="${spDuck?'':'sel'}">Av</button></div></div>
+    <div class="setnote" style="margin-top:8px">Musiken fortsätter när panelen är infälld. Hela låtar spelas om du är inloggad på Spotify i webbläsaren – annars korta smakprov.</div>`;
+}
+function spBuild(){
+  if(document.getElementById('spPanel')) return;
+  const tab=document.createElement('button'); tab.id='spTab'; tab.className='sp-tab'; tab.setAttribute('data-act','sptoggle'); tab.setAttribute('aria-label','Musik'); tab.innerHTML='🎵';
+  const p=document.createElement('div'); p.id='spPanel'; p.className='sp-panel'; p.innerHTML=spPanelHTML();
+  document.body.append(tab,p);
+}
+function spRefreshChrome(){
+  // uppdatera allt utom själva spelaren (så att musiken inte avbryts)
+  const p=document.getElementById('spPanel'); if(!p) return;
+  const keep=document.getElementById('spWrap');
+  const tmp=document.createElement('div'); tmp.innerHTML=spPanelHTML();
+  const newWrap=tmp.querySelector('#spWrap'); newWrap.replaceWith(keep);
+  const val=(document.getElementById('splink')||{}).value||'';
+  p.innerHTML=''; while(tmp.firstChild) p.appendChild(tmp.firstChild);
+  const e=keep.querySelector('.sp-empty'); if(e && spLoadedUri) e.remove();
+  const inp=document.getElementById('splink'); if(inp) inp.value=val;
+}
+function spToggle(force){
+  spBuild(); spOpen = force===undefined ? !spOpen : force;
+  document.getElementById('spPanel').classList.toggle('open',spOpen);
+  document.getElementById('spTab').classList.toggle('open',spOpen);
+  if(spOpen){ spLoadApi(); const st=spGet(); if(st.uri && !spLoadedUri) spLoad(st.uri,false); }
+}
+function spLoadApi(){
+  if(spApiState!=='none') return;
+  spApiState='loading';
+  window.onSpotifyIframeApiReady = api => { window.__spApi=api; spApiState='ready'; if(window.__spPending){ const u=window.__spPending; window.__spPending=null; spLoad(u.uri,u.play); } };
+  const s=document.createElement('script'); s.src='https://open.spotify.com/embed/iframe-api/v1'; s.async=true;
+  s.onerror=()=>{ spApiState='failed'; };
+  document.head.appendChild(s);
+  setTimeout(()=>{ if(spApiState==='loading'){ spApiState='failed'; if(window.__spPending){ const u=window.__spPending; window.__spPending=null; spLoad(u.uri,u.play); } } },7000);
+}
+function spLoad(uri, play){
+  const wrap=document.getElementById('spWrap'); if(!wrap) return;
+  const empty=wrap.querySelector('.sp-empty'); if(empty) empty.remove();
+  if(spApiState==='loading' || spApiState==='none'){ window.__spPending={uri,play}; spLoadApi(); return; }
+  spLoadedUri=uri;
+  if(spApiState==='ready' && window.__spApi){
+    if(spCtrl){ spCtrl.loadUri(uri); if(play) setTimeout(()=>{ try{ spCtrl.play() }catch(e){} },600); return; }
+    let el=document.getElementById('spPlayer'); if(!el){ el=document.createElement('div'); el.id='spPlayer'; wrap.appendChild(el); }
+    window.__spApi.createController(el,{uri, width:'100%', height:352},c=>{
+      spCtrl=c;
+      c.addListener('playback_update',e=>{ const paused=!e.data || e.data.isPaused; spOnPlayback(!paused); });
+      if(play) c.addListener('ready',()=>{ try{ c.play() }catch(e){} });
+    });
+  } else {
+    // reserv: vanlig inbäddad spelare utan styrning
+    const [,type,id]=uri.split(':');
+    wrap.innerHTML=`<iframe src="https://open.spotify.com/embed/${type}/${id}" width="100%" height="352" frameborder="0" allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture" loading="lazy" style="border-radius:14px"></iframe>`;
+    if(spDuck && MUS){ stopMusic(); }
+  }
+}
+function spOnPlayback(playing){
+  if(playing===spPlaying) return; spPlaying=playing;
+  document.getElementById('spTab')?.classList.toggle('playing',playing);
+  if(!spDuck) return;
+  if(playing) stopMusic(); else if(musicOn) setTimeout(()=>{ if(!spPlaying) startMusic(); },1500);
+}
+function spPlayFromInput(){
+  const p=spParse(val('splink'));
+  if(!p){ toast('Det ser inte ut som en Spotify-länk. Använd Dela → Kopiera länk i Spotify 🎵',4000); return; }
+  unlockAudio();
+  const uri=spUri(p), st=spGet();
+  st.uri=uri; st.recent=[{uri,type:p.type,id:p.id}, ...st.recent.filter(r=>r.uri!==uri)].slice(0,5); spSave(st);
+  document.getElementById('splink').value='';
+  spLoad(uri,true); spRefreshChrome();
+}
 
 /* ================= Lokalt ================= */
 function startLocal(names,order,ai){
@@ -1243,6 +1422,8 @@ document.addEventListener('input',e=>{
 /* ================= Rendering ================= */
 function render(){
   const app=document.getElementById('app'), dock=document.getElementById('dockRoot');
+  view==='lobby' ? startBubbles() : stopBubbles();
+  document.body.classList.toggle('ingame', view!=='lobby');
   if(view==='lobby'){ app.innerHTML=lobbyHTML(); dock.innerHTML=''; fitDock(); return; }
   if(view==='stats'){ app.innerHTML=statsHTML(); dock.innerHTML=''; fitDock(); return; }
   if(!G){ app.innerHTML=topbar()+`<div class="loading">${DOLPHIN('ld')}<p>Simmar till spelet <b>${esc(gameId||'')}</b>…</p><p style="font-size:14px">${netText()}</p><button class="bigbtn alt" data-act="lobby" style="max-width:260px;margin:20px auto">Avbryt</button></div>`; dock.innerHTML=''; return; }
@@ -1261,7 +1442,7 @@ window.addEventListener('resize', ()=>fitDock());
 function topbar(){
   return `<div class="topbar"><button class="iconbtn" data-act="lobby" aria-label="Tillbaka">‹</button>
     <div class="tb-title">Stjärndelfin <b>Yatzy</b>${mode==='online'&&gameId?` · ${esc(gameId)}`:''}${mode==='online'?`<div class="net ns-${net}">${netText()}</div>`:''}</div>
-    <button class="iconbtn" data-act="settings" aria-label="Inställningar">⚙️</button></div>`;
+    <button class="iconbtn ${spPlaying?'sp-on':''}" data-act="sptoggle" aria-label="Musik" style="margin-right:-2px">🎵</button><button class="iconbtn" data-act="settings" aria-label="Inställningar">⚙️</button></div>`;
 }
 function lobbyHTML(){
   let h = topbarLobby() + `<div class="logo">${DOLPHIN('lg','#a5f3ff','#7c6cff').replace('<svg','<svg class="big"')}
@@ -1292,7 +1473,7 @@ function lobbyHTML(){
   return h;
 }
 function topbarLobby(){
-  return `<div class="topbar"><div style="width:40px"></div><div class="tb-title"></div>
+  return `<div class="topbar"><div class="popc" id="popc" title="Poppade bubblor">🫧 ${popCount}</div><div class="tb-title" style="font-size:12px">Poppa bubblorna! 🫧</div>
     <button class="iconbtn" data-act="settings" aria-label="Inställningar">⚙️</button></div>`;
 }
 function playersHTML(){
@@ -1412,6 +1593,11 @@ document.addEventListener('click', e=>{
     case 'pick': pick(b.dataset.k); break;
     case 'help': toast(b.dataset.k==='bonus' ? `Bonus: får du ${bonusLimit(G&&G.order)} eller mer i övre delen blir det +50!${G&&G.order==='down'?' (42 när man spelar i ordning)':''}` : HELP[b.dataset.k],3500); break;
     case 'settings': showSettings(); break;
+    case 'sptoggle': spToggle(); break;
+    case 'spclose': spToggle(false); break;
+    case 'spplay': spPlayFromInput(); break;
+    case 'sprecent': { const st=spGet(), it=st.recent[+b.dataset.i]; if(it){ st.uri=it.uri; spSave(st); spLoad(it.uri,true); spRefreshChrome(); } break; }
+    case 'spduck': spDuck=b.dataset.v==='1'; lsSet('ry_spduck',spDuck?'1':'0'); if(!spDuck && musicOn) startMusic(); else if(spDuck && spPlaying) stopMusic(); spRefreshChrome(); break;
     case 'tray': trayOpen=!trayOpen; render(); break;
     case 'invite': invite(); break;
     case 'emo': sendEmoji(b.dataset.e); break;
@@ -1450,11 +1636,13 @@ document.addEventListener('click', e=>{
   }
 });
 document.addEventListener('keydown', e=>{
+  if(e.key==='Enter' && e.target && e.target.id==='splink'){ spPlayFromInput(); return; }
   if(e.key!=='Enter' || !M().classList.contains('show')) return;
   const pri=M().querySelector('button.pri'); if(pri) pri.click();
 });
 
 /* ================= Start ================= */
+spBuild();
 render();
 (function(){ const h=(location.hash||'').replace('#','').toUpperCase(); if(/^[A-Z0-9]{4}$/.test(h)) showJoin(h); })();
 </script>
