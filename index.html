@@ -1004,8 +1004,9 @@ function resumeNet(){
 }
 
 /* ================= Emojis & puffar ================= */
-const EMOJIS=['❤️','😂','😎','😢','😏'];
-const AI_REPLY={'❤️':'😎','😂':'😂','😎':'😏','😢':'❤️','😏':'😎'};
+const EMOJIS=['❤️','😂','😎','😭','😏'];
+const EMOJI_OK=[...EMOJIS,'😢'];   // tar emot äldre versioners gråtemoji också
+const AI_REPLY={'❤️':'😎','😂':'😂','😎':'😏','😭':'❤️','😏':'😎'};
 let trayOpen=false, lastPoke=0;
 const isAIgame = () => mode==='local' && G && G.ai && G.ai.some(Boolean);
 const botName = () => G && G.ai ? G.names[G.ai.findIndex(Boolean)] : AI_NAME;
@@ -1025,7 +1026,7 @@ function emojiSwarm(e,n=16){
 function onSocial(m){
   if(!G) return;
   const from = Number.isInteger(m.from) ? m.from : -1;
-  if(m.t==='emoji' && EMOJIS.includes(m.e)){ emojiSwarm(m.e); sfx.pop(); if(from>=0) toast(`${pname(from)}: ${m.e}`,1600); }
+  if(m.t==='emoji' && EMOJI_OK.includes(m.e)){ emojiSwarm(m.e); sfx.pop(); if(from>=0) toast(`${pname(from)}: ${m.e}`,1600); }
   if(m.t==='poke' && m.to===mySeat && ready()) gotPoke(from);
 }
 function sendEmoji(e){
