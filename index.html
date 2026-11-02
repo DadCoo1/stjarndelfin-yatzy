@@ -241,6 +241,26 @@ h2.sec{font-size:15px;color:var(--dim);font-weight:500;margin:22px 4px 8px;lette
 .sp-recent button span{color:var(--dim)}
 .sp-recent button.sel{border-color:#1ed760}
 .sp-duck{margin-top:14px;font-size:13px;color:var(--dim)}
+.sp-login{width:100%;padding:14px;border-radius:999px;font-size:17px;font-weight:700;background:#1ed760;color:#06210f;box-shadow:0 6px 20px rgba(30,215,96,.35)}
+.sp-acct{display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:14px}
+.sp-acct button{padding:6px 12px;border-radius:999px;border:1px solid var(--line);font-size:13px;background:rgba(0,0,0,.2)}
+.sp-nowbox{margin-top:10px;padding:12px;border-radius:18px;background:rgba(0,0,0,.25);border:1px solid rgba(30,215,96,.35)}
+.sp-now{display:flex;gap:12px;align-items:center}
+.sp-now img,.sp-noimg{width:64px;height:64px;border-radius:10px;object-fit:cover;flex:none;background:rgba(255,255,255,.08);display:grid;place-items:center;font-size:26px}
+.sp-meta{min-width:0;display:flex;flex-direction:column}
+.sp-meta b,.sp-meta span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sp-meta span{font-size:13px;color:#cdeeff}
+.sp-meta small{font-size:11px;color:#86efac;margin-top:2px}
+.sp-ctl{display:flex;justify-content:center;align-items:center;gap:10px;margin-top:10px}
+.sp-ctl button{width:44px;height:44px;border-radius:50%;background:rgba(255,255,255,.08);font-size:18px}
+.sp-ctl button.big{width:56px;height:56px;font-size:22px;background:#1ed760}
+.sp-ctl button.on{box-shadow:0 0 0 2px #1ed760}
+.sp-vol{width:100%;margin-top:10px;accent-color:#1ed760}
+.sp-lists{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.sp-lists button{display:flex;flex-direction:column;gap:6px;padding:8px;border-radius:14px;background:rgba(0,0,0,.22);border:1px solid var(--line);text-align:left}
+.sp-lists button:active{transform:scale(.96)}
+.sp-lists img,.sp-lists .sp-noimg{width:100%;height:auto;aspect-ratio:1;border-radius:10px;object-fit:cover}
+.sp-lists span{font-size:13px;font-weight:500;line-height:1.2;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
 .sp-duck .seg{margin-top:6px}
 .lobbyp{display:flex;flex-wrap:wrap;justify-content:center;gap:6px;margin-top:10px}
 .lobbyp span{padding:6px 12px;border-radius:999px;background:rgba(62,230,255,.14);border:1px solid rgba(125,249,255,.4);font-weight:500}
@@ -1235,8 +1255,13 @@ const spUri = p => `spotify:${p.type}:${p.id}`;
 const SP_TYPE = {playlist:'Spellista',album:'Album',track:'Låt',artist:'Artist',episode:'Avsnitt',show:'Podd'};
 function spPanelHTML(){
   const st=spGet();
-  return `<div class="sp-head"><b>🎵 Musik från Spotify</b><button class="iconbtn" data-act="spclose" aria-label="Stäng">›</button></div>
-    <div class="sp-row"><input id="splink" placeholder="Klistra in Spotify-länk…" autocomplete="off" spellcheck="false"><button class="sp-go" data-act="spplay">Spela</button></div>
+  const head=`<div class="sp-head"><b>🎵 Musik från Spotify</b><button class="iconbtn" data-act="spclose" aria-label="Stäng">›</button></div>`;
+  if(spAuth()) return head + spLoggedHTML() + `<div class="sp-duck"><span>Pausa spelets egen musik när Spotify spelar</span><div class="seg"><button data-act="spduck" data-v="1" class="${spDuck?'sel':''}">På</button><button data-act="spduck" data-v="0" class="${spDuck?'':'sel'}">Av</button></div></div>`;
+  return head + `<button class="sp-login" data-act="splogin">Logga in med Spotify</button>
+    <div class="setnote" style="margin:6px 2px 14px">Med Premium får du hela låtar och dina egna spellistor direkt här. Logga gärna in från lobbyn – du lämnar spelet en kort stund.</div>
+    <div class="setnote" style="margin:0 2px 8px"><b>Eller</b> klistra in en länk (ger ofta bara smakprov):</div>
+    <div class="sp-row">
+<input id="splink" placeholder="Klistra in Spotify-länk…" autocomplete="off" spellcheck="false"><button class="sp-go" data-act="spplay">Spela</button></div>
     <div class="setnote" style="margin:4px 2px 10px">I Spotify: tryck <b>⋯ → Dela → Kopiera länk</b> på en spellista, ett album eller en låt.</div>
     <div id="spWrap" class="sp-wrap">${st.uri?'':'<div class="sp-empty">🐬 Ingen musik vald än</div>'}<div id="spPlayer"></div></div>
     ${st.recent.length?`<div class="setnote" style="margin:12px 2px 6px">Senast spelade</div><div class="sp-recent">${st.recent.map((r,i)=>`<button data-act="sprecent" data-i="${i}" class="${r.uri===st.uri?'sel':''}">${SP_TYPE[r.type]||'Spotify'} · <span>${esc(r.id.slice(0,6))}…</span></button>`).join('')}</div>`:''}
@@ -1254,17 +1279,17 @@ function spRefreshChrome(){
   const p=document.getElementById('spPanel'); if(!p) return;
   const keep=document.getElementById('spWrap');
   const tmp=document.createElement('div'); tmp.innerHTML=spPanelHTML();
-  const newWrap=tmp.querySelector('#spWrap'); newWrap.replaceWith(keep);
+  const newWrap=tmp.querySelector('#spWrap'); if(newWrap && keep) newWrap.replaceWith(keep);
   const val=(document.getElementById('splink')||{}).value||'';
   p.innerHTML=''; while(tmp.firstChild) p.appendChild(tmp.firstChild);
-  const e=keep.querySelector('.sp-empty'); if(e && spLoadedUri) e.remove();
+  const e=keep && keep.querySelector('.sp-empty'); if(e && spLoadedUri) e.remove();
   const inp=document.getElementById('splink'); if(inp) inp.value=val;
 }
 function spToggle(force){
   spBuild(); spOpen = force===undefined ? !spOpen : force;
   document.getElementById('spPanel').classList.toggle('open',spOpen);
   document.getElementById('spTab').classList.toggle('open',spOpen);
-  if(spOpen){ spLoadApi(); const st=spGet(); if(st.uri && !spLoadedUri) spLoad(st.uri,false); }
+  if(spOpen){ if(spAuth()){ spInit(); } else { spLoadApi(); const st=spGet(); if(st.uri && !spLoadedUri) spLoad(st.uri,false); } }
 }
 function spLoadApi(){
   if(spApiState!=='none') return;
@@ -1309,6 +1334,175 @@ function spPlayFromInput(){
   st.uri=uri; st.recent=[{uri,type:p.type,id:p.id}, ...st.recent.filter(r=>r.uri!==uri)].slice(0,5); spSave(st);
   document.getElementById('splink').value='';
   spLoad(uri,true); spRefreshChrome();
+}
+
+/* ================= Spotify-inloggning (Premium): egna spellistor, hela låtar ================= */
+const SP_CLIENT='77ed1b04aa1b451bb2e3c5ec90456bc2';
+const SP_REDIRECT=location.origin+location.pathname.replace(/index\.html$/,'');
+const SP_SCOPES='streaming user-read-email user-read-private user-read-playback-state user-modify-playback-state user-read-currently-playing playlist-read-private playlist-read-collaborative';
+let spUser=null, spLists=null, spListsErr=null, sdkPlayer=null, sdkDevice=null, sdkState='none', spMode=lsGet('ry_spmode')||'here', spNow=null, spPollT=null, spTokP=null;
+const spAuth = () => { try{ const a=JSON.parse(lsGet('ry_spauth')); return a&&a.access?a:null }catch(e){ return null } };
+function spRand(n){ const a=new Uint8Array(n); crypto.getRandomValues(a); return Array.from(a,x=>'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789'[x%62]).join(''); }
+function b64url(buf){ return btoa(String.fromCharCode(...new Uint8Array(buf))).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,''); }
+async function spLogin(){
+  if(!window.crypto || !crypto.subtle){ toast('Inloggning kräver att spelet öppnas via https-adressen 🔒',4000); return; }
+  const verifier=spRand(64), state=spRand(16);
+  const challenge=b64url(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(verifier)));
+  lsSet('ry_sp_pkce', JSON.stringify({verifier,state}));
+  const p=new URLSearchParams({client_id:SP_CLIENT, response_type:'code', redirect_uri:SP_REDIRECT, code_challenge_method:'S256', code_challenge:challenge, state, scope:SP_SCOPES});
+  location.href='https://accounts.spotify.com/authorize?'+p.toString();
+}
+async function spTokenReq(params){
+  const r=await fetch('https://accounts.spotify.com/api/token',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:new URLSearchParams(params)});
+  const j=await r.json().catch(()=>({}));
+  if(!r.ok || !j.access_token) throw new Error(j.error_description||j.error||('token '+r.status));
+  const old=spAuth()||{};
+  const a={access:j.access_token, refresh:j.refresh_token||old.refresh, exp:Date.now()+(j.expires_in||3600)*1000};
+  lsSet('ry_spauth', JSON.stringify(a)); return a;
+}
+async function spHandleRedirect(){
+  const q=new URLSearchParams(location.search);
+  if(!q.has('code') && !q.has('error')) return;
+  const clean=()=>{ try{ history.replaceState(null,'',SP_REDIRECT+location.hash) }catch(e){} };
+  if(q.get('error')){ clean(); toast('Spotify-inloggningen avbröts',3000); return; }
+  let pk=null; try{ pk=JSON.parse(lsGet('ry_sp_pkce')) }catch(e){}
+  if(!pk || pk.state!==q.get('state')){ clean(); toast('Inloggningen kunde inte verifieras – försök igen',3500); return; }
+  try{
+    await spTokenReq({grant_type:'authorization_code', code:q.get('code'), redirect_uri:SP_REDIRECT, client_id:SP_CLIENT, code_verifier:pk.verifier});
+    lsSet('ry_sp_pkce',''); clean(); toast('Inloggad på Spotify! 🎵',3000);
+    setTimeout(()=>{ spToggle(true); },400);
+  }catch(e){ clean(); toast('Spotify-inloggningen misslyckades: '+e.message,5000); }
+}
+async function spToken(){
+  const a=spAuth(); if(!a) throw new Error('utloggad');
+  if(Date.now() < a.exp-60000) return a.access;
+  if(!spTokP) spTokP=spTokenReq({grant_type:'refresh_token', refresh_token:a.refresh, client_id:SP_CLIENT}).finally(()=>{ spTokP=null; });
+  try{ return (await spTokP).access; }catch(e){ spLogout(true); throw e; }
+}
+async function spApi(path, opt={}, retry=true){
+  const tok=await spToken();
+  const r=await fetch('https://api.spotify.com/v1'+path,{...opt, headers:{'Authorization':'Bearer '+tok,'Content-Type':'application/json',...(opt.headers||{})}});
+  if(r.status===401 && retry){ const a=spAuth(); if(a){ a.exp=0; lsSet('ry_spauth',JSON.stringify(a)); } return spApi(path,opt,false); }
+  if(r.status===204 || r.status===202) return null;
+  const txt=await r.text(); let j=null; try{ j=txt?JSON.parse(txt):null }catch(e){}
+  if(!r.ok){ const err=new Error((j&&j.error&&(j.error.message||j.error))||('HTTP '+r.status)); err.status=r.status; err.reason=j&&j.error&&j.error.reason; throw err; }
+  return j;
+}
+function spLogout(silent){
+  lsSet('ry_spauth',''); spUser=null; spLists=null; spNow=null;
+  try{ sdkPlayer && sdkPlayer.disconnect() }catch(e){} sdkPlayer=null; sdkDevice=null; sdkState='none';
+  clearInterval(spPollT); spOnPlayback(false);
+  if(!silent) toast('Utloggad från Spotify'); spRefreshChrome();
+}
+async function spInit(){
+  if(!spAuth()) return;
+  try{
+    if(!spUser) spUser=await spApi('/me');
+    if(!spLists){ const j=await spApi('/me/playlists?limit=50'); spLists=(j&&j.items||[]).filter(Boolean); }
+    spListsErr=null;
+  }catch(e){ spListsErr=e.status===403 ? 'Kontot är inte godkänt i Spotify-appens User Management.' : 'Kunde inte hämta dina spellistor ('+e.message+')'; }
+  spRefreshChrome(); spLoadSdk(); spPoll();
+}
+function spLoadSdk(){
+  if(sdkState!=='none' || spMode!=='here') return;
+  sdkState='loading';
+  window.onSpotifyWebPlaybackSDKReady=()=>{
+    try{
+      sdkPlayer=new Spotify.Player({name:'Stjärndelfin Yatzy 🐬', getOAuthToken:cb=>{ spToken().then(cb).catch(()=>{}); }, volume:+(lsGet('ry_spvol')||0.7)});
+      sdkPlayer.addListener('ready',({device_id})=>{ sdkDevice=device_id; sdkState='ready'; spRefreshChrome(); });
+      sdkPlayer.addListener('not_ready',()=>{ sdkDevice=null; });
+      sdkPlayer.addListener('initialization_error',()=>{ sdkState='failed'; spMode='app'; spRefreshChrome(); });
+      sdkPlayer.addListener('authentication_error',()=>{ sdkState='failed'; });
+      sdkPlayer.addListener('account_error',()=>{ sdkState='failed'; spMode='app'; toast('Uppspelning i spelet kräver Spotify Premium – vi styr Spotify-appen i stället',4500); spRefreshChrome(); });
+      sdkPlayer.addListener('player_state_changed',st=>{
+        if(!st){ return; }
+        const t=st.track_window && st.track_window.current_track;
+        spNow={name:t&&t.name, artist:t&&t.artists.map(a=>a.name).join(', '), img:t&&t.album&&t.album.images&&t.album.images[0]&&t.album.images[0].url, paused:st.paused, here:true, shuffle:st.shuffle};
+        spOnPlayback(!st.paused); spRenderNow();
+      });
+      sdkPlayer.connect().then(ok=>{ if(!ok){ sdkState='failed'; spMode='app'; spRefreshChrome(); } });
+    }catch(e){ sdkState='failed'; spMode='app'; spRefreshChrome(); }
+  };
+  const s=document.createElement('script'); s.src='https://sdk.scdn.co/spotify-player.js'; s.async=true;
+  s.onerror=()=>{ sdkState='failed'; spMode='app'; spRefreshChrome(); };
+  document.head.appendChild(s);
+  setTimeout(()=>{ if(sdkState==='loading'){ sdkState='failed'; spMode='app'; spRefreshChrome(); } },15000);
+}
+async function spAppDevice(){
+  const j=await spApi('/me/player/devices');
+  const ds=(j&&j.devices||[]).filter(d=>d.id && d.id!==sdkDevice && !d.is_restricted);
+  return ds.find(d=>d.is_active) || ds.find(d=>d.type==='Smartphone') || ds[0] || null;
+}
+async function spTarget(){
+  if(spMode==='here' && sdkDevice) return {id:sdkDevice, here:true};
+  const d=await spAppDevice(); return d ? {id:d.id, here:false, name:d.name} : null;
+}
+async function spPlayCtx(uri){
+  unlockAudio();
+  if(sdkPlayer){ try{ sdkPlayer.activateElement() }catch(e){} }
+  try{
+    const t=await spTarget();
+    if(!t){ toast(spMode==='here' ? 'Spelaren startar fortfarande – vänta några sekunder och försök igen ⏳' : 'Öppna Spotify-appen en gång så att den syns, och försök igen 📱',4500); return; }
+    await spApi(`/me/player/play?device_id=${t.id}`,{method:'PUT', body:JSON.stringify({context_uri:uri})});
+    if(!t.here) toast(`Spelar i ${t.name} 🎵`);
+    setTimeout(spPoll,1200);
+  }catch(e){ spErr(e); }
+}
+async function spCtl(action){
+  unlockAudio();
+  if(spMode==='here' && sdkPlayer && sdkDevice && spNow && spNow.here){
+    try{ if(action==='toggle') await sdkPlayer.togglePlay(); else if(action==='next') await sdkPlayer.nextTrack(); else if(action==='prev') await sdkPlayer.previousTrack(); }catch(e){}
+    return;
+  }
+  try{
+    const st=await spApi('/me/player'); const dev=st&&st.device&&st.device.id;
+    if(!dev){ toast('Inget spelar just nu – välj en spellista 🎵'); return; }
+    if(action==='toggle') await spApi(`/me/player/${st.is_playing?'pause':'play'}?device_id=${dev}`,{method:'PUT'});
+    if(action==='next') await spApi(`/me/player/next?device_id=${dev}`,{method:'POST'});
+    if(action==='prev') await spApi(`/me/player/previous?device_id=${dev}`,{method:'POST'});
+    if(action==='shuffle') await spApi(`/me/player/shuffle?state=${!(st.shuffle_state)}&device_id=${dev}`,{method:'PUT'});
+    setTimeout(spPoll,700);
+  }catch(e){ spErr(e); }
+}
+function spErr(e){
+  if(e.status===403) toast('Spotify nekade – kontrollera att kontot har Premium 🎵',4000);
+  else if(e.status===404) toast('Hittar ingen aktiv spelare – öppna Spotify-appen eller vänta på spelaren ⏳',4500);
+  else toast('Spotify: '+e.message,4000);
+}
+async function spPoll(){
+  clearInterval(spPollT);
+  if(!spAuth()) return;
+  const tick=async()=>{
+    if(document.hidden) return;
+    if(spNow && spNow.here && sdkDevice) return;   // SDK skickar egna händelser
+    try{
+      const st=await spApi('/me/player');
+      if(st && st.item){ const t=st.item; spNow={name:t.name, artist:(t.artists||[]).map(a=>a.name).join(', '), img:t.album&&t.album.images&&t.album.images[0]&&t.album.images[0].url, paused:!st.is_playing, here:st.device&&st.device.id===sdkDevice, device:st.device&&st.device.name, shuffle:st.shuffle_state}; spOnPlayback(st.is_playing && !(st.device&&st.device.id===sdkDevice) ? true : st.is_playing); }
+      else if(spNow && !spNow.here){ spNow=null; spOnPlayback(false); }
+      spRenderNow();
+    }catch(e){}
+  };
+  tick(); spPollT=setInterval(tick, 5000);
+}
+function spNowHTML(){
+  if(!spNow || !spNow.name) return `<div class="sp-empty" style="padding:16px 10px">🐬 Välj en spellista nedan</div>`;
+  return `<div class="sp-now">${spNow.img?`<img src="${esc(spNow.img)}" alt="">`:'<div class="sp-noimg">🎵</div>'}
+      <div class="sp-meta"><b>${esc(spNow.name)}</b><span>${esc(spNow.artist||'')}</span><small>${spNow.here?'Spelar här i spelet':'Spelar i '+esc(spNow.device||'Spotify-appen')}</small></div></div>
+    <div class="sp-ctl"><button data-act="spctl" data-a="shuffle" class="${spNow.shuffle?'on':''}" aria-label="Blanda">🔀</button><button data-act="spctl" data-a="prev" aria-label="Föregående">⏮</button><button data-act="spctl" data-a="toggle" class="big" aria-label="Spela/pausa">${spNow.paused?'▶️':'⏸'}</button><button data-act="spctl" data-a="next" aria-label="Nästa">⏭</button></div>
+    ${spNow.here?`<input type="range" class="sp-vol" min="0" max="1" step="0.05" value="${esc(lsGet('ry_spvol')||0.7)}" aria-label="Volym">`:''}`;
+}
+function spRenderNow(){ const el=document.getElementById('spNow'); if(el) el.innerHTML=spNowHTML(); document.getElementById('spTab')?.classList.toggle('playing',spPlaying); }
+function spLoggedHTML(){
+  const name=spUser ? (spUser.display_name||spUser.id) : '…';
+  const prem=spUser && spUser.product && spUser.product!=='premium';
+  const modeTxt = sdkState==='failed' ? '' : `<div class="seg" style="margin:10px 0 4px"><button data-act="spmode" data-m="here" class="${spMode==='here'?'sel':''}">📱 Spela i spelet</button><button data-act="spmode" data-m="app" class="${spMode==='app'?'sel':''}">🟢 I Spotify-appen</button></div>`;
+  return `<div class="sp-acct"><span>👤 ${esc(name)}</span><button data-act="splogout">Logga ut</button></div>
+    ${prem?'<div class="setnote" style="color:#fda4af">Kontot verkar inte ha Premium – då går bara att styra Spotify-appen.</div>':''}
+    ${modeTxt}${spMode==='here' && sdkState==='loading'?'<div class="setnote">Startar spelaren…</div>':''}${sdkState==='failed'?'<div class="setnote">Den här webbläsaren kan inte spela Spotify själv – musiken spelas i Spotify-appen och styrs härifrån.</div>':''}
+    <div id="spNow" class="sp-nowbox">${spNowHTML()}</div>
+    <div class="setnote" style="margin:14px 2px 6px">Dina spellistor</div>
+    ${spListsErr?`<div class="setnote" style="color:#fda4af">${esc(spListsErr)}</div>`:''}
+    <div class="sp-lists">${spLists ? (spLists.length ? spLists.map((p,i)=>`<button data-act="splist" data-i="${i}">${p.images&&p.images[0]?`<img src="${esc(p.images[p.images.length>1?1:0].url)}" alt="" loading="lazy">`:'<div class="sp-noimg">🎵</div>'}<span>${esc(p.name)}</span></button>`).join('') : '<div class="setnote">Inga spellistor hittades.</div>') : '<div class="setnote">Hämtar…</div>'}</div>`;
 }
 
 /* ================= Lokalt ================= */
@@ -1416,6 +1610,7 @@ function segHTML(){
 }
 const val = id => (document.getElementById(id)?.value||'').trim();
 document.addEventListener('input',e=>{
+  if(e.target.classList && e.target.classList.contains('sp-vol')){ const v=+e.target.value; lsSet('ry_spvol',String(v)); try{ sdkPlayer && sdkPlayer.setVolume(v) }catch(_){} return; }
   if(e.target.id==='cd'){ const v=e.target.value.toUpperCase().replace(/[^A-Z0-9]/g,'').slice(0,4); if(v!==e.target.value) e.target.value=v; }
 });
 
@@ -1594,6 +1789,11 @@ document.addEventListener('click', e=>{
     case 'help': toast(b.dataset.k==='bonus' ? `Bonus: får du ${bonusLimit(G&&G.order)} eller mer i övre delen blir det +50!${G&&G.order==='down'?' (42 när man spelar i ordning)':''}` : HELP[b.dataset.k],3500); break;
     case 'settings': showSettings(); break;
     case 'sptoggle': spToggle(); break;
+    case 'splogin': spLogin(); break;
+    case 'splogout': spLogout(); break;
+    case 'splist': { const pl=spLists&&spLists[+b.dataset.i]; if(pl) spPlayCtx(pl.uri); break; }
+    case 'spctl': spCtl(b.dataset.a); break;
+    case 'spmode': spMode=b.dataset.m; lsSet('ry_spmode',spMode); if(spMode==='here') spLoadSdk(); spRefreshChrome(); break;
     case 'spclose': spToggle(false); break;
     case 'spplay': spPlayFromInput(); break;
     case 'sprecent': { const st=spGet(), it=st.recent[+b.dataset.i]; if(it){ st.uri=it.uri; spSave(st); spLoad(it.uri,true); spRefreshChrome(); } break; }
@@ -1644,6 +1844,9 @@ document.addEventListener('keydown', e=>{
 /* ================= Start ================= */
 spBuild();
 render();
+spHandleRedirect();
+window.addEventListener('storage',e=>{ if(e.key==='ry_spauth'){ spUser=null; spLists=null; if(spOpen) spInit(); spRefreshChrome(); } });
+document.addEventListener('visibilitychange',()=>{ if(document.visibilityState==='visible' && spAuth() && spOpen && !spUser) spInit(); });
 (function(){ const h=(location.hash||'').replace('#','').toUpperCase(); if(/^[A-Z0-9]{4}$/.test(h)) showJoin(h); })();
 </script>
 </body>
