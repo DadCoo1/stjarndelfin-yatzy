@@ -342,6 +342,118 @@ h2.sec{font-size:15px;color:var(--dim);font-weight:500;margin:22px 4px 8px;lette
 .waiting .code{font-size:30px;font-weight:700;letter-spacing:6px;color:var(--aqua)}
 .loading{text-align:center;padding:60px 0;color:var(--dim)}
 .loading svg{width:110px;animation:bob 1.6s ease-in-out infinite;opacity:.8}
+/* =====================================================================
+   DATORLAYOUT – slår bara på i breda fönster (body.desk)
+   ===================================================================== */
+:focus-visible{outline:2px solid var(--aqua);outline-offset:3px;border-radius:12px}
+body.desk #app{max-width:1280px;padding:26px 40px 48px}
+body.desk .topbar{margin-bottom:22px}
+body.desk .tb-title{font-size:18px}
+body.desk .iconbtn{width:46px;height:46px;border-radius:16px;font-size:20px}
+body.desk .planet{width:300px;height:300px;top:-90px;right:-80px}
+body.desk .ring{width:480px;height:96px;top:40px;right:-170px}
+body.desk .moon{width:40px;height:40px;top:200px;left:60px}
+body.desk .swimmer{width:190px}
+
+/* Spelvy: protokoll till vänster, kontrollpanel till höger */
+.desk-grid{display:grid;grid-template-columns:minmax(560px,1fr) 460px;gap:32px;align-items:start}
+.desk-left{min-width:0}
+.desk-right{position:sticky;top:20px;max-height:calc(100vh - 40px);overflow-y:auto;overflow-x:hidden;
+  padding:20px;border-radius:30px;background:linear-gradient(165deg,rgba(14,40,100,.62),rgba(22,14,70,.55));
+  border:1px solid rgba(140,210,255,.22);box-shadow:0 24px 60px rgba(0,0,0,.45),inset 0 1px 0 rgba(255,255,255,.07);
+  backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);scrollbar-width:thin}
+.desk-right .players{margin-bottom:16px}
+.desk-right .pl{padding:12px 16px}
+.desk-right .pt{font-size:36px}
+.desk-right .players.many .pt{font-size:28px}
+.desk-right .pn{font-size:16px}
+.desk-right .over,.desk-right .waiting{margin-bottom:16px}
+.desk-right .dock{position:static;padding:0;background:none}
+.desk-right .dock-in{max-width:none}
+.desk-right .status{font-size:17px;margin:4px 0 16px;min-height:26px}
+.desk-right .dice{gap:12px;margin-bottom:20px}
+.desk-right .die{width:74px;border-radius:20px}
+.desk-right .die em{bottom:-24px;font-size:16px}
+.desk-right .rollbtn{height:66px;font-size:23px;border-radius:24px}
+.desk-right .reactbtn{width:66px;height:66px;border-radius:22px}
+.desk-right .tray{margin-bottom:14px}
+.kbhint{display:flex;flex-wrap:wrap;justify-content:center;gap:6px 12px;margin-top:16px;font-size:12px;color:var(--dim)}
+.kbhint span{white-space:nowrap}
+kbd{display:inline-block;min-width:22px;padding:1px 6px;margin-right:4px;border-radius:7px;font:600 11px/18px 'Fredoka',system-ui,sans-serif;text-align:center;
+  color:#dff6ff;background:linear-gradient(180deg,rgba(255,255,255,.14),rgba(255,255,255,.05));border:1px solid rgba(180,230,255,.3);box-shadow:0 2px 0 rgba(0,0,0,.35)}
+
+/* Större, luftigare protokoll */
+body.desk .desk-left .card{border-radius:26px;box-shadow:0 24px 60px rgba(0,0,0,.35)}
+body.desk .desk-left .row{min-height:46px;grid-template-columns:1fr repeat(var(--n,2),var(--cwd,110px))}
+body.desk .desk-left .card.many .row{grid-template-columns:1fr repeat(var(--n,2),var(--cwd,92px))}
+body.desk .desk-left .row .cn{font-size:18px;padding:0 18px;gap:12px}
+body.desk .desk-left .row .cn .mini{width:20px;height:20px}
+body.desk .desk-left .row .c{font-size:20px}
+body.desk .desk-left .row.head{min-height:44px;font-size:15px}
+body.desk .desk-left .row.head div{font-size:15px}
+body.desk .desk-left .row.sum{min-height:40px}
+body.desk .desk-left .row.sum .cn,body.desk .desk-left .row.sum .c{font-size:16px}
+body.desk .desk-left .row.total{min-height:58px}
+body.desk .desk-left .row.total .cn{font-size:20px}
+body.desk .desk-left .row.total .c{font-size:26px}
+body.desk .desk-left .pv{width:calc(var(--cwd,110px) - 22px);height:34px;font-size:18px;border-radius:13px}
+body.desk .desk-left .card.many .pv{width:calc(var(--cwd,92px) - 16px)}
+body.desk .desk-left .bon{font-size:13px}
+.pv.kb{outline:3px solid #fff;outline-offset:2px;box-shadow:0 0 22px rgba(255,255,255,.55)!important}
+
+/* Lobby: hjälte till vänster, meny till höger */
+body.desk .lobby{display:grid;grid-template-columns:1.05fr 1fr;gap:64px;align-items:center;min-height:calc(100vh - 150px)}
+body.desk .lob-hero{text-align:center}
+body.desk .lob-hero .logo{margin:0}
+body.desk .lob-hero .logo svg.big{width:300px}
+body.desk .lob-hero .logo h1{font-size:76px}
+body.desk .lob-hero .logo h1 small{font-size:30px;letter-spacing:12px;margin-top:8px}
+body.desk .lob-hero .tag{font-size:20px;margin-top:14px}
+body.desk .lob-hero .getwell{font-size:18px;padding:10px 22px;margin-top:18px}
+body.desk .lob-menu{padding:26px 28px;border-radius:30px;background:linear-gradient(165deg,rgba(14,40,100,.55),rgba(22,14,70,.5));
+  border:1px solid rgba(140,210,255,.2);box-shadow:0 24px 60px rgba(0,0,0,.4);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px)}
+body.desk .lob-menu h2.sec:first-child{margin-top:4px}
+body.desk .lob-menu .bigbtn{padding:15px 18px;font-size:18px}
+body.desk .lob-menu .duo{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+body.desk .lob-menu .duo .bigbtn{margin:6px 0}
+
+/* Statistik i två spalter */
+body.desk .stats{max-width:1100px;margin:0 auto}
+body.desk .stats .kpis{grid-template-columns:repeat(4,1fr);gap:14px}
+body.desk .stats .kpi{padding:18px 8px}
+body.desk .stats .kpi b{font-size:34px}
+body.desk .stat-cols{columns:2;column-gap:32px}
+body.desk .stat-cols section{break-inside:avoid;display:inline-block;width:100%;margin-bottom:6px}
+
+/* Modaler lite större */
+body.desk .sheet{max-width:500px;padding:28px}
+
+/* Spotify-panelen trycker undan innehållet på riktigt breda skärmar */
+@media (min-width:1500px){
+  body.desk.sp-wide #app{margin-right:400px;transition:margin .35s ease}
+  body.desk.sp-wide .sp-tab.open{display:none}
+}
+body.desk .sp-panel{width:380px}
+body.desk .sp-tab.open{right:380px}
+
+/* Mus: fina hovereffekter */
+@media (hover:hover) and (pointer:fine){
+  .bigbtn,.rollbtn,.iconbtn,.reactbtn,.pv,.die,.gcard,.chips button,.seg button,.sp-lists button,.emo,.tray .poke{transition:transform .15s ease,filter .15s ease,box-shadow .2s ease,background .2s ease}
+  .bigbtn:hover{filter:brightness(1.12);transform:translateY(-2px)}
+  .bigbtn.alt:hover{background:rgba(110,180,255,.24)}
+  .iconbtn:hover,.reactbtn:hover{background:rgba(110,180,255,.24);transform:translateY(-1px)}
+  .rollbtn:not(:disabled):hover{filter:brightness(1.1) saturate(1.1);transform:translateY(-2px)}
+  .die:not(.idle):hover{transform:translateY(-6px) rotate(-3deg);cursor:pointer}
+  .die.held:hover{transform:translateY(-12px) rotate(2deg)}
+  .pv:hover{transform:scale(1.08);background:rgba(62,230,255,.25);border-style:solid}
+  .row:not(.head):not(.sum):not(.total):hover{background:rgba(62,230,255,.05)}
+  .row .cn:hover{color:var(--aqua)}
+  .chips button:hover,.seg button:hover,.sp-lists button:hover{border-color:rgba(125,249,255,.7)}
+  .emo:hover{transform:scale(1.15) rotate(-6deg)}
+  .pbub:hover{filter:brightness(1.25);transform:scale(1.08)}
+  button,.pbub{cursor:pointer}
+}
+
 </style>
 </head>
 <body>
@@ -582,7 +694,7 @@ let view='lobby';                   // lobby | game
 let mode=null;                      // online | local
 let gameId=null, G=null, mySeat=null;
 let shown=[1,2,3,4,5], rolling=false, freshCell=null;
-let chosenOrder='free';
+let chosenOrder='free', kbCat=null;
 const nextCat = s => { const c=CATS.find(([k])=>!(k in (s||{}))); return c?c[0]:null; };
 const allowed = (k,i) => !G || G.order!=='down' || nextCat(G.scores[i])===k;
 
@@ -609,6 +721,7 @@ function commit(patch){
 
 /* ================= Spelhandlingar ================= */
 function rollCore(){
+  kbCat=null;
   const held = G.rolls===0 ? F5() : G.held.slice();
   const dice = G.dice.map((v,i)=>held[i]?v:rnd());
   animateRoll(dice, held);
@@ -639,6 +752,7 @@ function saveBest(score_, name, order){
   return score_>prev;
 }
 function pickCore(cat, byAI){
+  kbCat=null;
   const p=G.cur, P=NP();
   const val=score(cat,G.dice);
   const scores=G.scores.map(o=>({...o})); scores[p][cat]=val;
@@ -747,6 +861,7 @@ function systemNotify(msg){
   try{ const n=new Notification('Stjärndelfin Yatzy 🐬',{body:msg, tag:'yatzy-tur', renotify:true}); n.onclick=()=>{ try{ window.focus(); }catch(e){} n.close(); }; }catch(e){}
 }
 function notifyTurn(msg){
+  if(view!=='game' || !G || G.over) return;
   sfx.turn(); buzz([180,90,180,90,300]); showTurnBanner(msg);
   if(document.hidden){ startBlink(msg); systemNotify(msg); }
 }
@@ -1162,36 +1277,36 @@ function statsHTML(){
     <div class="kpi"><b>${mine.length}</b><span>matcher</span></div>
     <div class="kpi"><b style="color:#86efac">${W}</b><span>vinster</span></div>
     <div class="kpi"><b style="color:#fda4af">${L}</b><span>förluster</span></div>
-    <div class="kpi"><b>${duels.length?Math.round(100*W/duels.length):0}%</b><span>vinst${Tt?` · ${Tt} oavg.`:''}</span></div></div>`;
+    <div class="kpi"><b>${duels.length?Math.round(100*W/duels.length):0}%</b><span>vinst${Tt?` · ${Tt} oavg.`:''}</span></div></div><div class="stat-cols"><section>`;
   // mot motståndare
   const opp={}; duels.forEach(x=>{ x.opps.forEach(o=>{ const k=oppLabel(o); const e=opp[k]||(opp[k]={n:0,w:0,l:0,t:0,best:0}); e.n++; x.me.s>o.s?e.w++:x.me.s<o.s?e.l++:e.t++; e.best=Math.max(e.best,x.me.s); }); });
   const ok=Object.keys(opp).sort((a,b)=>opp[b].n-opp[a].n);
   if(ok.length){
-    h+=`<h2 class="sec">Mot motståndare</h2><div class="stbl"><div class="tr h"><div>Motståndare</div><div class="r">V – F${Object.values(opp).some(e=>e.t)?' – O':''}</div><div class="r">Bäst</div></div>`;
+    h+=`</section><section><h2 class="sec">Mot motståndare</h2><div class="stbl"><div class="tr h"><div>Motståndare</div><div class="r">V – F${Object.values(opp).some(e=>e.t)?' – O':''}</div><div class="r">Bäst</div></div>`;
     ok.forEach(k=>{ const e=opp[k]; h+=`<div class="tr"><div class="l">${esc(k)} <span class="m">· ${e.n} st</span></div><div class="r wl"><span class="w">${e.w}</span> – <span class="f">${e.l}</span>${Object.values(opp).some(x=>x.t)?` – <span class="o">${e.t}</span>`:''}</div><div class="r">${e.best}</div></div>`; });
     h+='</div>';
   }
   // per speltyp
   const tp={}; mine.forEach(x=>{ const k=x.g.type+'|'+x.g.order; const e=tp[k]||(tp[k]={n:0,best:0,sum:0,d:0}); e.n++; e.sum+=x.me.s; if(x.me.s>e.best){ e.best=x.me.s; e.d=x.g.d; } });
-  h+=`<h2 class="sec">Högsta poäng per typ av spel</h2><div class="stbl"><div class="tr h"><div>Speltyp</div><div class="r">Snitt</div><div class="r">Max</div></div>`;
+  h+=`</section><section><h2 class="sec">Högsta poäng per typ av spel</h2><div class="stbl"><div class="tr h"><div>Speltyp</div><div class="r">Snitt</div><div class="r">Max</div></div>`;
   Object.keys(tp).sort().forEach(k=>{ const [t,o]=k.split('|'), e=tp[k]; h+=`<div class="tr"><div class="l">${typeLabel(t,o)} <span class="m">· ${e.n} st</span></div><div class="r m">${Math.round(e.sum/e.n)}</div><div class="r">${e.best}</div></div>`; });
   h+='</div>';
   // per rad
   let yz=0; const rb={}; mine.forEach(x=>{ CATS.forEach(([c])=>{ const v=x.me.rows[c]; if(typeof v==='number' && v>(rb[c]||0)) rb[c]=v; }); if(x.me.rows.yatzy===50) yz++; });
   const bon=mine.filter(x=>x.me.bonus).length;
-  h+=`<h2 class="sec">Högsta poäng per rad</h2><div class="stbl"><div class="tr h"><div>Rad</div><div class="r">Max möjligt</div><div class="r">Ditt bästa</div></div>`;
+  h+=`</section><section><h2 class="sec">Högsta poäng per rad</h2><div class="stbl"><div class="tr h"><div>Rad</div><div class="r">Max möjligt</div><div class="r">Ditt bästa</div></div>`;
   CATS.forEach(([c,n])=>{ const v=rb[c]||0; h+=`<div class="tr"><div class="l">${n}${v===MAXROW[c]?' 🌟':''}</div><div class="r m">${MAXROW[c]}</div><div class="r">${v||'–'}</div></div>`; });
   h+=`<div class="tr"><div class="l">Antal Yatzy 🐬</div><div class="r m"></div><div class="r">${yz}</div></div>
       <div class="tr"><div class="l">Antal bonusar ⭐</div><div class="r m"></div><div class="r">${bon}</div></div></div>`;
   // senaste
-  h+=`<h2 class="sec">Senaste matcherna</h2><div class="stbl">`;
+  h+=`</section><section><h2 class="sec">Senaste matcherna</h2><div class="stbl">`;
   mine.slice(-12).reverse().forEach(x=>{
     const r=resultOf(x.me,x.opps), em=r==='W'?'🏆':r==='L'?'💧':r==='T'?'🤝':'🐬';
     const dt=new Date(x.g.d), ds=dt.toLocaleDateString('sv-SE',{day:'numeric',month:'short'});
     const place = x.opps.length ? 1+x.opps.filter(o=>o.s>x.me.s).length : 0;
     h+=`<div class="tr"><div class="l">${em} ${x.opps.length?'mot '+esc(x.opps.map(oppLabel).join(', ')):'Ensam'} <span class="m">· ${ds}${x.opps.length>1?' · plats '+place:''}</span></div><div class="r m">${x.opps.length?Math.max(...x.opps.map(o=>o.s)):''}</div><div class="r">${x.me.s}</div></div>`;
   });
-  h+=`</div><button class="bigbtn alt" data-act="resetstats" style="margin-top:22px;font-size:15px">${armedReset?'Tryck igen för att radera all statistik':'🗑️ Rensa statistik'}</button></div>`;
+  h+=`</div></section></div><button class="bigbtn alt" data-act="resetstats" style="margin-top:22px;font-size:15px">${armedReset?'Tryck igen för att radera all statistik':'🗑️ Rensa statistik'}</button></div>`;
   return h;
 }
 function openStats(){ closeModal(); clearTimeout(aiTimer); if(mode!=='online'){ stopNet(); } view='stats'; render(); try{ window.scrollTo(0,0) }catch(e){} }
@@ -1292,6 +1407,7 @@ function spToggle(force){
   spBuild(); spOpen = force===undefined ? !spOpen : force;
   document.getElementById('spPanel').classList.toggle('open',spOpen);
   document.getElementById('spTab').classList.toggle('open',spOpen);
+  document.body.classList.toggle('sp-wide',spOpen);
   if(spOpen){ if(spAuth()){ spInit(); } else { spLoadApi(); const st=spGet(); if(st.uri && !spLoadedUri) spLoad(st.uri,false); } }
 }
 function spLoadApi(){
@@ -1619,15 +1735,29 @@ document.addEventListener('input',e=>{
 });
 
 /* ================= Rendering ================= */
+const DESK_MQ = window.matchMedia ? window.matchMedia('(min-width: 1000px) and (min-height: 560px)') : null;
+const isDesk = () => !!(DESK_MQ && DESK_MQ.matches);
+const FINE_PTR = window.matchMedia ? window.matchMedia('(hover: hover) and (pointer: fine)').matches : false;
+function kbHintHTML(){
+  if(!FINE_PTR || !G || G.over) return '';
+  return `<div class="kbhint"><span><kbd>Mellanslag</kbd>kasta</span><span><kbd>1</kbd>–<kbd>5</kbd>spara</span><span><kbd>↑</kbd><kbd>↓</kbd>välj rad</span><span><kbd>Enter</kbd>skriv in</span><span><kbd>E</kbd>emoji</span><span><kbd>M</kbd>musik</span></div>`;
+}
 function render(){
   const app=document.getElementById('app'), dock=document.getElementById('dockRoot');
+  const desk=isDesk(); document.body.classList.toggle('desk', desk);
   view==='lobby' ? startBubbles() : stopBubbles();
   document.body.classList.toggle('ingame', view!=='lobby');
   if(view==='lobby'){ app.innerHTML=lobbyHTML(); dock.innerHTML=''; fitDock(); return; }
   if(view==='stats'){ app.innerHTML=statsHTML(); dock.innerHTML=''; fitDock(); return; }
   if(!G){ app.innerHTML=topbar()+`<div class="loading">${DOLPHIN('ld')}<p>Simmar till spelet <b>${esc(gameId||'')}</b>…</p><p style="font-size:14px">${netText()}</p><button class="bigbtn alt" data-act="lobby" style="max-width:260px;margin:20px auto">Avbryt</button></div>`; dock.innerHTML=''; return; }
-  app.innerHTML = topbar() + playersHTML() + (G.over?overHTML():'') + (!ready()?waitingHTML():'') + sheetHTML();
-  dock.innerHTML = G.over ? reactDockHTML() : dockHTML();
+  if(desk){
+    app.innerHTML = topbar() + `<div class="desk-grid"><div class="desk-left">${sheetHTML()}</div>
+      <aside class="desk-right">${playersHTML()}${G.over?overHTML():''}${!ready()?waitingHTML():''}${G.over?reactDockHTML():dockHTML()}${kbHintHTML()}</aside></div>`;
+    dock.innerHTML='';
+  } else {
+    app.innerHTML = topbar() + playersHTML() + (G.over?overHTML():'') + (!ready()?waitingHTML():'') + sheetHTML();
+    dock.innerHTML = G.over ? reactDockHTML() : dockHTML();
+  }
   freshCell=null;
   fitDock();
 }
@@ -1637,17 +1767,18 @@ function fitDock(){
   const h = d ? d.offsetHeight : 0;
   app.style.paddingBottom = (d ? h+28 : 40)+'px';
 }
-window.addEventListener('resize', ()=>fitDock());
+let lastDesk=null;
+window.addEventListener('resize', ()=>{ const d=isDesk(); if(d!==lastDesk){ lastDesk=d; render(); } else fitDock(); });
 function topbar(){
   return `<div class="topbar"><button class="iconbtn" data-act="lobby" aria-label="Tillbaka">‹</button>
     <div class="tb-title">Stjärndelfin <b>Yatzy</b>${mode==='online'&&gameId?` · ${esc(gameId)}`:''}${mode==='online'?`<div class="net ns-${net}">${netText()}</div>`:''}</div>
     <button class="iconbtn ${spPlaying?'sp-on':''}" data-act="sptoggle" aria-label="Musik" style="margin-right:-2px">🎵</button><button class="iconbtn" data-act="settings" aria-label="Inställningar">⚙️</button></div>`;
 }
 function lobbyHTML(){
-  let h = topbarLobby() + `<div class="logo">${DOLPHIN('lg','#a5f3ff','#7c6cff').replace('<svg','<svg class="big"')}
+  let h = topbarLobby() + `<div class="lobby"><div class="lob-hero"><div class="logo">${DOLPHIN('lg','#a5f3ff','#7c6cff').replace('<svg','<svg class="big"')}
     <h1>Stjärndelfin<small>YATZY</small></h1></div>
     <div class="tag">Rymden · Havet · Fem tärningar</div>
-    <div class="getwell">Krya på dig! 💙🐬</div>`;
+    <div class="getwell">Krya på dig! 💙🐬</div></div><div class="lob-menu">`;
   try{
     const n=JSON.parse(lsGet('ry_net')), s=JSON.parse(lsGet('ry_net_state'));
     if(n && n.code && !(s && s.over)){
@@ -1655,21 +1786,21 @@ function lobbyHTML(){
       h += `<button class="bigbtn" data-act="resumenet">↩︎ Fortsätt spelet ${esc(n.code)} mot ${esc(other)}</button>`;
     }
   }catch(e){}
-  h += `<h2 class="sec">Varsin mobil</h2>
-    <button class="bigbtn" data-act="newonline">🚀 Skapa spel</button>
-    <button class="bigbtn" data-act="joinonline" style="background:linear-gradient(135deg,#2dd4bf,#3b82f6 60%,#6366f1)">🔗 Gå med i spel</button>
+  h += `<h2 class="sec">Varsin enhet</h2>
+    <div class="duo"><button class="bigbtn" data-act="newonline">🚀 Skapa spel</button>
+    <button class="bigbtn" data-act="joinonline" style="background:linear-gradient(135deg,#2dd4bf,#3b82f6 60%,#6366f1)">🔗 Gå med i spel</button></div>
     <div class="note">Den ena skapar spelet och får en kod. Den andra trycker <b>Gå med</b> och skriver in koden. Mobilerna pratar direkt med varandra – båda behöver internet, ingen inloggning.</div>
-    <h2 class="sec">På den här mobilen</h2>`;
+    <h2 class="sec">På den här ${isDesk()?'datorn':'mobilen'}</h2>`;
   if(lsGet('ry_local')){ try{ const g=JSON.parse(lsGet('ry_local'));
     if(g && !g.over) h+=`<button class="bigbtn" data-act="resumelocal">↩︎ Fortsätt ${g.names.length===1?'ensamspelet ('+esc(g.names[0])+')':esc(g.names.join(' vs '))}</button>`; }catch(e){} }
   h += `<button class="bigbtn alt" data-act="newai">🤖 Spela mot Blixt (datorn)</button>
     <button class="bigbtn alt" data-act="newsolo">🧑‍🚀 Spela ensam</button>
-    <button class="bigbtn alt" data-act="newlocal">📱 Flera på samma mobil (2–4)</button>
+    <button class="bigbtn alt" data-act="newlocal">📱 Flera på samma ${isDesk()?'skärm':'mobil'} (2–4)</button>
     <h2 class="sec">Statistik</h2>
     <button class="bigbtn alt" data-act="stats">📊 Statistik & rekord</button>`;
   const bf=bestList('free')[0], bd=bestList('down')[0];
   if(bf||bd) h += `<div class="note" style="margin-top:6px">🏆 Rekord ensam: ${bf?`<b>${bf.s}</b> valfritt (${esc(bf.n)})`:''}${bf&&bd?' · ':''}${bd?`<b>${bd.s}</b> i ordning (${esc(bd.n)})`:''}</div>`;
-  return h;
+  return h + '</div></div>';
 }
 function topbarLobby(){
   return `<div class="topbar"><div class="popc" id="popc" title="Poppade bubblor">🫧 ${popCount}</div><div class="tb-title" style="font-size:12px">Poppa bubblorna! 🫧</div>
@@ -1727,12 +1858,13 @@ function sheetHTML(){
     const s=G.scores[i];
     if(k in s){ const isNew=freshCell===i+':'+k; return `<div class="c ${colCls(i)} ${s[k]===0?'z':''} ${isNew?'new':''}">${s[k]===0?'–':s[k]}</div>`; }
     if(i===active && allowed(k,i)){ const v=score(k,G.dice);
-      return `<div class="c ${colCls(i)}"><button class="pv ${v===0?'zero':''} ${v>0&&v===best?'best':''}" data-act="pick" data-k="${k}">${v}</button></div>`; }
+      return `<div class="c ${colCls(i)}"><button class="pv ${v===0?'zero':''} ${v>0&&v===best?'best':''} ${kbCat===k?'kb':''}" data-act="pick" data-k="${k}">${v}</button></div>`; }
     return `<div class="c ${colCls(i)}"></div>`;
   };
   const head = `<div class="row head"><div style="text-align:left;padding-left:12px">Protokoll<span class="modetag">${G.order==='down'?'⬇️ I ordning':'🌌 Valfritt'}</span></div>${IX.map(i=>`<div class="${mode==='online'&&mySeat===i?'mine':''}">${esc(G.names[i]||'…')}</div>`).join('')}</div>`;
   const many=IX.length>2, cw=IX.length<=2?70:IX.length===3?60:52;
-  let h = `<div class="card ${many?'many':''}" style="--n:${IX.length};--cw:${cw}px">` + head;
+  const cwd=IX.length<=2?120:IX.length===3?104:92;
+  let h = `<div class="card ${many?'many':''}" style="--n:${IX.length};--cw:${cw}px;--cwd:${cwd}px">` + head;
   const nk = (G.order==='down' && !G.over && ready()) ? nextCat(G.scores[G.cur]) : null;
   UP.forEach(([k,n,d])=>{ h+=`<div class="row"><button class="cn ${k===nk?'next':''}" data-act="help" data-k="${k}">${miniDie(d)}${n}</button>${IX.map(i=>cell(i,k)).join('')}</div>`; });
   const T=IX.map(i=>totals(G.scores[i]));
@@ -1844,6 +1976,39 @@ document.addEventListener('keydown', e=>{
   if(e.key==='Enter' && e.target && e.target.id==='splink'){ spPlayFromInput(); return; }
   if(e.key!=='Enter' || !M().classList.contains('show')) return;
   const pri=M().querySelector('button.pri'); if(pri) pri.click();
+});
+
+/* ================= Tangentbord ================= */
+document.addEventListener('keydown',e=>{
+  const tag=(e.target && e.target.tagName)||'';
+  if(/INPUT|TEXTAREA|SELECT/.test(tag) || e.ctrlKey || e.metaKey || e.altKey) return;
+  if(e.key==='Escape'){
+    if(M().classList.contains('show')) closeModal(); else if(spOpen) spToggle(false); else if(trayOpen){ trayOpen=false; render(); }
+    return;
+  }
+  if(M().classList.contains('show')) return;
+  if(e.key==='m' || e.key==='M'){ spToggle(); return; }
+  if(view!=='game' || !G) return;
+  if(e.key==='e' || e.key==='E'){ trayOpen=!trayOpen; render(); return; }
+  if(e.key===' ' || e.code==='Space'){
+    e.preventDefault(); if(document.activeElement && document.activeElement!==document.body) document.activeElement.blur();
+    unlockAudio(); doRoll(); return;
+  }
+  if(/^[1-5]$/.test(e.key)){ toggleHold(+e.key-1); return; }
+  if(e.key==='ArrowDown' || e.key==='ArrowUp'){
+    const keys=[...document.querySelectorAll('.pv')].map(b=>b.dataset.k); if(!keys.length) return;
+    e.preventDefault();
+    const best=document.querySelector('.pv.best'); let i = kbCat && keys.includes(kbCat) ? keys.indexOf(kbCat) : (best ? keys.indexOf(best.dataset.k) : -1);
+    i = e.key==='ArrowDown' ? (i<0?0:Math.min(keys.length-1,i+1)) : (i<0?keys.length-1:Math.max(0,i-1));
+    kbCat=keys[i]; render(); sfx.unbubble();
+    const el=document.querySelector('.pv.kb'); if(el) el.scrollIntoView({block:'nearest',behavior:'smooth'});
+    return;
+  }
+  if(e.key==='Enter'){
+    const all=document.querySelectorAll('.pv');
+    const t=document.querySelector('.pv.kb') || document.querySelector('.pv.best') || (all.length===1?all[0]:null);
+    if(t){ e.preventDefault(); unlockAudio(); pick(t.dataset.k); } else if(all.length) toast('Välj rad med ↑ ↓ först ⭐');
+  }
 });
 
 /* ================= Start ================= */
