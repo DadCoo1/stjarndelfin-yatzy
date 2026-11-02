@@ -103,7 +103,7 @@ h2.sec{font-size:15px;color:var(--dim);font-weight:500;margin:22px 4px 8px;lette
 
 /* ---------- Protokoll ---------- */
 .card{border-radius:22px;background:rgba(6,20,55,.55);border:1px solid var(--line);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);overflow:hidden}
-.row{display:grid;grid-template-columns:1fr repeat(var(--n,2),70px);align-items:center;min-height:36px;border-bottom:1px solid rgba(140,210,255,.09)}
+.row{display:grid;grid-template-columns:1fr repeat(var(--n,2),var(--cw,70px));align-items:center;min-height:36px;border-bottom:1px solid rgba(140,210,255,.09)}
 .row:last-child{border-bottom:0}
 .row.head{min-height:34px;background:rgba(62,230,255,.08);font-size:13px;color:var(--dim)}
 .row.head div{text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding:0 4px}
@@ -202,6 +202,27 @@ h2.sec{font-size:15px;color:var(--dim);font-weight:500;margin:22px 4px 8px;lette
 .chips button.sel{border-color:var(--aqua);background:rgba(62,230,255,.16);box-shadow:0 0 12px rgba(62,230,255,.35)}
 .setnote{font-size:12px;color:var(--dim);margin-top:6px}
 .sheet{max-height:92vh;overflow:auto}
+.lobbyp{display:flex;flex-wrap:wrap;justify-content:center;gap:6px;margin-top:10px}
+.lobbyp span{padding:6px 12px;border-radius:999px;background:rgba(62,230,255,.14);border:1px solid rgba(125,249,255,.4);font-weight:500}
+.lobbyp span.me{border-color:var(--gold);color:#fff3c9}
+.lobbyp span.empty{background:transparent;border-style:dashed;color:var(--dim);font-weight:400}
+.slot{margin-top:10px;padding:10px;border-radius:16px;background:rgba(0,0,0,.2);border:1px solid rgba(140,210,255,.12)}
+.slotrow{display:flex;gap:8px;margin-bottom:8px}
+.slot input:disabled{opacity:.55}
+.slot .chips{flex-wrap:nowrap;gap:6px}
+.slot .chips button{flex:1;padding:8px 4px;font-size:14px;white-space:nowrap}
+.slot .x{width:46px;flex:none;border-radius:14px;background:rgba(255,90,120,.2);font-size:16px}
+.addslot{width:100%;margin-top:10px;padding:12px;border-radius:14px;border:1.5px dashed var(--line);font-size:16px;background:transparent}
+.card.many .row .cn{font-size:14px;padding:0 8px;gap:6px}
+.card.many .row .c{font-size:15px}
+.card.many .pv{width:calc(var(--cw) - 6px);font-size:15px;height:26px}
+.card.many .row.head div{font-size:12px;padding:0 2px}
+.card.many .row.total .c{font-size:17px}
+.card.many .bon{font-size:10.5px}
+.card.many .row.total .cn{font-size:16px}
+.players.many .pl{padding:7px 10px}
+.players.many .pt{font-size:22px}
+.players.many .pn{font-size:14px}
 .res-rank{display:flex;flex-direction:column;gap:8px;margin:10px 0 4px}
 .res-p{display:grid;grid-template-columns:34px 1fr auto;align-items:center;gap:8px;padding:10px 12px;border-radius:16px;background:rgba(0,0,0,.22);border:1px solid var(--line)}
 .res-p.win{background:linear-gradient(135deg,rgba(255,211,110,.25),rgba(249,168,212,.18));border-color:rgba(255,211,110,.7)}
@@ -508,7 +529,7 @@ function newState(names, starter=0, order='free', seq=0, ai=null){
 }
 const NP = () => G ? G.names.length : 2;
 const isAI = i => !!(G && G.ai && G.ai[i]);
-const ready = () => G && G.names && G.names.length>0 && G.names.every(Boolean);
+const ready = () => G && G.started!==false && G.names && G.names.length>0 && G.names.every(Boolean);
 const isAITurn = () => mode==='local' && G && !G.over && isAI(G.cur);
 const myTurn = () => G && !G.over && ready() && !isAITurn() && (mode==='local' || G.cur===mySeat);
 const AI_NAME = 'Blixt 🤖';
@@ -581,7 +602,7 @@ function pickCore(cat, byAI){
 function rematch(){
   closeModal();
   const P=NP(), starter = ((G.starter||0)+1)%P;
-  const st = newState(G.names.slice(), starter, G.order||'free', G.seq||0, G.ai||null);
+  const st = newState(G.names.slice(), starter, G.order||'free', G.seq||0, G.ai||null); st.started=true;
   shown = st.dice.slice(); freshCell=null;
   commit(st);
   if(P>1) toast(`Ny match! ${pname(starter)} börjar 🚀`); else toast('Ny runda – sikta mot rekordet! 🏆');
@@ -710,15 +731,21 @@ function celebrate(text='YATZY!'){
   setTimeout(()=>{t.remove();j.remove()},2700);
 }
 
-/* ================= Nätverk – direkt mellan mobilerna ================= */
+/* ================= Nätverk – direkt mellan mobilerna (värden är nav för upp till 4 spelare) ================= */
 const PREFIX='stjarndelfin-yatzy-v1-';
+const MAXP=4;
 let peer=null, conn=null, net='off', role=null, retryT=null, myName='', lastHeard=0;
-const NETTXT={off:'',starting:'🟡 Startar…',waiting:'🟡 Väntar på motspelaren',connecting:'🟡 Ansluter…',connected:'🟢 Ansluten',lost:'🔴 Ingen kontakt – försöker igen…'};
+const hostConns=new Set();
+const NETTXT={off:'',starting:'🟡 Startar…',waiting:'🟡 Väntar på spelare',connecting:'🟡 Ansluter…',connected:'🟢 Ansluten',lost:'🔴 Ingen kontakt – försöker igen…'};
 const NETERR=['network','server-error','socket-error','socket-closed','browser-incompatible','webrtc'];
+function netText(){
+  if(role==='host' && net==='connected'){ const n=[...hostConns].filter(c=>c.open && c._seat!=null).length; return `🟢 ${n} ${n===1?'ansluten':'anslutna'}`; }
+  return NETTXT[net]||'';
+}
 function setNet(s){
   if(net===s) return;
   const was=net; net=s;
-  if(s==='connected' && was!=='connected' && G && ready()) toast('Ansluten! 🟢');
+  if(s==='connected' && was!=='connected' && G && ready() && role==='guest') toast('Ansluten! 🟢');
   render();
 }
 function peerOpts(){ return Object.assign({debug:0}, window.__PEER_OPTS||{}); }
@@ -727,17 +754,25 @@ function saveNet(){
   lsSet('ry_net', JSON.stringify({code:gameId, role, seat:mySeat, name:myName}));
   if(G) lsSet('ry_net_state', JSON.stringify(G));
 }
-function send(m){ try{ if(conn && conn.open) conn.send(JSON.stringify(m)); }catch(e){} }
-function stopPeer(){ try{ conn && conn.close() }catch(e){} try{ peer && peer.destroy() }catch(e){} peer=null; conn=null; }
+function sendTo(c,m){ try{ if(c && c.open) c.send(JSON.stringify(m)); }catch(e){} }
+function hostBroadcast(m,except){ for(const c of hostConns) if(c!==except && c._seat!=null) sendTo(c,m); }
+function send(m){ if(role==='host') hostBroadcast(m); else sendTo(conn,m); }
+function stopPeer(){
+  try{ conn && conn.close() }catch(e){}
+  for(const c of hostConns){ try{ c.close() }catch(e){} } hostConns.clear();
+  try{ peer && peer.destroy() }catch(e){}
+  peer=null; conn=null;
+}
 function stopNet(){ clearTimeout(retryT); stopPeer(); net='off'; }
 function retry(fn,ms=4000){ clearTimeout(retryT); retryT=setTimeout(fn,ms); }
 function newCode(){ return Array.from({length:4},()=>'ABCDEFGHJKMNPQRSTUVWXYZ23456789'[Math.floor(Math.random()*31)]).join(''); }
 function noPeerLib(){ toast('Nätverket laddades inte – har mobilen internet? 📡',4000); setNet('lost'); }
+function parseMsg(d){ try{ return typeof d==='string' ? JSON.parse(d) : d }catch(e){ return null } }
 
-/* Värd: den som skapar spelet */
+/* ---------- Värd: den som skapar spelet ---------- */
 function hostGame(name, order){
   stopNet(); mode='online'; role='host'; mySeat=0; myName=name; gameId=newCode();
-  G=newState([name,null],0,order); shown=G.dice.slice(); freshCell=null; view='game';
+  G=newState([name],0,order); G.started=false; shown=G.dice.slice(); freshCell=null; view='game';
   saveNet(); render(); startHost(); keepAwake();
 }
 function startHost(){
@@ -745,8 +780,8 @@ function startHost(){
   if(typeof Peer==='undefined'){ noPeerLib(); retry(startHost); return; }
   stopPeer(); setNet('starting');
   const p = peer = new Peer(PREFIX+gameId, peerOpts());
-  p.on('open',()=>{ if(peer===p) setNet(conn&&conn.open?'connected':'waiting'); });
-  p.on('connection',c=>{ if(peer===p) attach(c); });
+  p.on('open',()=>{ if(peer===p) updateHostNet(); });
+  p.on('connection',c=>{ if(peer===p) attachHost(c); });
   p.on('disconnected',()=>{ if(peer===p && !p.destroyed) setTimeout(()=>{ try{ p.reconnect() }catch(e){} },1500); });
   p.on('error',e=>{
     if(peer!==p) return;
@@ -754,10 +789,53 @@ function startHost(){
     else if(NETERR.includes(e.type)){ setNet('lost'); retry(startHost,4000); }
   });
 }
+function updateHostNet(){
+  const any=[...hostConns].some(c=>c.open && c._seat!=null);
+  const s = peer && peer.open ? (any?'connected':'waiting') : 'lost';
+  if(s!==net) setNet(s); else if(view==='game') render();
+}
+function attachHost(c){
+  c._seat=null; c._heard=Date.now(); hostConns.add(c);
+  c.on('data',d=>{ const m=parseMsg(d); c._heard=Date.now(); if(m) onHostMsg(m,c); });
+  c.on('close',()=>{ const had=hostConns.delete(c); if(had && c._seat!=null && G && ready()) toast(`${pname(c._seat)} tappade kontakten 📡`); updateHostNet(); });
+  c.on('error',()=>{});
+}
+function onHostMsg(m,c){
+  if(!m.t || m.t==='ping' || !G) return;
+  if(m.t==='hello'){
+    let seat=null;
+    const nm=String(m.name||'').slice(0,14).trim();
+    if(Number.isInteger(m.seat) && m.seat>0 && G.names[m.seat] && G.names[m.seat]===nm) seat=m.seat;      // återanslutning
+    else if(G.started===false && G.names.length<MAXP && nm){
+      let n=nm, k=2; while(G.names.includes(n)) n=nm.slice(0,12)+' '+(k++);
+      G.names.push(n); G.scores.push({}); G.seq=(G.seq||0)+1; G.updatedAt=Date.now();
+      seat=G.names.length-1; saveNet(); sfx.turn(); toast(`${n} är med! 🚀`);
+    } else {
+      sendTo(c,{t:'full', reason: G.started===false ? 'full' : 'started'}); setTimeout(()=>{ try{ c.close() }catch(e){} },800); return;
+    }
+    for(const o of hostConns) if(o!==c && o._seat===seat){ try{ o.close() }catch(e){} hostConns.delete(o); }
+    c._seat=seat;
+    if(validState(m.state) && (m.state.seq||0)>(G.seq||0) && m.state.names.length===G.names.length) onGameData(JSON.parse(JSON.stringify(m.state)));
+    sendTo(c,{t:'welcome', seat, name:G.names[seat]});
+    hostBroadcast({t:'state', state:G});
+    updateHostNet(); render();
+    return;
+  }
+  if(c._seat==null) return;
+  if(m.t==='state'){
+    if(validState(m.state) && (m.state.seq||0)>(G.seq||0)){ onGameData(JSON.parse(JSON.stringify(m.state))); hostBroadcast({t:'state', state:G}, c); }
+    else sendTo(c,{t:'state', state:G});   // gästen låg efter
+    return;
+  }
+  if(m.t==='emoji' || m.t==='poke'){
+    const out={t:m.t, e:m.e, from:c._seat, to:m.to};
+    hostBroadcast(out,c); onSocial(out);
+  }
+}
 
-/* Gäst: den som går med med kod */
+/* ---------- Gäst: den som går med med kod ---------- */
 function joinGame(code,name){
-  stopNet(); mode='online'; role='guest'; mySeat=1; myName=name; gameId=code; G=null; freshCell=null; view='game';
+  stopNet(); mode='online'; role='guest'; mySeat=null; myName=name; gameId=code; G=null; freshCell=null; view='game';
   saveNet(); render(); startGuest(); keepAwake();
 }
 function startGuest(){
@@ -784,47 +862,36 @@ function connectGuest(){
   if(conn && conn.open) return;
   setNet('connecting');
   const c = peer.connect(PREFIX+gameId,{reliable:true});
-  attach(c);
+  attachGuest(c);
   setTimeout(()=>{ if(conn===c && !c.open){ try{ c.close() }catch(e){} conn=null; setNet('lost'); retry(connectGuest,2500); } },12000);
 }
-
-function attach(c){
+function attachGuest(c){
   if(conn && conn!==c){ try{ conn.close() }catch(e){} }
   conn=c;
-  c.on('open',()=>{ if(conn!==c) return; lastHeard=Date.now(); setNet('connected'); send({t:'hello', seat:mySeat, name:myName, state:G}); });
-  c.on('data',d=>{ if(conn!==c) return; let m; try{ m = typeof d==='string' ? JSON.parse(d) : d }catch(e){ return } onMsg(m); });
-  c.on('close',()=>{
-    if(conn!==c) return;
-    conn=null;
-    if(role==='host'){ setNet(peer && peer.open ? 'waiting' : 'lost'); if(ready()) toast('Motspelaren tappade kontakten 📡'); }
-    else { setNet('lost'); retry(connectGuest,2000); }
-  });
+  c.on('open',()=>{ if(conn!==c) return; lastHeard=Date.now(); setNet('connected'); sendTo(c,{t:'hello', seat:mySeat, name:myName, state:G}); });
+  c.on('data',d=>{ if(conn!==c) return; const m=parseMsg(d); if(m) onGuestMsg(m); });
+  c.on('close',()=>{ if(conn!==c) return; conn=null; setNet('lost'); retry(connectGuest,2000); });
   c.on('error',()=>{});
 }
-function validState(s){ return s && Array.isArray(s.dice) && s.dice.length===5 && Array.isArray(s.scores) && s.scores.length===2 && Array.isArray(s.names); }
-function onMsg(m){
+function onGuestMsg(m){
   lastHeard=Date.now();
-  if(!m || !m.t || m.t==='ping') return;
-  if(m.t==='emoji'){ if(EMOJIS.includes(m.e)){ emojiSwarm(m.e); sfx.pop(); toast(`${pname(1-mySeat)}: ${m.e}`,1600); } return; }
-  if(m.t==='poke'){ if(G && ready()) gotPoke(); return; }
-  if(m.t!=='hello' && m.t!=='state') return;
-  if(validState(m.state) && (!G || (m.state.seq||0) > (G.seq||0))){
-    const first=!G;
-    onGameData(JSON.parse(JSON.stringify(m.state)));
-    if(first && role==='guest') { sfx.turn(); toast(`Du är med! ${pname(G.cur)} börjar 🐬`); }
+  if(!m.t || m.t==='ping') return;
+  if(m.t==='welcome'){ const first=mySeat===null; mySeat=m.seat; if(m.name) myName=String(m.name); saveNet(); render(); if(first) toast(`Du är med i spelet ${gameId}! 🐬`); return; }
+  if(m.t==='full'){
+    toast(m.reason==='started' ? 'Det spelet har redan startat 😕' : 'Spelet är fullt – max 4 spelare 😕',4500);
+    lsSet('ry_net',''); stopNet(); setTimeout(goLobby,1200); return;
   }
-  if(m.t==='hello'){
-    if(role==='host' && G && !G.names[1] && m.name){
-      G.names[1]=String(m.name).slice(0,14); G.seq=(G.seq||0)+1; G.updatedAt=Date.now();
-      saveNet(); toast(`${G.names[1]} är med! 🚀`); render(); if(G.cur===mySeat) setTimeout(()=>notifyTurn(`Din tur, ${pname(mySeat)}!`),500);
-    }
-    if(G) send({t:'state', state:G});
-  }
+  if(m.t==='state'){ if(validState(m.state) && (!G || (m.state.seq||0)>(G.seq||0))) onGameData(JSON.parse(JSON.stringify(m.state))); return; }
+  if(m.t==='emoji' || m.t==='poke') onSocial(m);
 }
+function validState(s){ return s && Array.isArray(s.dice) && s.dice.length===5 && Array.isArray(s.names) && s.names.length>=1 && s.names.length<=MAXP && Array.isArray(s.scores) && s.scores.length===s.names.length; }
+
 // Hjärtslag: märker när kontakten dör tyst (t.ex. skärmen släcktes)
 setInterval(()=>{
-  if(mode!=='online' || !conn || !conn.open) return;
-  send({t:'ping'});
+  if(mode!=='online') return;
+  if(role==='host'){ for(const c of hostConns){ if(!c.open) continue; sendTo(c,{t:'ping'}); if(Date.now()-c._heard>16000){ try{ c.close() }catch(e){} } } return; }
+  if(!conn || !conn.open) return;
+  sendTo(conn,{t:'ping'});
   if(Date.now()-lastHeard > 16000){ try{ conn.close() }catch(e){} }
 },5000);
 document.addEventListener('visibilitychange',()=>{
@@ -832,6 +899,13 @@ document.addEventListener('visibilitychange',()=>{
   if(role==='guest' && !(conn && conn.open)) connectGuest();
   if(role==='host'){ if(!peer || peer.destroyed) startHost(); else if(peer.disconnected){ try{ peer.reconnect() }catch(e){} } }
 });
+function startOnlineGame(){
+  if(role!=='host' || !G || G.started!==false) return;
+  if(G.names.length<2){ toast('Vänta tills minst en till har gått med 🔭'); return; }
+  unlockAudio();
+  commit({started:true, cur:0, starter:0, rolls:0, held:F5(), scores:G.names.map(()=>({}))});
+  toast(`Nu kör vi! Du börjar 🚀`); sfx.turn();
+}
 
 function onGameData(d){
   const prev=G; G=d;
@@ -841,6 +915,8 @@ function onGameData(d){
       animateRoll(d.dice, d.held);
     } else if(!rolling){ shown=d.dice.slice(); }
     if(d.held.join()!==prev.held.join() && d.cur!==mySeat && d.held.some((h,i)=>h&&!prev.held[i])) sfx.bubble();
+    if(d.names.length>prev.names.length && role!=='host') toast(`${d.names[d.names.length-1]} är med! 🚀`);
+    if(prev.started===false && d.started!==false){ toast('Spelet startar! 🚀'); if(d.cur===mySeat) setTimeout(()=>notifyTurn(`Din tur, ${pname(mySeat)}!`),600); }
     const lt=d.last&&d.last.t, pt=prev.last&&prev.last.t;
     if(lt && lt!==pt && d.last.p!==mySeat){
       freshCell=d.last.p+':'+d.last.cat;
@@ -858,7 +934,7 @@ function resumeNet(){
   try{
     const n=JSON.parse(lsGet('ry_net')); if(!n || !n.code) return;
     let s=null; try{ s=JSON.parse(lsGet('ry_net_state')) }catch(e){}
-    stopNet(); mode='online'; role=n.role; mySeat=n.seat; myName=n.name||''; gameId=n.code;
+    stopNet(); mode='online'; role=n.role; mySeat=(n.seat===undefined?null:n.seat); myName=n.name||''; gameId=n.code;
     G = validState(s) ? s : null; if(G) shown=G.dice.slice(); freshCell=null; view='game'; render();
     role==='host' ? startHost() : startGuest(); keepAwake();
   }catch(e){}
@@ -869,7 +945,8 @@ const EMOJIS=['❤️','😂','😎','😢','😏'];
 const AI_REPLY={'❤️':'😎','😂':'😂','😎':'😏','😢':'❤️','😏':'😎'};
 let trayOpen=false, lastPoke=0;
 const isAIgame = () => mode==='local' && G && G.ai && G.ai.some(Boolean);
-const canPoke = () => (mode==='online' && ready()) || isAIgame();
+const botName = () => G && G.ai ? G.names[G.ai.findIndex(Boolean)] : AI_NAME;
+const canPoke = () => (mode==='online' && ready() && !G.over) || isAIgame();
 function emojiSwarm(e,n=16){
   const party=document.getElementById('party');
   if(party.querySelectorAll('.floatemo').length>100) return;
@@ -882,31 +959,41 @@ function emojiSwarm(e,n=16){
     party.appendChild(d); setTimeout(()=>d.remove(),5200);
   }
 }
+function onSocial(m){
+  if(!G) return;
+  const from = Number.isInteger(m.from) ? m.from : -1;
+  if(m.t==='emoji' && EMOJIS.includes(m.e)){ emojiSwarm(m.e); sfx.pop(); if(from>=0) toast(`${pname(from)}: ${m.e}`,1600); }
+  if(m.t==='poke' && m.to===mySeat && ready()) gotPoke(from);
+}
 function sendEmoji(e){
   if(!EMOJIS.includes(e)) return;
   emojiSwarm(e); sfx.pop(); buzz(10);
-  if(mode==='online'){ send({t:'emoji', e}); if(net!=='connected') toast('Ingen kontakt just nu – bara du ser den 📡',2500); }
-  else if(isAIgame() && Math.random()<.75){ const rep=AI_REPLY[e]; setTimeout(()=>{ if(!G) return; emojiSwarm(rep,10); sfx.pop(); toast(`${AI_NAME}: ${rep}`,1600); },1300); }
+  if(mode==='online'){ send({t:'emoji', e, from:mySeat}); if(net!=='connected') toast('Ingen kontakt just nu – bara du ser den 📡',2500); }
+  else if(isAIgame() && Math.random()<.75){ const rep=AI_REPLY[e], bn=botName(); setTimeout(()=>{ if(!G) return; emojiSwarm(rep,10); sfx.pop(); toast(`${bn}: ${rep}`,1600); },1300); }
 }
 function sendPoke(){
   if(!canPoke()) return;
   if(Date.now()-lastPoke<4000){ toast('Vänta lite innan du puffar igen 😉'); return; }
-  lastPoke=Date.now(); sfx.poke(); buzz(30);
   if(mode==='online'){
+    if(G.cur===mySeat){ toast('Det är din egen tur – kör! 😄'); return; }
     if(net!=='connected'){ toast('Ingen kontakt just nu 📡'); return; }
-    send({t:'poke'}); toast(`Puff skickad till ${pname(1-mySeat)}! 👉`);
+    lastPoke=Date.now(); sfx.poke(); buzz(30);
+    send({t:'poke', from:mySeat, to:G.cur}); toast(`Puff skickad till ${pname(G.cur)}! 👉`);
   } else {
-    setTimeout(()=>toast(`${AI_NAME}: Jag är en robot, jag blir aldrig trött! ⚡`,3000),900);
+    lastPoke=Date.now(); sfx.poke(); buzz(30);
+    const bn = isAI(G.cur) ? pname(G.cur) : botName();
+    setTimeout(()=>toast(`${bn}: Jag är en robot, jag blir aldrig trött! ⚡`,3000),900);
   }
 }
-function gotPoke(){
-  const name=pname(1-mySeat);
+function gotPoke(from){
+  const name = from>=0 ? pname(from) : 'Någon';
   sfx.poke(); buzz([60,40,60,40,220]); showTurnBanner('Kom igen kompis!','👉');
   toast(`${name} puffade dig: "Kom igen kompis!" 👉`,3500);
   if(document.hidden){ startBlink('Kom igen kompis! 👉'); systemNotify(`${name}: Kom igen kompis! 👉`); }
 }
 function trayHTML(){
-  return `<div class="tray ${trayOpen?'open':''}">${EMOJIS.map(e=>`<button class="emo" data-act="emo" data-e="${e}" aria-label="Skicka ${e}">${e}</button>`).join('')}${canPoke()?`<button class="poke" data-act="poke">👉 Kom igen kompis!</button>`:''}</div>`;
+  const target = mode==='online' && G && G.cur!==mySeat ? ` ${esc(pname(G.cur))}` : '';
+  return `<div class="tray ${trayOpen?'open':''}">${EMOJIS.map(e=>`<button class="emo" data-act="emo" data-e="${e}" aria-label="Skicka ${e}">${e}</button>`).join('')}${canPoke()?`<button class="poke" data-act="poke">👉 Kom igen kompis!${target?' <span style="font-weight:400;opacity:.85">→'+target+'</span>':''}</button>`:''}</div>`;
 }
 
 async function invite(){
@@ -923,10 +1010,12 @@ function saveStats(st){ lsSet('ry_stats', JSON.stringify(st)); }
 function gameType(g){
   if(g.mode==='online') return 'online';
   if(g.names.length===1) return 'solo';
-  const lv = g.ai && g.ai.find(Boolean); if(lv) return 'ai-'+lv;
+  const bots = g.ai ? g.ai.filter(Boolean) : [];
+  if(bots.length>1 || (bots.length && g.names.length-bots.length>1)) return 'ai-mix';
+  if(bots.length) return 'ai-'+bots[0];
   return 'local';
 }
-const TYPE_LABEL = {online:'🚀 Varsin mobil', solo:'🧑‍🚀 Ensam', 'ai-easy':'🤖 Mot Blixt (lätt)', 'ai-hard':'🤖 Mot Blixt (svår)', local:'📱 Två på samma mobil'};
+const TYPE_LABEL = {online:'🚀 Varsin mobil', 'ai-mix':'🤖 Mot flera robotar', solo:'🧑‍🚀 Ensam', 'ai-easy':'🤖 Mot Blixt (lätt)', 'ai-hard':'🤖 Mot Blixt (svår)', local:'📱 Flera på samma mobil'};
 const typeLabel = (t,o) => (TYPE_LABEL[t]||t) + (o==='down' ? ' · i ordning' : ' · valfritt');
 const MAXROW = {ones:5,twos:10,threes:15,fours:20,fives:25,sixes:30,pair:12,twopair:22,three:18,four:24,small:15,large:20,house:28,chance:30,yatzy:50};
 function recordGame(){
@@ -1011,7 +1100,7 @@ function statsHTML(){
     <div class="kpi"><b style="color:#fda4af">${L}</b><span>förluster</span></div>
     <div class="kpi"><b>${duels.length?Math.round(100*W/duels.length):0}%</b><span>vinst${Tt?` · ${Tt} oavg.`:''}</span></div></div>`;
   // mot motståndare
-  const opp={}; duels.forEach(x=>{ if(x.opps.length!==1) return; const o=x.opps[0], k=oppLabel(o); const e=opp[k]||(opp[k]={n:0,w:0,l:0,t:0,best:0}); e.n++; const r=resultOf(x.me,x.opps); r==='W'?e.w++:r==='L'?e.l++:e.t++; e.best=Math.max(e.best,x.me.s); });
+  const opp={}; duels.forEach(x=>{ x.opps.forEach(o=>{ const k=oppLabel(o); const e=opp[k]||(opp[k]={n:0,w:0,l:0,t:0,best:0}); e.n++; x.me.s>o.s?e.w++:x.me.s<o.s?e.l++:e.t++; e.best=Math.max(e.best,x.me.s); }); });
   const ok=Object.keys(opp).sort((a,b)=>opp[b].n-opp[a].n);
   if(ok.length){
     h+=`<h2 class="sec">Mot motståndare</h2><div class="stbl"><div class="tr h"><div>Motståndare</div><div class="r">V – F${Object.values(opp).some(e=>e.t)?' – O':''}</div><div class="r">Bäst</div></div>`;
@@ -1035,7 +1124,8 @@ function statsHTML(){
   mine.slice(-12).reverse().forEach(x=>{
     const r=resultOf(x.me,x.opps), em=r==='W'?'🏆':r==='L'?'💧':r==='T'?'🤝':'🐬';
     const dt=new Date(x.g.d), ds=dt.toLocaleDateString('sv-SE',{day:'numeric',month:'short'});
-    h+=`<div class="tr"><div class="l">${em} ${x.opps.length?'mot '+esc(oppLabel(x.opps[0])):'Ensam'} <span class="m">· ${ds}</span></div><div class="r m">${x.opps.length?x.opps[0].s:''}</div><div class="r">${x.me.s}</div></div>`;
+    const place = x.opps.length ? 1+x.opps.filter(o=>o.s>x.me.s).length : 0;
+    h+=`<div class="tr"><div class="l">${em} ${x.opps.length?'mot '+esc(x.opps.map(oppLabel).join(', ')):'Ensam'} <span class="m">· ${ds}${x.opps.length>1?' · plats '+place:''}</span></div><div class="r m">${x.opps.length?Math.max(...x.opps.map(o=>o.s)):''}</div><div class="r">${x.me.s}</div></div>`;
   });
   h+=`</div><button class="bigbtn alt" data-act="resetstats" style="margin-top:22px;font-size:15px">${armedReset?'Tryck igen för att radera all statistik':'🗑️ Rensa statistik'}</button></div>`;
   return h;
@@ -1116,6 +1206,31 @@ function showSettings(){
       <div class="setnote">Rekommenderas – då tappar mobilerna inte kontakten och du märker direkt när det är din tur.</div></div>
     <div class="btns"><button class="pri" data-act="close">Klar</button></div>`);
 }
+const BOT_NAMES=['Blixt 🤖','Bubbla 🤖','Kosmo 🤖','Nova 🤖'];
+let slots=[];
+function showMulti(){ if(!slots.length) slots=[{n:lsGet('ry_name')||'',t:'h'},{n:'',t:'h'}]; openModal(multiHTML()); }
+function captureSlots(){ slots.forEach((s,i)=>{ const el=document.getElementById('sl'+i); if(el && !el.disabled) s.n=el.value.trim(); }); }
+function multiHTML(){
+  let bot=0;
+  return `<h3>📱 Flera på samma mobil</h3><p>2–4 spelare som turas om. Varje plats kan vara en människa eller en robot.</p>
+    ${slots.map((s,i)=>{ const bn = s.t!=='h' ? BOT_NAMES[bot++] : '';
+      return `<div class="slot"><div class="slotrow"><input id="sl${i}" maxlength="14" value="${s.t==='h'?esc(s.n):esc(bn)}" placeholder="Spelare ${i+1}" ${s.t!=='h'?'disabled':''}>${i>=2?`<button class="x" data-act="slotdel" data-i="${i}" aria-label="Ta bort">✕</button>`:''}</div>
+      <div class="chips">${[['h','👤 Människa'],['easy','🤖 Lätt'],['hard','🤖 Svår']].map(([k,l])=>`<button data-act="slott" data-i="${i}" data-t="${k}" class="${s.t===k?'sel':''}">${l}</button>`).join('')}</div></div>`; }).join('')}
+    ${slots.length<4?`<button class="addslot" data-act="slotadd">➕ Lägg till spelare</button>`:''}
+    <label>Hur spelar ni?</label><div class="seg" id="seg">${segHTML()}</div>
+    <div class="btns"><button data-act="close">Avbryt</button><button class="pri" data-act="startmulti">Starta 🚀</button></div>`;
+}
+function startMulti(){
+  captureSlots();
+  if(!slots.some(s=>s.t==='h')){ toast('Minst en människa behöver vara med 🐬'); return; }
+  let bot=0; const names=[], ai=[];
+  slots.forEach((s,i)=>{
+    if(s.t==='h'){ let n=s.n||('Spelare '+(i+1)), k=2; const base=n; while(names.includes(n)) n=base.slice(0,12)+' '+(k++); names.push(n); ai.push(false); }
+    else { names.push(BOT_NAMES[bot++]); ai.push(s.t); }
+  });
+  const firstHuman=slots.find(s=>s.t==='h'&&s.n); if(firstHuman) lsSet('ry_name',firstHuman.n);
+  closeModal(); startLocal(names, chosenOrder, ai.some(Boolean)?ai:null); maybeAI(1400);
+}
 function segHTML(){
   return `<button data-act="ord" data-o="free" class="${chosenOrder==='free'?'sel':''}">🌌 Valfritt<small>välj fritt bland raderna</small></button>
     <button data-act="ord" data-o="down" class="${chosenOrder==='down'?'sel':''}">⬇️ I ordning<small>uppifrån och ned</small></button>`;
@@ -1130,7 +1245,7 @@ function render(){
   const app=document.getElementById('app'), dock=document.getElementById('dockRoot');
   if(view==='lobby'){ app.innerHTML=lobbyHTML(); dock.innerHTML=''; fitDock(); return; }
   if(view==='stats'){ app.innerHTML=statsHTML(); dock.innerHTML=''; fitDock(); return; }
-  if(!G){ app.innerHTML=topbar()+`<div class="loading">${DOLPHIN('ld')}<p>Simmar till spelet <b>${esc(gameId||'')}</b>…</p><p style="font-size:14px">${NETTXT[net]||''}</p><button class="bigbtn alt" data-act="lobby" style="max-width:260px;margin:20px auto">Avbryt</button></div>`; dock.innerHTML=''; return; }
+  if(!G){ app.innerHTML=topbar()+`<div class="loading">${DOLPHIN('ld')}<p>Simmar till spelet <b>${esc(gameId||'')}</b>…</p><p style="font-size:14px">${netText()}</p><button class="bigbtn alt" data-act="lobby" style="max-width:260px;margin:20px auto">Avbryt</button></div>`; dock.innerHTML=''; return; }
   app.innerHTML = topbar() + playersHTML() + (G.over?overHTML():'') + (!ready()?waitingHTML():'') + sheetHTML();
   dock.innerHTML = G.over ? reactDockHTML() : dockHTML();
   freshCell=null;
@@ -1145,7 +1260,7 @@ function fitDock(){
 window.addEventListener('resize', ()=>fitDock());
 function topbar(){
   return `<div class="topbar"><button class="iconbtn" data-act="lobby" aria-label="Tillbaka">‹</button>
-    <div class="tb-title">Stjärndelfin <b>Yatzy</b>${mode==='online'&&gameId?` · ${esc(gameId)}`:''}${mode==='online'?`<div class="net ns-${net}">${NETTXT[net]||''}</div>`:''}</div>
+    <div class="tb-title">Stjärndelfin <b>Yatzy</b>${mode==='online'&&gameId?` · ${esc(gameId)}`:''}${mode==='online'?`<div class="net ns-${net}">${netText()}</div>`:''}</div>
     <button class="iconbtn" data-act="settings" aria-label="Inställningar">⚙️</button></div>`;
 }
 function lobbyHTML(){
@@ -1156,7 +1271,7 @@ function lobbyHTML(){
   try{
     const n=JSON.parse(lsGet('ry_net')), s=JSON.parse(lsGet('ry_net_state'));
     if(n && n.code && !(s && s.over)){
-      const other = s && s.names ? (s.names[1-n.seat]||'…') : '…';
+      const other = s && s.names && s.names.length>1 ? s.names.filter((_,i)=>i!==n.seat).join(', ') : '…';
       h += `<button class="bigbtn" data-act="resumenet">↩︎ Fortsätt spelet ${esc(n.code)} mot ${esc(other)}</button>`;
     }
   }catch(e){}
@@ -1169,7 +1284,7 @@ function lobbyHTML(){
     if(g && !g.over) h+=`<button class="bigbtn" data-act="resumelocal">↩︎ Fortsätt ${g.names.length===1?'ensamspelet ('+esc(g.names[0])+')':esc(g.names.join(' vs '))}</button>`; }catch(e){} }
   h += `<button class="bigbtn alt" data-act="newai">🤖 Spela mot Blixt (datorn)</button>
     <button class="bigbtn alt" data-act="newsolo">🧑‍🚀 Spela ensam</button>
-    <button class="bigbtn alt" data-act="newlocal">📱 Två på samma mobil</button>
+    <button class="bigbtn alt" data-act="newlocal">📱 Flera på samma mobil (2–4)</button>
     <h2 class="sec">Statistik</h2>
     <button class="bigbtn alt" data-act="stats">📊 Statistik & rekord</button>`;
   const bf=bestList('free')[0], bd=bestList('down')[0];
@@ -1190,19 +1305,23 @@ function playersHTML(){
     return `<div class="pl ${on?'on':''}">${me?'<span class="me">du</span>':''}
       <div class="pn">${esc(nm||'…')}</div><div class="pt">${t}</div><div class="pm">${msg}</div></div>`;
   });
-  if(G.names.length===1){
+  if(G.names.length===1 && mode!=='online'){
     const b=bestList(G.order||'free')[0];
     cards.push(`<div class="pl"><div class="pn">🏆 Rekord</div><div class="pt">${b?b.s:'–'}</div><div class="pm">${b?esc(b.n):'inget än'} · ${G.order==='down'?'i ordning':'valfritt'}</div></div>`);
   }
-  return `<div class="players">${cards.join('')}</div>`;
+  return `<div class="players ${cards.length>2?'many':''}">${cards.join('')}</div>`;
 }
 function waitingHTML(){
-  return `<div class="waiting"><div style="font-size:40px">🔭</div>
-    <div>Väntar på motspelare… Koden är</div>
-    <div class="code">${esc(gameId||'')}</div>
-    <div style="color:var(--dim);font-size:14px;margin-top:6px">På den andra mobilen: öppna spelet, tryck <b>🔗 Gå med i spel</b> och skriv in koden.</div>
-    ${/^https?:$/.test(location.protocol)?`<button class="bigbtn" data-act="invite" style="margin-top:12px">📤 Skicka inbjudningslänk</button>`:''}
-    <div style="font-size:13px;margin-top:8px">${NETTXT[net]||''}</div></div>`;
+  if(mode!=='online') return '';
+  const isHost=role==='host', n=G.names.length;
+  const inviteBtn = /^https?:$/.test(location.protocol) && n<MAXP ? `<button class="bigbtn alt" data-act="invite" style="margin-top:10px">📤 Skicka inbjudningslänk</button>` : '';
+  return `<div class="waiting"><div style="font-size:34px">🔭</div>
+    <div>Spelkod</div><div class="code">${esc(gameId||'')}</div>
+    <div class="lobbyp">${G.names.map((nm,i)=>`<span class="${i===mySeat?'me':''}">${i===0?'👑 ':'🐬 '}${esc(nm)}</span>`).join('')}${Array.from({length:MAXP-n},()=>'<span class="empty">ledig plats</span>').join('')}</div>
+    ${isHost ? `<button class="bigbtn" data-act="startgame" ${n<2?'disabled':''} style="margin-top:12px">▶️ Starta spelet${n>=2?` med ${n} spelare`:''}</button>${inviteBtn}
+       <div style="color:var(--dim);font-size:13px;margin-top:8px">${n<2?'Vänta på att någon går med. ':''}Upp till ${MAXP} spelare. De andra trycker <b>🔗 Gå med i spel</b> och skriver koden.</div>`
+     : `<div style="margin-top:10px">${mySeat===null?'Ansluter…':`Väntar på att <b>${esc(pname(0))}</b> startar spelet… 🐬`}</div>`}
+    <div style="font-size:13px;margin-top:8px">${netText()}</div></div>`;
 }
 function overHTML(){
   const T=G.scores.map(sc=>totals(sc).total);
@@ -1232,7 +1351,8 @@ function sheetHTML(){
     return `<div class="c ${colCls(i)}"></div>`;
   };
   const head = `<div class="row head"><div style="text-align:left;padding-left:12px">Protokoll<span class="modetag">${G.order==='down'?'⬇️ I ordning':'🌌 Valfritt'}</span></div>${IX.map(i=>`<div class="${mode==='online'&&mySeat===i?'mine':''}">${esc(G.names[i]||'…')}</div>`).join('')}</div>`;
-  let h = `<div class="card" style="--n:${IX.length}">` + head;
+  const many=IX.length>2, cw=IX.length<=2?70:IX.length===3?60:52;
+  let h = `<div class="card ${many?'many':''}" style="--n:${IX.length};--cw:${cw}px">` + head;
   const nk = (G.order==='down' && !G.over && ready()) ? nextCat(G.scores[G.cur]) : null;
   UP.forEach(([k,n,d])=>{ h+=`<div class="row"><button class="cn ${k===nk?'next':''}" data-act="help" data-k="${k}">${miniDie(d)}${n}</button>${IX.map(i=>cell(i,k)).join('')}</div>`; });
   const T=IX.map(i=>totals(G.scores[i]));
@@ -1243,7 +1363,7 @@ function sheetHTML(){
   return h + '</div>';
 }
 function statusText(){
-  if(!ready()) return 'Väntar på motspelare… 🔭';
+  if(!ready()) return mode==='online' && G.started===false ? (role==='host' ? 'Tryck ▶️ Starta när alla är med 🔭' : 'Väntar på att spelet startar… 🔭') : 'Väntar på motspelare… 🔭';
   if(mode==='online' && net!=='connected') return 'Väntar på kontakt med motspelaren… 📡';
   if(isAITurn()) return rolling ? `<b>${esc(pname(G.cur))}</b> kastar… 🌀` : `<b>${esc(pname(G.cur))}</b> tänker… 🤖`;
   if(!myTurn()) return `Väntar på <b>${esc(pname(G.cur))}</b>… 🐬`;
@@ -1311,7 +1431,12 @@ document.addEventListener('click', e=>{
     case 'joinonline': showJoin(); break;
     case 'resumenet': resumeNet(); break;
     case 'ord': chosenOrder=b.dataset.o; document.getElementById('seg').innerHTML=segHTML(); sfx.bubble(); break;
-    case 'newlocal': chosenOrder='free'; showLocal(); break;
+    case 'newlocal': chosenOrder='free'; slots=[]; showMulti(); break;
+    case 'slott': captureSlots(); slots[+b.dataset.i].t=b.dataset.t; openModal(multiHTML()); break;
+    case 'slotadd': captureSlots(); if(slots.length<4) slots.push({n:'',t:'h'}); openModal(multiHTML()); break;
+    case 'slotdel': captureSlots(); slots.splice(+b.dataset.i,1); openModal(multiHTML()); break;
+    case 'startmulti': startMulti(); break;
+    case 'startgame': startOnlineGame(); break;
     case 'resumelocal': resumeLocal(); break;
     case 'close': closeModal(); break;
     case 'rematch': rematch(); break;
