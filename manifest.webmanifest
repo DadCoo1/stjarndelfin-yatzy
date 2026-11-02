@@ -1,0 +1,16 @@
+{
+  "name": "Stjärndelfin Yatzy",
+  "short_name": "Yatzy 🐬",
+  "description": "Svensk Yatzy i rymden och havet – spela mot varandra, mot Blixt eller ensam.",
+  "lang": "sv",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#030a1f",
+  "theme_color": "#071a45",
+  "icons": [
+    {"src": "icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable"},
+    {"src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable"}
+  ]
+}
