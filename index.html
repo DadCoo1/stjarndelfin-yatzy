@@ -454,6 +454,94 @@ body.desk .sp-tab.open{right:380px}
   button,.pbub{cursor:pointer}
 }
 
+/* ================= PATIENS ================= */
+.sol{position:relative}
+.sol .tb-title .net{margin-top:3px}
+.yzpill{font:inherit;font-size:12px;font-weight:600;padding:3px 10px;border-radius:999px;background:rgba(62,230,255,.14);border:1px solid rgba(125,249,255,.35);color:#cdeeff}
+.yzpill.hot{background:linear-gradient(135deg,#f472b6,#a855f7);color:#fff;border-color:transparent;animation:yzp 1.2s ease-in-out infinite}
+@keyframes yzp{50%{box-shadow:0 0 18px rgba(244,114,182,.8);transform:scale(1.05)}}
+.sol-info{display:flex;flex-wrap:wrap;align-items:center;justify-content:center;gap:6px 16px;font-size:14px;color:#cdeeff;margin:2px 0 14px}
+.sol-info .chip{padding:3px 10px;border-radius:999px;background:rgba(167,139,250,.22);color:#e9ddff;font-weight:600;font-size:13px}
+.sol-info .dim{color:var(--dim)}
+.sol-board{position:relative;width:100%;max-width:880px;margin:0 auto;touch-action:none;user-select:none;-webkit-user-select:none;min-height:300px}
+body.desk .sol-board{max-width:980px}
+.slot{position:absolute;width:var(--cw);height:var(--ch);border-radius:calc(var(--cw)*.11);border:2px dashed rgba(190,235,255,.28);
+  background:rgba(255,255,255,.04);display:grid;place-items:center;color:rgba(220,245,255,.32);font-weight:700;font-size:calc(var(--cw)*.36)}
+.slot.stock{border-style:solid;cursor:pointer}
+.slot.stock span{opacity:0;transition:opacity .2s}
+.slot.stock.empty span{opacity:1;color:rgba(220,245,255,.65);font-size:calc(var(--cw)*.5)}
+.slot.found{border-color:rgba(255,211,110,.35);color:rgba(255,211,110,.38)}
+.stockcount{position:absolute;z-index:90;min-width:22px;height:22px;padding:0 6px;border-radius:999px;background:#0b1e4a;border:1.5px solid rgba(125,249,255,.6);
+  font-size:12px;font-weight:700;display:grid;place-items:center;pointer-events:none}
+.stockcount:empty{display:none}
+.scard{position:absolute;width:var(--cw);height:var(--ch);perspective:700px;cursor:pointer;
+  transition:left .24s cubic-bezier(.2,.8,.25,1),top .24s cubic-bezier(.2,.8,.25,1),transform .2s ease}
+.scard .in{position:absolute;inset:0;transform-style:preserve-3d;transition:transform .38s cubic-bezier(.3,.7,.3,1)}
+.scard.down .in{transform:rotateY(180deg)}
+.scard .f,.scard .b{position:absolute;inset:0;border-radius:calc(var(--cw)*.1);backface-visibility:hidden;-webkit-backface-visibility:hidden}
+.scard .f{background:linear-gradient(160deg,#ffffff 0%,#f3f8ff 60%,#e3eefc 100%);color:#16213e;
+  box-shadow:0 1px 0 rgba(255,255,255,.9) inset,0 2px 5px rgba(0,0,10,.45);border:1px solid rgba(15,30,70,.18);overflow:hidden}
+.scard.red .f{color:#d4143f}
+.scard .b{transform:rotateY(180deg);background-image:var(--back);background-size:100% 100%;box-shadow:0 2px 5px rgba(0,0,10,.5);border:1px solid rgba(255,255,255,.35)}
+.scard .tl{position:absolute;left:7%;top:3%;font-weight:700;font-size:calc(var(--cw)*.27);line-height:1;letter-spacing:-.04em;white-space:nowrap}
+.scard .tl i,.scard .br i{font-style:normal;font-size:.86em;margin-left:1px}
+.scard .br{position:absolute;right:7%;bottom:3%;font-weight:700;font-size:calc(var(--cw)*.2);line-height:1;transform:rotate(180deg);white-space:nowrap;opacity:.85}
+.scard .pip,.scard .ace,.scard .court{position:absolute;left:50%;top:56%;transform:translate(-50%,-50%);line-height:1}
+.scard .pip{font-size:calc(var(--cw)*.5)}
+.scard .ace{font-size:calc(var(--cw)*.72);filter:drop-shadow(0 2px 2px rgba(0,0,0,.15))}
+.scard .court{font-size:calc(var(--cw)*.52);filter:drop-shadow(0 2px 3px rgba(0,0,0,.25))}
+.scard.dragging{transition:none!important;cursor:grabbing}
+.scard.dragging .f,.scard.dragging .b{box-shadow:0 14px 30px rgba(0,0,0,.55)}
+.scard.hint .f,.slot.hint,.scard.hint .b{animation:hintp .9s ease-in-out 2;box-shadow:0 0 0 3px #ffd36e,0 0 22px rgba(255,211,110,.8)}
+@keyframes hintp{50%{box-shadow:0 0 0 4px #fff,0 0 30px rgba(255,255,255,.9)}}
+.scard.droptarget .f,.slot.droptarget{box-shadow:0 0 0 3px #7df9ff,0 0 26px rgba(125,249,255,.8)!important}
+.scard.shake{animation:shake .32s ease}
+@keyframes shake{20%{transform:translateX(-5px)}40%{transform:translateX(5px)}60%{transform:translateX(-3px)}80%{transform:translateX(3px)}}
+.scard.cascade{animation:casc 1.6s cubic-bezier(.3,.6,.4,1) forwards}
+@keyframes casc{0%{transform:none}30%{transform:translate(calc(var(--cx)*.4),-60px) rotate(calc(var(--cr)*.5))}100%{transform:translate(var(--cx),110vh) rotate(var(--cr))}}
+.sol{padding-bottom:84px}
+.sol-actions{position:fixed;left:0;right:0;bottom:0;z-index:40;display:flex;justify-content:center;gap:8px;
+  padding:14px max(12px,calc((100vw - 880px)/2)) calc(12px + env(safe-area-inset-bottom));background:linear-gradient(180deg,rgba(3,10,31,0),rgba(4,18,52,.92) 32%)}
+.sol-actions button{flex:1;min-width:0;max-width:200px;padding:12px 6px;border-radius:16px;font-size:15px;font-weight:600;background:var(--glass2);border:1px solid var(--line);white-space:nowrap}
+.sol-actions button:disabled{opacity:.4}
+.sol-actions button i{font-style:normal;margin-right:6px}
+@media (max-width:640px){ .sol-actions{gap:6px} .sol-actions button{display:flex;flex-direction:column;align-items:center;gap:2px;font-size:12px;padding:8px 2px;border-radius:14px} .sol-actions button i{margin:0;font-size:20px;line-height:1} }
+.sol-actions button.glow{background:linear-gradient(135deg,#fbbf24,#f472b6);border:0;animation:yzp 1.2s ease-in-out infinite}
+@media (hover:hover) and (pointer:fine){ .sol-actions button:not(:disabled):hover{background:rgba(110,180,255,.26);transform:translateY(-1px)} .scard:not(.down):hover .f{box-shadow:0 0 0 2px rgba(125,249,255,.55),0 6px 14px rgba(0,0,10,.45)} }
+.solmodes{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.solmodes button,.themes button{padding:10px 6px;border-radius:14px;background:rgba(0,0,0,.25);border:1.5px solid var(--line);font-size:14px;line-height:1.2}
+.solmodes button small{display:block;font-size:11px;color:var(--dim);margin-top:3px}
+.solmodes button.sel,.themes button.sel{border-color:var(--aqua);background:rgba(62,230,255,.16);box-shadow:0 0 14px rgba(62,230,255,.35)}
+.themes{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+.themes button{display:flex;flex-direction:column;align-items:center;gap:6px;font-size:12px}
+.mini-back{width:44px;height:62px;border-radius:6px;background-size:100% 100%;box-shadow:0 3px 8px rgba(0,0,0,.45);border:1px solid rgba(255,255,255,.35)}
+/* bordsytor per tema */
+.sol::before{content:'';position:fixed;inset:0;z-index:-1;pointer-events:none;transition:background .5s}
+.sol.theme-ocean::before{background:radial-gradient(120% 70% at 50% 110%,rgba(20,184,166,.35),transparent 60%),radial-gradient(80% 50% at 10% 0%,rgba(34,211,238,.18),transparent 60%)}
+.sol.theme-space::before{background:radial-gradient(90% 60% at 80% 0%,rgba(139,92,246,.35),transparent 60%),radial-gradient(80% 60% at 0% 100%,rgba(236,72,153,.15),transparent 60%)}
+.sol.theme-cool::before{background:linear-gradient(160deg,rgba(29,78,216,.35),rgba(14,165,233,.12) 50%,rgba(30,27,75,.4))}
+.sol.theme-alpine::before{background:radial-gradient(100% 50% at 50% 0%,rgba(191,219,254,.22),transparent 60%),
+  url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 400 120' preserveAspectRatio='none'%3E%3Cpath d='M0 120 L0 70 L60 30 L95 60 L150 10 L210 65 L260 35 L320 75 L360 50 L400 80 L400 120Z' fill='%23e0f2fe' fill-opacity='.18'/%3E%3Cpath d='M0 120 L0 95 L80 70 L140 90 L230 60 L300 92 L400 85 L400 120Z' fill='%23ffffff' fill-opacity='.14'/%3E%3C/svg%3E") bottom/100% 32% no-repeat}
+
+/* ================= AVISERINGAR (puff, din tur, inbjudan) ================= */
+#notices{position:fixed;top:10px;left:0;right:0;z-index:45;display:flex;flex-direction:column;align-items:center;gap:8px;pointer-events:none;padding:0 10px}
+.notice{pointer-events:auto;width:min(440px,100%);display:grid;grid-template-columns:auto 1fr auto;gap:12px;align-items:center;padding:12px 12px 12px 14px;border-radius:22px;
+  background:linear-gradient(135deg,rgba(14,40,100,.97),rgba(60,20,110,.97));border:1px solid rgba(125,249,255,.55);box-shadow:0 18px 50px rgba(0,0,0,.55),0 0 30px rgba(62,230,255,.25);
+  animation:nin .45s cubic-bezier(.2,1.3,.4,1)}
+.notice.out{animation:nout .3s ease forwards}
+@keyframes nin{from{opacity:0;transform:translateY(-30px) scale(.92)}}
+@keyframes nout{to{opacity:0;transform:translateY(-24px)}}
+.notice .ic{font-size:30px;line-height:1;animation:bob 1.6s ease-in-out infinite}
+.notice b{display:block;font-size:16px}
+.notice span{font-size:13px;color:#cdeeff}
+.notice .acts{display:flex;flex-direction:column;gap:6px}
+.notice .acts button{padding:8px 12px;border-radius:12px;font-size:14px;font-weight:600;background:linear-gradient(135deg,#22d3ee,#6366f1);white-space:nowrap}
+.notice .acts button.x{background:rgba(255,255,255,.1);font-weight:500;font-size:12px;padding:5px 10px}
+.bgcard{display:flex;align-items:center;gap:12px;padding:12px 14px;border-radius:18px;margin:6px 0 10px;background:linear-gradient(135deg,rgba(34,211,238,.2),rgba(168,85,247,.22));border:1px solid rgba(125,249,255,.5)}
+.bgcard .t{flex:1;min-width:0}.bgcard .t b{display:block}.bgcard .t span{font-size:13px;color:#cdeeff}
+.bgcard button{padding:10px 14px;border-radius:14px;font-weight:600;background:linear-gradient(135deg,#22d3ee,#6366f1)}
+.bgcard .lv{background:rgba(255,255,255,.1);font-weight:500;font-size:13px;padding:8px 10px}
+
 </style>
 </head>
 <body>
@@ -472,6 +560,7 @@ body.desk .sp-tab.open{right:380px}
 <div id="app"></div>
 <div id="dockRoot"></div>
 <div id="toasts"></div>
+<div id="notices"></div>
 <div id="bubbles"></div>
 <div id="party"></div>
 <div id="modal"></div>
@@ -861,7 +950,8 @@ function systemNotify(msg){
   try{ const n=new Notification('Stjärndelfin Yatzy 🐬',{body:msg, tag:'yatzy-tur', renotify:true}); n.onclick=()=>{ try{ window.focus(); }catch(e){} n.close(); }; }catch(e){}
 }
 function notifyTurn(msg){
-  if(view!=='game' || !G || G.over) return;
+  if(!G || G.over) return;
+  if(view!=='game'){ if(mode==='online') notice({icon:'🎲', title:'Din tur i Yatzy!', text:msg, actions:[{label:'Till spelet', run:backToGame}]}); return; }
   sfx.turn(); buzz([180,90,180,90,300]); showTurnBanner(msg);
   if(document.hidden){ startBlink(msg); systemNotify(msg); }
 }
@@ -873,7 +963,7 @@ async function askNotify(){
   if(M().classList.contains('show')) showSettings();
 }
 async function keepAwake(){
-  if(!wakeOn || view!=='game' || mode!=='online') return releaseWake();
+  if(!wakeOn || mode!=='online' || !G) return releaseWake();
   try{ if(!wakeLock && navigator.wakeLock){ wakeLock=await navigator.wakeLock.request('screen'); wakeLock.addEventListener('release',()=>{ wakeLock=null; }); } }catch(e){}
 }
 function releaseWake(){ try{ wakeLock && wakeLock.release() }catch(e){} wakeLock=null; }
@@ -987,7 +1077,9 @@ function onHostMsg(m,c){
     else if(G.started===false && G.names.length<MAXP && nm){
       let n=nm, k=2; while(G.names.includes(n)) n=nm.slice(0,12)+' '+(k++);
       G.names.push(n); G.scores.push({}); G.seq=(G.seq||0)+1; G.updatedAt=Date.now();
-      seat=G.names.length-1; saveNet(); sfx.turn(); toast(`${n} är med! 🚀`);
+      seat=G.names.length-1; saveNet();
+      if(view!=='game') notice({icon:'🚀', title:`${n} gick med i ditt spel`, text:`Yatzy ${gameId} · ${G.names.length} av ${MAXP} spelare`, actions:[{label:'Till spelet', run:backToGame}]});
+      else { sfx.turn(); toast(`${n} är med! 🚀`); }
     } else {
       sendTo(c,{t:'full', reason: G.started===false ? 'full' : 'started'}); setTimeout(()=>{ try{ c.close() }catch(e){} },800); return;
     }
@@ -1094,7 +1186,7 @@ function onGameData(d){
     } else if(!rolling){ shown=d.dice.slice(); }
     if(d.held.join()!==prev.held.join() && d.cur!==mySeat && d.held.some((h,i)=>h&&!prev.held[i])) sfx.bubble();
     if(d.names.length>prev.names.length && role!=='host') toast(`${d.names[d.names.length-1]} är med! 🚀`);
-    if(prev.started===false && d.started!==false){ toast('Spelet startar! 🚀'); if(d.cur===mySeat) setTimeout(()=>notifyTurn(`Din tur, ${pname(mySeat)}!`),600); }
+    if(prev.started===false && d.started!==false){ if(view!=='game' && d.cur!==mySeat) notice({icon:'🎲', title:'Yatzy-spelet har startat', text:`${pname(d.cur)} börjar`, actions:[{label:'Till spelet', run:backToGame}]}); else toast('Spelet startar! 🚀'); if(d.cur===mySeat) setTimeout(()=>notifyTurn(`Din tur, ${pname(mySeat)}!`),600); }
     const lt=d.last&&d.last.t, pt=prev.last&&prev.last.t;
     if(lt && lt!==pt && d.last.p!==mySeat){
       freshCell=d.last.p+':'+d.last.cat;
@@ -1102,7 +1194,7 @@ function onGameData(d){
       if(!d.over && d.cur===mySeat) setTimeout(()=>notifyTurn(`Din tur, ${pname(mySeat)}!`),700);
       if(d.over){ setTimeout(()=>{ sfx.win(); sparkles(40); },500); try{ window.scrollTo({top:0,behavior:'smooth'}) }catch(e){} }
     }
-    if(d.over && !prev.over) finishGame();
+    if(d.over && !prev.over){ finishGame(); if(view!=='game') notice({icon:'🏁', title:'Yatzy-matchen är klar', text:'Se vem som vann', actions:[{label:'Visa resultat', run:()=>{ backToGame(); setTimeout(()=>{ if(G&&G.over) openModal(resultHTML()); },300); }}]}); }
     if(prev.over && !d.over) { freshCell=null; if(M().classList.contains('show')) closeModal(); toast(`Ny match! ${pname(d.cur)} börjar 🚀`); if(d.cur===mySeat) setTimeout(()=>notifyTurn(`Din tur, ${pname(mySeat)}!`),900); }
   }
   saveNet();
@@ -1166,6 +1258,7 @@ function sendPoke(){
 }
 function gotPoke(from){
   const name = from>=0 ? pname(from) : 'Någon';
+  if(view!=='game'){ notice({icon:'👉', title:`${name} puffar dig!`, text:'"Kom igen kompis!" – det är din tur i Yatzy', poke:true, actions:[{label:'Till spelet', run:backToGame}]}); return; }
   sfx.poke(); buzz([60,40,60,40,220]); showTurnBanner('Kom igen kompis!','👉');
   toast(`${name} puffade dig: "Kom igen kompis!" 👉`,3500);
   if(document.hidden){ startBlink('Kom igen kompis! 👉'); systemNotify(`${name}: Kom igen kompis! 👉`); }
@@ -1624,6 +1717,470 @@ function spLoggedHTML(){
     <div class="sp-lists">${spLists ? (spLists.length ? spLists.map((p,i)=>`<button data-act="splist" data-i="${i}">${p.images&&p.images[0]?`<img src="${esc(p.images[p.images.length>1?1:0].url)}" alt="" loading="lazy">`:'<div class="sp-noimg">🎵</div>'}<span>${esc(p.name)}</span></button>`).join('') : '<div class="setnote">Inga spellistor hittades.</div>') : '<div class="setnote">Hämtar…</div>'}</div>`;
 }
 
+/* =====================================================================
+   PATIENS – klassisk Klondike, spelas ensam och helt offline
+   ===================================================================== */
+const SUITS=['♠','♥','♦','♣'], RANKS=['A','2','3','4','5','6','7','8','9','10','J','Q','K'];
+const cSuit=id=>Math.floor(id/13), cRank=id=>id%13+1, cRed=id=>cSuit(id)===1||cSuit(id)===2;
+const VS='︎';   // tvinga text-varianten av ♥ ♦ ♠ ♣ (inte emoji)
+const SOL_MODES={'1':{label:'Ta 1',sub:'ett kort i taget'},'3':{label:'Ta 3',sub:'tre kort, det sista överst'},'3r':{label:'Ta 3 omvänd',sub:'tre kort, det första överst'}};
+const SOL_THEMES={
+  space:{label:'🚀 Rymd', court:['👨‍🚀','👩‍🚀','🪐'], accent:'#a78bfa'},
+  ocean:{label:'🐬 Delfin & hav', court:['🐠','🐬','🐳'], accent:'#2dd4bf'},
+  cool:{label:'💎 Blått & coolt', court:['🧊','💎','👑'], accent:'#60a5fa'},
+  alpine:{label:'⛷️ Alpint race', court:['⛷️','🏂','🏆'], accent:'#f87171'}
+};
+let S=null, solHist=[], solTheme=lsGet('ry_soltheme')||'ocean', solMode=lsGet('ry_solmode')||'1', solDrag=null, solHintT=null, solAutoT=null, solSaveN=0;
+function rint(n){ const c=window.crypto; if(!c||!c.getRandomValues) return Math.floor(Math.random()*n); const lim=Math.floor(4294967296/n)*n, b=new Uint32Array(1); for(;;){ c.getRandomValues(b); if(b[0]<lim) return b[0]%n; } }
+function solShuffle(){ const d=[...Array(52).keys()]; for(let i=51;i>0;i--){ const j=rint(i+1); [d[i],d[j]]=[d[j],d[i]]; } return d; }
+function solNew(mode){
+  const d=solShuffle(), tab=[];
+  for(let c=0;c<7;c++){ tab.push([]); for(let k=0;k<=c;k++) tab[c].push({id:d.pop(), up:k===c}); }
+  S={mode, stock:d, waste:[], found:[[],[],[],[]], tab, moves:0, time:0, passes:0, won:false, started:false, counted:false};
+  solHist=[]; solSave();
+}
+function solSave(){ if(S) lsSet('ry_sol', JSON.stringify(S)); }
+function solLoad(){ try{ const s=JSON.parse(lsGet('ry_sol')); if(s && s.tab && s.tab.length===7) return s; }catch(e){} return null; }
+function solStats(){ try{ return JSON.parse(lsGet('ry_solstats'))||{} }catch(e){ return {} } }
+function solStatAdd(fn){ const st=solStats(); const m=st[S.mode]||(st[S.mode]={played:0,won:0,bestTime:null,bestMoves:null}); fn(m); lsSet('ry_solstats',JSON.stringify(st)); return m; }
+function solSnap(){ solHist.push(JSON.stringify(S)); if(solHist.length>300) solHist.shift(); }
+function solStart(){ if(!S.started){ S.started=true; if(!S.counted){ S.counted=true; solStatAdd(m=>m.played++); } } }
+
+/* ---------- regler ---------- */
+const topOf = a => a.length ? a[a.length-1] : null;
+function canStack(id, col){ const t=topOf(S.tab[col]); if(!t) return cRank(id)===13; return t.up && cRed(id)!==cRed(t.id) && cRank(id)===cRank(t.id)-1; }
+function canFound(id, f){ const t=topOf(S.found[f]); if(t===null) return cRank(id)===1; return cSuit(t)===cSuit(id) && cRank(id)===cRank(t)+1; }
+function foundFor(id){ for(let f=0;f<4;f++){ const t=topOf(S.found[f]); if(t!==null && cSuit(t)===cSuit(id) && canFound(id,f)) return f; } if(cRank(id)===1) for(let f=0;f<4;f++) if(!S.found[f].length) return f; return -1; }
+// plocka upp kort från en källa (utan att ändra) → lista med id
+function cardsAt(src){
+  if(src.t==='w') return S.waste.length ? [topOf(S.waste)] : [];
+  if(src.t==='f') return S.found[src.f].length ? [topOf(S.found[src.f])] : [];
+  if(src.t==='t'){ const col=S.tab[src.c]; if(src.i<0||src.i>=col.length||!col[src.i].up) return []; return col.slice(src.i).map(x=>x.id); }
+  return [];
+}
+function legal(src,dst){
+  const ids=cardsAt(src); if(!ids.length) return false;
+  if(dst.t==='f'){ if(ids.length!==1 || src.t==='f') return false; return canFound(ids[0],dst.f); }
+  if(dst.t==='t'){ if(src.t==='t' && src.c===dst.c) return false; return canStack(ids[0],dst.c); }
+  return false;
+}
+function solMove(src,dst,opt={}){
+  if(!legal(src,dst)) return false;
+  solSnap(); solStart();
+  let ids;
+  if(src.t==='w') ids=[S.waste.pop()];
+  else if(src.t==='f') ids=[S.found[src.f].pop()];
+  else ids=S.tab[src.c].splice(src.i).map(x=>x.id);
+  if(dst.t==='f') S.found[dst.f].push(ids[0]); else ids.forEach(id=>S.tab[dst.c].push({id,up:true}));
+  let flipped=null;
+  if(src.t==='t'){ const t=topOf(S.tab[src.c]); if(t && !t.up){ t.up=true; flipped=t.id; } }
+  S.moves++;
+  if(!opt.quiet){ dst.t==='f' ? solSnd('found') : solSnd('place'); if(flipped!==null) setTimeout(()=>solSnd('flip'),120); }
+  solAfter(opt);
+  return true;
+}
+function solDraw(){
+  if(!S || S.won) return;
+  if(!S.stock.length && !S.waste.length) return;
+  solSnap(); solStart();
+  if(!S.stock.length){ S.stock=S.waste.reverse(); S.waste=[]; S.passes++; S.moves++; solSnd('shuffle'); solAfter(); return; }
+  const n=S.mode==='1'?1:3, take=S.stock.splice(-n);
+  if(S.mode==='3r') S.waste.push(...take); else S.waste.push(...take.reverse());
+  S.moves++; solSnd('draw'); solAfter();
+}
+function solUndo(){
+  if(!solHist.length){ toast('Inget att ångra'); return; }
+  const t=S.time; S=JSON.parse(solHist.pop()); S.time=t; S.moves++; solSnd('undo'); solAfter({noWin:true});
+}
+function solAfter(opt={}){
+  solSaveN++; solSave();
+  solSync();
+  if(!opt.noWin && S.found.every(f=>f.length===13) && !S.won){ S.won=true; solSave(); solWin(); }
+  solRefreshChrome();
+}
+function solAllUp(){ return !S.stock.length && !S.waste.length && S.tab.every(c=>c.every(x=>x.up)); }
+
+/* ---------- smarta drag: tryck för att flytta ---------- */
+function solAutoTarget(src){
+  const ids=cardsAt(src); if(!ids.length) return null;
+  if(ids.length===1 && src.t!=='f'){ const f=foundFor(ids[0]); if(f>=0) return {t:'f',f}; }
+  const order=[...Array(7).keys()];
+  let empty=null;
+  for(const c of order){ if(src.t==='t' && src.c===c) continue; if(!canStack(ids[0],c)) continue;
+    if(S.tab[c].length) return {t:'t',c}; if(empty===null) empty=c; }
+  // kung till tom kolumn – bara om det gör nytta (inte om kungen redan ligger överst i en kolumn)
+  if(empty!==null && !(src.t==='t' && src.i===0)) return {t:'t',c:empty};
+  return null;
+}
+function solTap(src){
+  if(S.won) return;
+  const dst=solAutoTarget(src);
+  if(dst) solMove(src,dst); else { solShake(src); solSnd('nope'); }
+}
+
+/* ---------- tips ---------- */
+function solFindHint(){
+  // 1) till grundhög
+  if(S.waste.length){ const f=foundFor(topOf(S.waste)); if(f>=0) return {src:{t:'w'},dst:{t:'f',f}}; }
+  for(let c=0;c<7;c++){ const col=S.tab[c]; if(!col.length) continue; const f=foundFor(topOf(col).id); if(f>=0) return {src:{t:'t',c,i:col.length-1},dst:{t:'f',f}}; }
+  // 2) flytta en hel uppvänd rad som frilägger ett nedvänt kort
+  for(let c=0;c<7;c++){ const col=S.tab[c]; const i=col.findIndex(x=>x.up); if(i<=0) continue;
+    for(let d=0;d<7;d++){ if(d!==c && S.tab[d].length && canStack(col[i].id,d)) return {src:{t:'t',c,i},dst:{t:'t',c:d}}; }
+    for(let d=0;d<7;d++){ if(d!==c && !S.tab[d].length && cRank(col[i].id)===13) return {src:{t:'t',c,i},dst:{t:'t',c:d}}; } }
+  // 3) från högen till spelet
+  if(S.waste.length){ const id=topOf(S.waste); for(let d=0;d<7;d++){ if(canStack(id,d) && (S.tab[d].length || cRank(id)===13)) return {src:{t:'w'},dst:{t:'t',c:d}}; } }
+  // 4) dra nytt kort
+  if(S.stock.length || S.waste.length) return {draw:true};
+  return null;
+}
+function solHint(){
+  if(!S || S.won) return;
+  const h=solFindHint(); clearTimeout(solHintT);
+  document.querySelectorAll('.hint').forEach(e=>e.classList.remove('hint'));
+  if(!h){ toast('Inga fler drag hittades – prova 🆕 Nytt spel',3500); return; }
+  if(h.draw){ document.getElementById('slotStock')?.classList.add('hint'); toast(S.stock.length?'Vänd upp ett kort från högen 🃏':'Vänd högen och kör ett varv till 🔄',2600); }
+  else {
+    cardsAt(h.src).forEach(id=>document.querySelector(`.scard[data-id="${id}"]`)?.classList.add('hint'));
+    const dst = h.dst.t==='f' ? document.getElementById('slotF'+h.dst.f) : (S.tab[h.dst.c].length ? document.querySelector(`.scard[data-id="${topOf(S.tab[h.dst.c]).id}"]`) : document.getElementById('slotT'+h.dst.c));
+    dst?.classList.add('hint');
+  }
+  solSnd('hint');
+  solHintT=setTimeout(()=>document.querySelectorAll('.hint').forEach(e=>e.classList.remove('hint')),1800);
+}
+
+/* ---------- lägg upp automatiskt ---------- */
+function solAutoFinish(){
+  if(!S || S.won || !solAllUp()) return;
+  clearTimeout(solAutoT);
+  const step=()=>{
+    if(!S || S.won || view!=='sol') return;
+    let best=null;
+    for(let c=0;c<7;c++){ const col=S.tab[c]; if(!col.length) continue; const id=topOf(col).id, f=foundFor(id); if(f>=0 && (!best || cRank(id)<best.r)) best={src:{t:'t',c,i:col.length-1},dst:{t:'f',f},r:cRank(id)}; }
+    if(!best) return;
+    solMove(best.src,best.dst,{}); solAutoT=setTimeout(step,110);
+  };
+  step();
+}
+
+/* ---------- vinst ---------- */
+function solWin(){
+  const m=solStatAdd(m=>{ m.won++; if(m.bestTime===null||S.time<m.bestTime) m.bestTime=S.time; if(m.bestMoves===null||S.moves<m.bestMoves) m.bestMoves=S.moves; });
+  const recT = m.bestTime===S.time, recM = m.bestMoves===S.moves;
+  setTimeout(()=>{ celebrate('VINST!'); sfx.win(); sparkles(60); solCascade(); },350);
+  setTimeout(()=>{
+    if(view!=='sol') return;
+    openModal(`<div style="text-align:center;font-size:56px;line-height:1">🏆</div>
+      <h3 style="text-align:center;margin:6px 0 2px">Patiensen gick ut!</h3>
+      <p style="text-align:center">${SOL_MODES[S.mode].label}</p>
+      <div class="kpis" style="grid-template-columns:repeat(3,1fr);margin:12px 0">
+        <div class="kpi"><b>${fmtTime(S.time)}</b><span>tid${recT?' · rekord!':''}</span></div>
+        <div class="kpi"><b>${S.moves}</b><span>drag${recM?' · rekord!':''}</span></div>
+        <div class="kpi"><b>${m.won}/${m.played}</b><span>vunna</span></div></div>
+      <div class="btns"><button data-act="lobby">🏠 Lobby</button><button class="pri" data-act="solnewsame">🃏 Ny patiens</button></div>`);
+  },2600);
+}
+function solCascade(){
+  const els=[...document.querySelectorAll('.scard')];
+  els.forEach((el,i)=>{ setTimeout(()=>{ el.classList.add('cascade'); el.style.setProperty('--cx',(Math.random()*240-120)+'px'); el.style.setProperty('--cr',(Math.random()*90-45)+'deg'); },i*22); });
+}
+const fmtTime = t => `${Math.floor(t/60)}:${String(t%60).padStart(2,'0')}`;
+
+/* ---------- ljud ---------- */
+function solSnd(k){
+  if(k==='place'){ hit(0,1800,.35,.03); tone(240,.05,'triangle',.05); }
+  else if(k==='found'){ hit(0,2200,.3,.03); tone(880,.12,'sine',.08,.02,1320); }
+  else if(k==='flip'){ hit(0,3000,.22,.025); }
+  else if(k==='draw'){ hit(0,2600,.25,.03); hit(.05,2200,.2,.03); }
+  else if(k==='shuffle'){ for(let i=0;i<8;i++) hit(i*.03,1500+Math.random()*1500,.25,.025); }
+  else if(k==='undo'){ tone(500,.1,'sine',.07,0,350); }
+  else if(k==='nope'){ tone(180,.12,'triangle',.07); }
+  else if(k==='hint'){ tone(1046,.12,'sine',.06); tone(1318,.16,'sine',.05,.1); }
+}
+
+/* ---------- utseende: kortbaksidor ---------- */
+const BACK_CACHE={};
+function backSVG(theme){
+  if(BACK_CACHE[theme]) return BACK_CACHE[theme];
+  let inner='';
+  const frame=c=>`<rect x="5" y="5" width="90" height="130" rx="9" fill="none" stroke="${c}" stroke-width="2" opacity=".85"/><rect x="9" y="9" width="82" height="122" rx="6" fill="none" stroke="${c}" stroke-width=".8" opacity=".5"/>`;
+  if(theme==='space'){
+    let st=''; for(let i=0;i<34;i++){ const x=(i*37%86)+7, y=(i*53%126)+7, r=(i%5===0)?1.3:.6; st+=`<circle cx="${x}" cy="${y}" r="${r}" fill="#fff" opacity="${.4+(i%3)*.2}"/>`; }
+    inner=`<defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#3b1d8f"/><stop offset=".55" stop-color="#14205e"/><stop offset="1" stop-color="#050b2b"/></linearGradient><radialGradient id="p" cx="35%" cy="30%"><stop offset="0" stop-color="#d5f8ff"/><stop offset=".45" stop-color="#5cc4ff"/><stop offset="1" stop-color="#3a3fbf"/></radialGradient></defs>
+      <rect width="100" height="140" rx="10" fill="url(#g)"/>${st}<circle cx="50" cy="70" r="17" fill="url(#p)"/><ellipse cx="50" cy="71" rx="31" ry="7" fill="none" stroke="#ffd36e" stroke-width="2.2" transform="rotate(-18 50 71)"/>
+      <path d="M22 112 l3 -7 l3 7 l7 3 l-7 3 l-3 7 l-3 -7 l-7 -3z" fill="#f9a8d4" opacity=".85"/><path d="M76 26 l2 -5 l2 5 l5 2 l-5 2 l-2 5 l-2 -5 l-5 -2z" fill="#7df9ff" opacity=".9"/>${frame('#a78bfa')}`;
+  } else if(theme==='ocean'){
+    inner=`<defs><linearGradient id="g" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#22d3ee"/><stop offset=".5" stop-color="#0e7490"/><stop offset="1" stop-color="#0b2a5c"/></linearGradient><linearGradient id="d" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#e0fbff"/><stop offset="1" stop-color="#7dd3fc"/></linearGradient></defs>
+      <rect width="100" height="140" rx="10" fill="url(#g)"/>
+      <path d="M0 96 Q12 90 25 96 T50 96 T75 96 T100 96 V140 H0Z" fill="#0b3d6e" opacity=".55"/><path d="M0 112 Q12 106 25 112 T50 112 T75 112 T100 112 V140 H0Z" fill="#082a55" opacity=".7"/>
+      <g transform="translate(14 46) scale(.38)" fill="url(#d)"><path d="M40 60 C70 40 110 30 150 38 C165 41 172 46 178 50 L195 54 C196 57 190 59 178 58 C165 65 140 71 110 71 C85 71 60 67 40 64 Z"/><path d="M95 38 C100 22 108 14 120 9 C115 19 114 28 121 35 Z"/><path d="M128 66 C124 78 116 86 104 91 C109 81 111 73 113 68 Z"/><path d="M44 60 C30 52 18 41 5 36 C13 46 19 55 23 61 C17 67 11 77 7 88 C21 79 33 69 46 64 Z"/></g>
+      <g fill="none" stroke="#e0fbff" opacity=".7"><circle cx="78" cy="30" r="4"/><circle cx="70" cy="20" r="2.4"/><circle cx="84" cy="16" r="1.6"/><circle cx="22" cy="24" r="3"/></g>${frame('#e0fbff')}`;
+  } else if(theme==='cool'){
+    let lat=''; for(let i=-140;i<240;i+=14){ lat+=`<line x1="${i}" y1="0" x2="${i+140}" y2="140"/><line x1="${i+140}" y1="0" x2="${i}" y2="140"/>`; }
+    inner=`<defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#38bdf8"/><stop offset=".5" stop-color="#1d4ed8"/><stop offset="1" stop-color="#1e1b4b"/></linearGradient><clipPath id="k"><rect width="100" height="140" rx="10"/></clipPath></defs>
+      <rect width="100" height="140" rx="10" fill="url(#g)"/><g clip-path="url(#k)" stroke="#fff" stroke-width=".7" opacity=".22">${lat}</g>
+      <g transform="translate(50 70)"><rect x="-17" y="-17" width="34" height="34" transform="rotate(45)" fill="#0b1e4a" opacity=".55" stroke="#bfdbfe" stroke-width="1.6"/>
+      <g stroke="#e0f2fe" stroke-width="2.2" stroke-linecap="round"><line x1="0" y1="-12" x2="0" y2="12"/><line x1="-10.4" y1="-6" x2="10.4" y2="6"/><line x1="-10.4" y1="6" x2="10.4" y2="-6"/></g><circle r="2.4" fill="#fff"/></g>${frame('#bfdbfe')}`;
+  } else {  // alpint race
+    let gates=''; [[28,72,'#ef4444'],[60,84,'#2563eb'],[36,100,'#ef4444'],[66,114,'#2563eb']].forEach(([x,y,c])=>{ gates+=`<line x1="${x}" y1="${y}" x2="${x}" y2="${y-11}" stroke="${c}" stroke-width="1.6"/><path d="M${x} ${y-11} l7 2.5 l-7 2.5z" fill="${c}"/>`; });
+    let chk=''; for(let i=0;i<10;i++) chk+=`<rect x="${i*10}" y="0" width="5" height="5" fill="#0f172a"/><rect x="${i*10+5}" y="5" width="5" height="5" fill="#0f172a"/>`;
+    inner=`<defs><linearGradient id="g" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#1e3a8a"/><stop offset=".45" stop-color="#60a5fa"/><stop offset="1" stop-color="#e0f2fe"/></linearGradient><clipPath id="k"><rect width="100" height="140" rx="10"/></clipPath></defs>
+      <rect width="100" height="140" rx="10" fill="url(#g)"/>
+      <g clip-path="url(#k)"><path d="M-5 70 L22 34 L36 52 L55 22 L80 56 L92 44 L110 70 V140 H-5Z" fill="#f8fafc"/><path d="M22 34 L30 44 L26 46 L20 40Z M55 22 L64 34 L58 33 L52 28Z" fill="#cbd5e1"/>
+      <path d="M-5 82 Q40 66 105 92 V140 H-5Z" fill="#ffffff"/><path d="M30 60 C40 80 70 90 50 120" stroke="#93c5fd" stroke-width="1.4" fill="none" stroke-dasharray="3 3"/>${gates}
+      <g transform="translate(0 130)" opacity=".85"><rect width="100" height="10" fill="#fff"/>${chk}</g></g>
+      <circle cx="80" cy="18" r="6" fill="#fde68a" opacity=".9"/>${frame('#f8fafc')}`;
+  }
+  const svg=`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 140" preserveAspectRatio="none">${inner}</svg>`;
+  return BACK_CACHE[theme]=`url('data:image/svg+xml,${encodeURIComponent(svg).replace(/'/g,'%27')}')`;
+}
+function faceHTML(id){
+  const r=RANKS[cRank(id)-1], s=SUITS[cSuit(id)]+VS, rk=cRank(id), th=SOL_THEMES[solTheme]||SOL_THEMES.ocean;
+  const center = rk>10 ? `<span class="court">${th.court[rk-11]}</span>` : rk===1 ? `<span class="ace">${s}</span>` : `<span class="pip">${s}</span>`;
+  return `<div class="f"><span class="tl">${r}<i>${s}</i></span>${center}<span class="br">${r}<i>${s}</i></span></div><div class="b"></div>`;
+}
+
+/* ---------- vy ---------- */
+function solHTML(){
+  const st=solStats()[S.mode]||{played:0,won:0};
+  return `<div id="solRoot" class="sol theme-${solTheme}">
+    <div class="topbar"><button class="iconbtn" data-act="lobby" aria-label="Till lobbyn">‹</button>
+      <div class="tb-title">🃏 <b>Patiens</b><div class="net" id="solYz">${solYatzyPill()}</div></div>
+      <button class="iconbtn" data-act="soltheme" aria-label="Korttema">🎨</button><button class="iconbtn" data-act="sptoggle" aria-label="Musik">🎵</button></div>
+    <div class="sol-info"><span class="chip">${SOL_MODES[S.mode].label}</span><span>⏱ <b id="solTime">${fmtTime(S.time)}</b></span><span>🔁 <b id="solMoves">${S.moves}</b> drag</span><span class="dim">🏆 ${st.won}/${st.played}</span></div>
+    <div class="sol-board" id="solBoard">
+      <div class="slot stock" id="slotStock" data-pile="s"><span>↻</span></div>
+      ${[0,1,2,3].map(f=>`<div class="slot found" id="slotF${f}" data-pile="f${f}"><span>A</span></div>`).join('')}
+      ${[0,1,2,3,4,5,6].map(c=>`<div class="slot tab" id="slotT${c}" data-pile="t${c}"><span>K</span></div>`).join('')}
+      <div class="stockcount" id="stockCount"></div>
+    </div>
+    <div class="sol-actions" id="solActions">${solActionsHTML()}</div>
+  </div>`;
+}
+function solActionsHTML(){
+  const auto = S && !S.won && solAllUp();
+  return `<button data-act="solnew"><i>🔄</i>Nytt spel</button><button data-act="solundo" ${solHist.length?'':'disabled'}><i>↶</i>Ångra</button>
+    ${auto?'<button class="glow" data-act="solauto"><i>✨</i>Lägg upp</button>':'<button data-act="solhint"><i>💡</i>Tips</button>'}<button data-act="lobby"><i>🏠</i>Lobby</button>`;
+}
+function solYatzyPill(){
+  if(mode!=='online' || !G) return '';
+  if(G.over) return `<button class="yzpill" data-act="backtogame">🎲 Yatzy: matchen är klar</button>`;
+  if(G.started===false) return `<button class="yzpill" data-act="backtogame">🎲 Yatzy ${esc(gameId)}: väntar på start</button>`;
+  return G.cur===mySeat ? `<button class="yzpill hot" data-act="backtogame">🎲 Din tur i Yatzy! ›</button>` : `<button class="yzpill" data-act="backtogame">🎲 Yatzy: ${esc(pname(G.cur))}s tur</button>`;
+}
+function solRefreshChrome(){
+  const a=document.getElementById('solActions'); if(a) a.innerHTML=solActionsHTML();
+  const m=document.getElementById('solMoves'); if(m) m.textContent=S.moves;
+  const y=document.getElementById('solYz'); if(y) y.innerHTML=solYatzyPill();
+  const r=document.getElementById('solRoot'); if(r) r.className='sol theme-'+solTheme;
+}
+function solMount(){
+  const board=document.getElementById('solBoard');
+  board.style.setProperty('--back', backSVG(solTheme));
+  for(let id=0;id<52;id++){
+    const el=document.createElement('div'); el.className='scard'+(cRed(id)?' red':''); el.dataset.id=id;
+    el.innerHTML=`<div class="in">${faceHTML(id)}</div>`;
+    board.appendChild(el);
+  }
+  board.addEventListener('pointerdown',solPointerDown);
+  solSync(true);
+}
+function solRetheme(){
+  const board=document.getElementById('solBoard'); if(!board) return;
+  board.style.setProperty('--back', backSVG(solTheme));
+  board.querySelectorAll('.scard').forEach(el=>{ el.querySelector('.in').innerHTML=faceHTML(+el.dataset.id); });
+  solRefreshChrome();
+}
+// räkna ut positioner och flytta korten (CSS-övergångar ger mjuka rörelser)
+let SL=null;
+function solLayout(){
+  const board=document.getElementById('solBoard'); if(!board) return null;
+  const W=board.clientWidth, gap=Math.max(5,Math.min(14,W*.014));
+  let cw=Math.min((W-6*gap)/7, isDesk()?118:96); const ch=cw*1.4;
+  const ox=(W-(7*cw+6*gap))/2, X=c=>ox+c*(cw+gap);
+  const ty=ch+gap*2.2;
+  const avail=Math.max(ch*3, window.innerHeight - board.getBoundingClientRect().top - (document.getElementById('solActions')?.offsetHeight||60) - 26 - ty);
+  board.style.setProperty('--cw',cw+'px'); board.style.setProperty('--ch',ch+'px');
+  return {W,gap,cw,ch,X,ty,avail};
+}
+function solSync(instant, dragPos){
+  const board=document.getElementById('solBoard'); if(!board || !S) return;
+  SL=solLayout(); const {cw,ch,X,ty,avail,gap}=SL;
+  const pos={};
+  // slots
+  const place=(el,x,y)=>{ if(el){ el.style.left=x+'px'; el.style.top=y+'px'; } };
+  place(document.getElementById('slotStock'),X(0),0);
+  for(let f=0;f<4;f++) place(document.getElementById('slotF'+f),X(3+f),0);
+  for(let c=0;c<7;c++) place(document.getElementById('slotT'+c),X(c),ty);
+  // hög
+  S.stock.forEach((id,i)=>{ pos[id]={x:X(0)-Math.min(i,8)*0, y:0-Math.min(Math.floor(i/6),3)*1.2, z:10+i, up:false}; });
+  const sc=document.getElementById('stockCount'); if(sc){ sc.textContent=S.stock.length||''; sc.style.left=(X(0)-8)+'px'; sc.style.top=(-8)+'px'; }
+  document.getElementById('slotStock')?.classList.toggle('empty', !S.stock.length);
+  // kasthög (solfjäder med upp till 3 synliga)
+  const fan = S.mode==='1' ? 1 : 3, wl=S.waste.length;
+  S.waste.forEach((id,i)=>{ const k=i-(wl-fan); const off=k>0?k*cw*.3:0; pos[id]={x:X(1)+off, y:0, z:100+i, up:true, top:i===wl-1}; });
+  // grundhögar
+  S.found.forEach((pile,f)=>pile.forEach((id,i)=>{ pos[id]={x:X(3+f), y:0, z:200+i, up:true}; }));
+  // spelkolumner med anpassat avstånd så att allt får plats på höjden
+  let maxY=ty+ch;
+  S.tab.forEach((col,c)=>{
+    const nd=col.filter(x=>!x.up).length, nu=col.length-nd;
+    let dOff=ch*.11, uOff=ch*.27;
+    const need=nd*dOff+Math.max(0,nu-1)*uOff+ch;
+    if(need>avail && nu>1){ uOff=Math.max(ch*.19,(avail-ch-nd*dOff)/(nu-1)); }
+    let y=ty;
+    col.forEach((x,i)=>{ pos[x.id]={x:X(c), y, z:300+i, up:x.up}; y += x.up ? uOff : dOff; });
+    if(col.length) maxY=Math.max(maxY, y-(col[col.length-1].up?uOff:dOff)+ch);
+  });
+  board.style.height=(maxY+gap)+'px';
+  // tillämpa
+  board.querySelectorAll('.scard').forEach(el=>{
+    const id=+el.dataset.id, p=pos[id]; if(!p) return;
+    if(instant) el.style.transition='none';
+    if(dragPos && dragPos[id]){ el.style.transition='none'; el.style.left=dragPos[id].x+'px'; el.style.top=dragPos[id].y+'px'; el.style.transform=''; el.style.zIndex=2000+p.z; void el.offsetWidth; el.style.transition=''; }
+    el.style.left=p.x+'px'; el.style.top=p.y+'px'; el.style.zIndex=(dragPos&&dragPos[id])?2000+p.z:p.z;
+    el.classList.toggle('down',!p.up);
+    el.classList.toggle('wtop',!!p.top);
+    if(instant){ void el.offsetWidth; el.style.transition=''; }
+    if(dragPos && dragPos[id]) setTimeout(()=>{ el.style.zIndex=p.z; },260);
+  });
+}
+// vilken hög och vilket kort sitter ett kort-id i?
+function solLocate(id){
+  if(S.waste.length && topOf(S.waste)===id) return {t:'w'};
+  if(S.waste.includes(id)) return {t:'wx'};
+  if(S.stock.includes(id)) return {t:'s'};
+  for(let f=0;f<4;f++) if(S.found[f].includes(id)) return topOf(S.found[f])===id ? {t:'f',f} : {t:'fx'};
+  for(let c=0;c<7;c++){ const i=S.tab[c].findIndex(x=>x.id===id); if(i>=0) return {t:'t',c,i,up:S.tab[c][i].up}; }
+  return null;
+}
+function solShake(src){ cardsAt(src).forEach(id=>{ const el=document.querySelector(`.scard[data-id="${id}"]`); if(el){ el.classList.remove('shake'); void el.offsetWidth; el.classList.add('shake'); } }); }
+// släppmål utifrån var det dragna kortets mitt hamnar
+function solDropTarget(cx,cy){
+  const {X,cw,ch,ty,gap}=SL;
+  let best=null, bd=1e9;
+  const consider=(dst,x,y)=>{ const dx=cx-(x+cw/2), dy=cy-(y+ch/2), d=dx*dx+dy*dy; if(d<bd){ bd=d; best=dst; } };
+  for(let f=0;f<4;f++) consider({t:'f',f},X(3+f),0);
+  for(let c=0;c<7;c++){ const col=S.tab[c]; let y=ty; if(col.length){ const el=document.querySelector(`.scard[data-id="${topOf(col).id}"]`); y=parseFloat(el.style.top)||ty; } consider({t:'t',c},X(c),y); }
+  return bd < Math.pow(Math.max(cw,ch)*1.1,2) ? best : null;
+}
+function solPointerDown(e){
+  if(!S || S.won || e.button>0) return;
+  const card=e.target.closest('.scard'), slot=e.target.closest('.slot');
+  if(!card){ if(slot && slot.id==='slotStock'){ unlockAudio(); solDraw(); } return; }
+  const id=+card.dataset.id, loc=solLocate(id); if(!loc) return;
+  unlockAudio();
+  if(loc.t==='s'){ solDraw(); return; }
+  let src=null;
+  if(loc.t==='w') src={t:'w'}; else if(loc.t==='f') src={t:'f',f:loc.f}; else if(loc.t==='t' && loc.up) src={t:'t',c:loc.c,i:loc.i};
+  if(!src) return;
+  e.preventDefault();
+  const ids=cardsAt(src), els=ids.map(i=>document.querySelector(`.scard[data-id="${i}"]`));
+  solDrag={src, ids, els, sx:e.clientX, sy:e.clientY, moved:false, pid:e.pointerId, base:els.map(el=>({x:parseFloat(el.style.left),y:parseFloat(el.style.top)}))};
+  try{ card.setPointerCapture(e.pointerId); }catch(_){}
+  window.addEventListener('pointermove',solPointerMove);
+  window.addEventListener('pointerup',solPointerUp,{once:true});
+  window.addEventListener('pointercancel',solPointerUp,{once:true});
+}
+function solPointerMove(e){
+  const d=solDrag; if(!d || e.pointerId!==d.pid) return;
+  const dx=e.clientX-d.sx, dy=e.clientY-d.sy;
+  if(!d.moved && Math.hypot(dx,dy)<7) return;
+  if(!d.moved){ d.moved=true; d.els.forEach((el,k)=>{ el.classList.add('dragging'); el.style.zIndex=5000+k; }); }
+  d.els.forEach(el=>{ el.style.transform=`translate(${dx}px,${dy}px) rotate(${Math.max(-4,Math.min(4,dx/40))}deg)`; });
+  d.dx=dx; d.dy=dy;
+  // markera giltigt mål
+  const cx=d.base[0].x+dx+SL.cw/2, cy=d.base[0].y+dy+SL.ch/2;
+  const t=solDropTarget(cx,cy);
+  document.querySelectorAll('.droptarget').forEach(x=>x.classList.remove('droptarget'));
+  if(t && legal(d.src,t)){
+    const el = t.t==='f' ? (S.found[t.f].length?document.querySelector(`.scard[data-id="${topOf(S.found[t.f])}"]`):document.getElementById('slotF'+t.f)) : (S.tab[t.c].length?document.querySelector(`.scard[data-id="${topOf(S.tab[t.c]).id}"]`):document.getElementById('slotT'+t.c));
+    el?.classList.add('droptarget');
+  }
+}
+function solPointerUp(e){
+  window.removeEventListener('pointermove',solPointerMove);
+  const d=solDrag; solDrag=null; if(!d) return;
+  document.querySelectorAll('.droptarget').forEach(x=>x.classList.remove('droptarget'));
+  d.els.forEach(el=>el.classList.remove('dragging'));
+  if(!d.moved){ d.els.forEach(el=>{ el.style.transform=''; }); solTap(d.src); return; }
+  const cx=d.base[0].x+d.dx+SL.cw/2, cy=d.base[0].y+d.dy+SL.ch/2;
+  const t=solDropTarget(cx,cy);
+  if(t && legal(d.src,t)){
+    const dragPos={}; d.ids.forEach((id,k)=>{ dragPos[id]={x:d.base[k].x+d.dx, y:d.base[k].y+d.dy}; });
+    d.els.forEach(el=>{ el.style.transition='none'; el.style.transform=''; });
+    // flytta logiskt, och låt korten glida sista biten från där de släpptes
+    solSnap(); solStart();
+    let ids; const src=d.src;
+    if(src.t==='w') ids=[S.waste.pop()]; else if(src.t==='f') ids=[S.found[src.f].pop()]; else ids=S.tab[src.c].splice(src.i).map(x=>x.id);
+    if(t.t==='f') S.found[t.f].push(ids[0]); else ids.forEach(id=>S.tab[t.c].push({id,up:true}));
+    let flipped=false; if(src.t==='t'){ const tp=topOf(S.tab[src.c]); if(tp && !tp.up){ tp.up=true; flipped=true; } }
+    S.moves++; t.t==='f'?solSnd('found'):solSnd('place'); if(flipped) setTimeout(()=>solSnd('flip'),120);
+    solSaveN++; solSave(); solSync(false,dragPos);
+    if(S.found.every(f=>f.length===13) && !S.won){ S.won=true; solSave(); solWin(); }
+    solRefreshChrome();
+  } else {
+    d.els.forEach(el=>{ el.style.transform=''; });
+    setTimeout(()=>d.els.forEach((el,k)=>{ const z=parseInt(el.style.zIndex)||0; if(z>=5000) el.style.zIndex=''; }),260);
+    solSync(false); solSnd('nope');
+  }
+}
+// tid
+setInterval(()=>{
+  if(view!=='sol' || !S || !S.started || S.won || document.hidden) return;
+  S.time++; const t=document.getElementById('solTime'); if(t) t.textContent=fmtTime(S.time);
+  if(S.time%5===0) solSave();
+},1000);
+window.addEventListener('resize',()=>{ if(view==='sol') requestAnimationFrame(()=>solSync(true)); });
+
+/* ---------- start, nytt spel, teman ---------- */
+function openSol(){
+  closeModal();
+  S = S || solLoad();
+  if(!S || S.won){ showSolNew(true); return; }
+  view='sol'; render();
+}
+function showSolNew(fromLobby){
+  openModal(`<h3>🃏 Ny patiens</h3><p>Klassisk patiens med sju högar. Spelas helt offline.</p>
+    <label>Hur många kort vänder du upp?</label>
+    <div class="solmodes">${Object.entries(SOL_MODES).map(([k,m])=>`<button data-act="solmode" data-m="${k}" class="${solMode===k?'sel':''}"><b>${m.label}</b><small>${m.sub}</small></button>`).join('')}</div>
+    <label>Korttema</label><div class="themes">${themeBtns()}</div>
+    <div class="btns"><button data-act="${fromLobby?'close':'close'}">Avbryt</button><button class="pri" data-act="solstart">Dela ut 🃏</button></div>`);
+}
+function themeBtns(){
+  return Object.entries(SOL_THEMES).map(([k,t])=>`<button data-act="solpicktheme" data-t="${k}" class="${solTheme===k?'sel':''}"><span class="mini-back" style="background-image:${backSVG(k)}"></span><span>${t.label}</span></button>`).join('');
+}
+function showSolTheme(){
+  openModal(`<h3>🎨 Korttema</h3><p>Byt när du vill – spelet fortsätter.</p><div class="themes">${themeBtns()}</div>
+    <div class="btns"><button class="pri" data-act="close">Klar</button></div>`);
+}
+function solStartNew(){
+  closeModal(); clearTimeout(solAutoT);
+  if(S && S.started && !S.won){ /* övergivet spel räknas som spelat men inte vunnet */ }
+  solNew(solMode); view='sol';
+  const old=document.getElementById('solRoot'); if(old) old.remove();
+  render(); solSnd('shuffle');
+}
+
+/* ================= Aviseringar medan man är någon annanstans ================= */
+function notice(o){
+  const box=document.getElementById('notices'); if(!box) return;
+  const n=document.createElement('div'); n.className='notice';
+  n.innerHTML=`<div class="ic">${o.icon}</div><div><b>${esc(o.title)}</b><span>${esc(o.text||'')}</span></div><div class="acts">${(o.actions||[]).map((a,i)=>`<button data-nact="${i}">${esc(a.label)}</button>`).join('')}<button class="x" data-nact="x">Stäng</button></div>`;
+  let done=false; const close=()=>{ if(done) return; done=true; n.classList.add('out'); setTimeout(()=>n.remove(),320); };
+  n.addEventListener('click',e=>{ const b=e.target.closest('[data-nact]'); if(!b) return; e.stopPropagation(); close(); if(b.dataset.nact!=='x'){ unlockAudio(); o.actions[+b.dataset.nact].run(); } });
+  box.prepend(n); while(box.children.length>3) box.lastChild.remove();
+  setTimeout(close, o.ms||12000);
+  if(o.sound!==false){ o.poke ? sfx.poke() : sfx.turn(); buzz(o.poke?[60,40,60,40,220]:[160,80,160]); }
+  if(document.hidden){ startBlink(o.title); systemNotify(o.title+(o.text?' – '+o.text:'')); }
+}
+function backToGame(){ closeModal(); if(mode==='online' && G){ view='game'; render(); keepAwake(); try{ window.scrollTo(0,0) }catch(e){} } else resumeNet(); }
+function leaveOnline(){ stopNet(); releaseWake(); mode=null; G=null; gameId=null; lsSet('ry_net',''); render(); toast('Du lämnade Yatzy-spelet'); }
+window.addEventListener('hashchange',()=>{
+  const h=(location.hash||'').replace('#','').toUpperCase(); if(!/^[A-Z0-9]{4}$/.test(h)) return;
+  if(mode==='online' && gameId===h) return;
+  notice({icon:'✉️', title:'Inbjudan till Yatzy', text:`Spelkod ${h}`, actions:[{label:'Gå med', run:()=>showJoin(h)}]});
+});
+
 /* ================= Lokalt ================= */
 function startLocal(names,order,ai){
   stopNet(); clearTimeout(aiTimer); aiPlan=null;
@@ -1637,7 +2194,9 @@ function resumeLocal(){
     stopNet(); mode='local'; G=g; shown=g.dice.slice(); view='game'; aiPlan=null; render(); maybeAI(1200); }catch(e){}
 }
 function goLobby(){
-  stopNet(); clearTimeout(aiTimer); releaseWake(); stopBlink(); trayOpen=false; view='lobby'; mode=null; G=null; gameId=null; closeModal(); render();
+  clearTimeout(aiTimer); clearTimeout(solAutoT); stopBlink(); trayOpen=false; closeModal();
+  if(mode==='online' && G && !G.over){ view='lobby'; render(); return; }   // Yatzy fortsätter i bakgrunden
+  stopNet(); releaseWake(); view='lobby'; mode=null; G=null; gameId=null; render();
 }
 
 /* ================= Modaler ================= */
@@ -1749,6 +2308,7 @@ function render(){
   document.body.classList.toggle('ingame', view!=='lobby');
   if(view==='lobby'){ app.innerHTML=lobbyHTML(); dock.innerHTML=''; fitDock(); return; }
   if(view==='stats'){ app.innerHTML=statsHTML(); dock.innerHTML=''; fitDock(); return; }
+  if(view==='sol'){ dock.innerHTML=''; if(!document.getElementById('solRoot')){ app.innerHTML=solHTML(); solMount(); } else { solRefreshChrome(); solSync(true); } app.style.paddingBottom='0px'; return; }
   if(!G){ app.innerHTML=topbar()+`<div class="loading">${DOLPHIN('ld')}<p>Simmar till spelet <b>${esc(gameId||'')}</b>…</p><p style="font-size:14px">${netText()}</p><button class="bigbtn alt" data-act="lobby" style="max-width:260px;margin:20px auto">Avbryt</button></div>`; dock.innerHTML=''; return; }
   if(desk){
     app.innerHTML = topbar() + `<div class="desk-grid"><div class="desk-left">${sheetHTML()}</div>
@@ -1779,7 +2339,10 @@ function lobbyHTML(){
     <h1>Stjärndelfin<small>YATZY</small></h1></div>
     <div class="tag">Rymden · Havet · Fem tärningar</div>
     <div class="getwell">Krya på dig! 💙🐬</div></div><div class="lob-menu">`;
-  try{
+  if(mode==='online' && G){
+    const st = G.started===false ? `${G.names.length} spelare · väntar på start` : G.cur===mySeat ? '<b style="color:var(--gold)">Din tur!</b>' : `${esc(pname(G.cur))}s tur`;
+    h += `<div class="bgcard"><div style="font-size:26px">🎲</div><div class="t"><b>Yatzy ${esc(gameId)} pågår</b><span>${st}</span></div><button data-act="backtogame">Tillbaka</button><button class="lv" data-act="leavegame">Lämna</button></div>`;
+  } else try{
     const n=JSON.parse(lsGet('ry_net')), s=JSON.parse(lsGet('ry_net_state'));
     if(n && n.code && !(s && s.over)){
       const other = s && s.names && s.names.length>1 ? s.names.filter((_,i)=>i!==n.seat).join(', ') : '…';
@@ -1796,6 +2359,8 @@ function lobbyHTML(){
   h += `<button class="bigbtn alt" data-act="newai">🤖 Spela mot Blixt (datorn)</button>
     <button class="bigbtn alt" data-act="newsolo">🧑‍🚀 Spela ensam</button>
     <button class="bigbtn alt" data-act="newlocal">📱 Flera på samma ${isDesk()?'skärm':'mobil'} (2–4)</button>
+    <h2 class="sec">Patiens · ensam & offline</h2>
+    <button class="bigbtn alt" data-act="opensol">🃏 ${(()=>{ const sv=S||solLoad(); return sv && !sv.won && sv.started ? 'Fortsätt patiensen' : 'Spela patiens'; })()}</button>
     <h2 class="sec">Statistik</h2>
     <button class="bigbtn alt" data-act="stats">📊 Statistik & rekord</button>`;
   const bf=bestList('free')[0], bd=bestList('down')[0];
@@ -1924,6 +2489,17 @@ document.addEventListener('click', e=>{
     case 'pick': pick(b.dataset.k); break;
     case 'help': toast(b.dataset.k==='bonus' ? `Bonus: får du ${bonusLimit(G&&G.order)} eller mer i övre delen blir det +50!${G&&G.order==='down'?' (42 när man spelar i ordning)':''}` : HELP[b.dataset.k],3500); break;
     case 'settings': showSettings(); break;
+    case 'opensol': openSol(); break;
+    case 'solnew': showSolNew(false); break;
+    case 'solstart': case 'solnewsame': solStartNew(); break;
+    case 'solmode': solMode=b.dataset.m; lsSet('ry_solmode',solMode); showSolNew(); break;
+    case 'solpicktheme': solTheme=b.dataset.t; lsSet('ry_soltheme',solTheme); solRetheme(); M().querySelector('.solmodes') ? showSolNew() : showSolTheme(); break;
+    case 'soltheme': showSolTheme(); break;
+    case 'solundo': solUndo(); break;
+    case 'solhint': solHint(); break;
+    case 'solauto': solAutoFinish(); break;
+    case 'backtogame': backToGame(); break;
+    case 'leavegame': leaveOnline(); break;
     case 'sptoggle': spToggle(); break;
     case 'splogin': spLogin(); break;
     case 'spsfx': spSfx=b.dataset.v==='1'; lsSet('ry_spsfx',spSfx?'1':'0'); if(spSfx){ const m=muted; muted=false; sfx.roll(); muted=m; } spRefreshChrome(); if(M().classList.contains('show')) showSettings(); break;
@@ -1988,6 +2564,13 @@ document.addEventListener('keydown',e=>{
   }
   if(M().classList.contains('show')) return;
   if(e.key==='m' || e.key==='M'){ spToggle(); return; }
+  if(view==='sol' && S){
+    if(e.key===' '){ e.preventDefault(); unlockAudio(); solDraw(); }
+    else if(e.key==='z' || e.key==='Z' || e.key==='Backspace'){ e.preventDefault(); solUndo(); }
+    else if(e.key==='h' || e.key==='H'){ solHint(); }
+    else if(e.key==='n' || e.key==='N'){ showSolNew(); }
+    return;
+  }
   if(view!=='game' || !G) return;
   if(e.key==='e' || e.key==='E'){ trayOpen=!trayOpen; render(); return; }
   if(e.key===' ' || e.code==='Space'){
