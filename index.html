@@ -446,14 +446,15 @@ const filled = s => Object.keys(s||{}).filter(k=>NAME[k]).length;
 const isYatzy = d => d.every(v=>v===d[0]);
 
 /* ================= Ljud ================= */
-let AC=null, muted=false, musicOn=true, diceSound='klassisk', NB=null;
-try{ muted = localStorage.getItem('ry_mute')==='1'; musicOn = localStorage.getItem('ry_music')!=='0'; diceSound = localStorage.getItem('ry_dsnd')||'klassisk'; }catch(e){}
+let AC=null, muted=false, musicOn=true, diceSound='klassisk', NB=null, spSfx=true;
+try{ spSfx = localStorage.getItem('ry_spsfx')!=='0'; muted = localStorage.getItem('ry_mute')==='1'; musicOn = localStorage.getItem('ry_music')!=='0'; diceSound = localStorage.getItem('ry_dsnd')||'klassisk'; }catch(e){}
 function unlockAudio(){
   try{ if(!AC) AC=new (window.AudioContext||window.webkitAudioContext)(); if(AC.state==='suspended') AC.resume(); }catch(e){}
   if(musicOn) startMusic();
 }
+function sfxOff(){ try{ return muted || (!spSfx && spPlaying); }catch(e){ return muted; } }
 function tone(f,dur,type='sine',vol=.14,when=0,slide){
-  if(muted||!AC) return;
+  if(sfxOff()||!AC) return;
   try{
     const t=AC.currentTime+when, o=AC.createOscillator(), g=AC.createGain();
     o.type=type; o.frequency.setValueAtTime(f,t);
@@ -464,7 +465,7 @@ function tone(f,dur,type='sine',vol=.14,when=0,slide){
 }
 function noiseBuf(sec){ const b=AC.createBuffer(1,Math.floor(AC.sampleRate*sec),AC.sampleRate), d=b.getChannelData(0); for(let i=0;i<d.length;i++) d[i]=Math.random()*2-1; return b; }
 function hit(when,freq,vol,dur=.04){
-  if(muted||!AC) return;
+  if(sfxOff()||!AC) return;
   try{
     if(!NB) NB=noiseBuf(1);
     const src=AC.createBufferSource(), f=AC.createBiquadFilter(), g=AC.createGain(), t=AC.currentTime+when;
@@ -1256,7 +1257,7 @@ const SP_TYPE = {playlist:'Spellista',album:'Album',track:'Låt',artist:'Artist'
 function spPanelHTML(){
   const st=spGet();
   const head=`<div class="sp-head"><b>🎵 Musik från Spotify</b><button class="iconbtn" data-act="spclose" aria-label="Stäng">›</button></div>`;
-  if(spAuth()) return head + spLoggedHTML() + `<div class="sp-duck"><span>Pausa spelets egen musik när Spotify spelar</span><div class="seg"><button data-act="spduck" data-v="1" class="${spDuck?'sel':''}">På</button><button data-act="spduck" data-v="0" class="${spDuck?'':'sel'}">Av</button></div></div>`;
+  if(spAuth()) return head + spLoggedHTML() + `<div class="sp-duck"><span>Pausa spelets egen musik när Spotify spelar</span><div class="seg"><button data-act="spduck" data-v="1" class="${spDuck?'sel':''}">På</button><button data-act="spduck" data-v="0" class="${spDuck?'':'sel'}">Av</button></div></div><div class="sp-duck"><span>Ljudeffekter (tärningar m.m.) när Spotify spelar</span><div class="seg"><button data-act="spsfx" data-v="1" class="${spSfx?'sel':''}">På</button><button data-act="spsfx" data-v="0" class="${spSfx?'':'sel'}">Av</button></div></div>`;
   return head + `<button class="sp-login" data-act="splogin">Logga in med Spotify</button>
     <div class="setnote" style="margin:6px 2px 14px">Med Premium får du hela låtar och dina egna spellistor direkt här. Logga gärna in från lobbyn – du lämnar spelet en kort stund.</div>
     <div class="setnote" style="margin:0 2px 8px"><b>Eller</b> klistra in en länk (ger ofta bara smakprov):</div>
@@ -1266,6 +1267,7 @@ function spPanelHTML(){
     <div id="spWrap" class="sp-wrap">${st.uri?'':'<div class="sp-empty">🐬 Ingen musik vald än</div>'}<div id="spPlayer"></div></div>
     ${st.recent.length?`<div class="setnote" style="margin:12px 2px 6px">Senast spelade</div><div class="sp-recent">${st.recent.map((r,i)=>`<button data-act="sprecent" data-i="${i}" class="${r.uri===st.uri?'sel':''}">${SP_TYPE[r.type]||'Spotify'} · <span>${esc(r.id.slice(0,6))}…</span></button>`).join('')}</div>`:''}
     <div class="sp-duck"><span>Pausa spelets egen musik när Spotify spelar</span><div class="seg"><button data-act="spduck" data-v="1" class="${spDuck?'sel':''}">På</button><button data-act="spduck" data-v="0" class="${spDuck?'':'sel'}">Av</button></div></div>
+    <div class="sp-duck"><span>Ljudeffekter (tärningar m.m.) när Spotify spelar</span><div class="seg"><button data-act="spsfx" data-v="1" class="${spSfx?'sel':''}">På</button><button data-act="spsfx" data-v="0" class="${spSfx?'':'sel'}">Av</button></div></div>
     <div class="setnote" style="margin-top:8px">Musiken fortsätter när panelen är infälld. Hela låtar spelas om du är inloggad på Spotify i webbläsaren – annars korta smakprov.</div>`;
 }
 function spBuild(){
@@ -1570,6 +1572,7 @@ function showSettings(){
   openModal(`<h3>⚙️ Inställningar</h3>
     <div class="setrow"><div class="lbl">🎵 Bakgrundsmusik</div>${onoff('setmusic',musicOn)}</div>
     <div class="setrow"><div class="lbl">🔊 Ljudeffekter</div>${onoff('setsfx',!muted)}</div>
+    <div class="setrow"><div class="lbl">🎧 Ljudeffekter även när Spotify spelar</div>${onoff('spsfx',spSfx)}</div>
     <div class="setrow"><div class="lbl">🎲 Ljud när tärningarna kastas (tryck för att lyssna)</div>
       <div class="chips">${Object.entries(DICE_SOUNDS).map(([k,v])=>`<button data-act="setdice" data-k="${k}" class="${diceSound===k?'sel':''}">${v.label}</button>`).join('')}</div></div>
     <div class="setrow"><div class="lbl">🔔 Aviseringar när det är din tur</div>
@@ -1790,6 +1793,7 @@ document.addEventListener('click', e=>{
     case 'settings': showSettings(); break;
     case 'sptoggle': spToggle(); break;
     case 'splogin': spLogin(); break;
+    case 'spsfx': spSfx=b.dataset.v==='1'; lsSet('ry_spsfx',spSfx?'1':'0'); if(spSfx){ const m=muted; muted=false; sfx.roll(); muted=m; } spRefreshChrome(); if(M().classList.contains('show')) showSettings(); break;
     case 'splogout': spLogout(); break;
     case 'splist': { const pl=spLists&&spLists[+b.dataset.i]; if(pl) spPlayCtx(pl.uri); break; }
     case 'spctl': spCtl(b.dataset.a); break;
