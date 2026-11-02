@@ -1,5 +1,5 @@
 // Stjärndelfin Yatzy – service worker: gör appen installerbar, spelbar offline och visar aviseringar.
-const CACHE = 'stjarndelfin-v3';
+const CACHE = 'stjarndelfin-v4';
 const FILES = ['./', './index.html', './manifest.webmanifest', './icon-192.png', './icon-512.png', './icon-180.png'];
 self.addEventListener('install', e => { e.waitUntil(caches.open(CACHE).then(c => c.addAll(FILES)).then(() => self.skipWaiting())); });
 self.addEventListener('activate', e => {
