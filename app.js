@@ -6,7 +6,7 @@
   if(!same || !/[?&]bot=1/.test(location.search)){ document.documentElement.innerHTML=''; throw new Error('Inramning blockerad'); }
 })();
 /* ================= Version & utvecklingsläge ================= */
-const APP_VERSION='2026.11.03.2';
+const APP_VERSION='2026.11.03.3';
 const DEV = /\/dev(\/|$)/.test(location.pathname);      // testversionen ligger i mappen /dev/
 const BOT = DEV && /[?&]bot=1/.test(location.search) && window.parent!==window;   // osynlig testkompis i en ram (bara dev)
 const LSP = DEV ? (BOT ? 'dev:bot:' : 'dev:') : '';    // egen sparad data i testversionen
@@ -524,11 +524,14 @@ function attachHost(c){
   c.on('error',()=>{});
 }
 function onHostMsg(m,c){
-  if(!m.t || m.t==='ping' || !G) return;
+  if(m.t==='ping'){ sendTo(c,{t:'pong'}); return; }
+  if(!m.t || !G) return;
   if(m.t==='hello'){
     let seat=null;
     const nm=String(m.name||'').replace(/[\u0000-\u001f\u007f-\u009f\u200e\u200f\u202a-\u202e\u2066-\u2069]/g,'').slice(0,14).trim();   // inga styr- eller riktningstecken
+    const alive = i => [...hostConns].some(o=>o!==c && o.open && o._seat===i && Date.now()-(o._heard||0)<10000);
     if(Number.isInteger(m.seat) && m.seat>0 && G.names[m.seat] && G.names[m.seat]===nm) seat=m.seat;      // återanslutning
+    else if(nm && G.names.indexOf(nm,1)>0 && (G.started!==false || !alive(G.names.indexOf(nm,1)))) seat=G.names.indexOf(nm,1);   // samma spelare kommer tillbaka – den gamla anslutningen är död
     else if(G.started===false && G.names.length<maxP() && nm){
       let n=nm, k=2; while(G.names.includes(n)) n=nm.slice(0,12)+' '+(k++);
       G.names.push(n); if(Array.isArray(G.scores)) G.scores.push({}); G.seq=(G.seq||0)+1; G.updatedAt=Date.now();
@@ -543,14 +546,15 @@ function onHostMsg(m,c){
     if(!isKind() && (m.state?.seq||0)>(G.seq||0) && guestMayUpdate(G, m.state, seat)) onGameData(JSON.parse(JSON.stringify(m.state)));
     if(typeof CHAT!=='undefined'){ if(m.card){ c._card=m.card; CHAT.seenCards([m.card],'ett spel'); } const cards=[CHAT.card(), ...[...hostConns].map(o=>o._card)].filter(Boolean); if(cards.length) hostBroadcast({t:'cards', cards}); }
     sendTo(c,{t:'welcome', seat, name:G.names[seat]});
-    hostBroadcast({t:'state', state:G});
+    sendTo(c,{t:'state', state:G, force:true});          // värdens version gäller alltid efter återanslutning
+    hostBroadcast({t:'state', state:G}, c);
     updateHostNet(); render();
     return;
   }
   if(c._seat==null) return;
   if(m.t==='state'){
     if(!isKind() && (m.state?.seq||0)>(G.seq||0) && guestMayUpdate(G, m.state, c._seat)){ onGameData(JSON.parse(JSON.stringify(m.state))); hostBroadcast({t:'state', state:G}, c); }
-    else sendTo(c,{t:'state', state:G});   // ogiltigt eller gammalt: gästen får värdens version
+    else sendTo(c,{t:'state', state:G, force:true});   // ogiltigt eller gammalt: gästen får värdens version
     return;
   }
   if(m.t==='act'){ if(isKind()) applyAndPublish(m.a, c._seat); return; }
@@ -604,13 +608,17 @@ function attachGuest(c){
 }
 function onGuestMsg(m){
   lastHeard=Date.now();
-  if(!m.t || m.t==='ping') return;
+  if(m.t==='ping'){ sendTo(conn,{t:'pong'}); return; }
+  if(!m.t || m.t==='pong') return;
   if(m.t==='welcome'){ if(!isI(m.seat,1,MAXP-1) || (m.name!=null && !okPName(m.name))) return; const first=mySeat===null; mySeat=m.seat; if(m.name) myName=String(m.name); saveNet(); render(); if(first) toast(`Du är med i spelet ${gameId}! 🐬`); return; }
   if(m.t==='full'){
+    if(m.reason==='started' && G && G.started!==false && Array.isArray(G.names) && G.names.includes(myName)){
+      setNet('lost'); retry(connectGuest,5000); return;                 // vi hör hemma i spelet – försök igen i stället för att lämna
+    }
     toast(m.reason==='started' ? 'Det spelet har redan startat 😕' : 'Spelet är fullt – max 4 spelare 😕',4500);
     lsSet('ry_net',''); stopNet(); setTimeout(goLobby,1200); return;
   }
-  if(m.t==='state'){ if(validState(m.state) && (!G || (m.state.seq||0)>(G.seq||0))) onGameData(JSON.parse(JSON.stringify(m.state))); return; }
+  if(m.t==='state'){ if(validState(m.state) && (!G || (m.state.seq||0)>(G.seq||0) || (m.force && JSON.stringify(m.state)!==JSON.stringify(G)))) onGameData(JSON.parse(JSON.stringify(m.state))); return; }
   if(m.t==='cards'){ if(typeof CHAT!=='undefined') CHAT.seenCards(m.cards,'ett spel'); return; }
   if(m.t==='emoji' || m.t==='poke') onSocial(m);
 }
@@ -663,10 +671,40 @@ setInterval(()=>{
   if(Date.now()-lastHeard > 16000){ try{ conn.close() }catch(e){} }
 },5000);
 document.addEventListener('visibilitychange',()=>{
-  if(document.visibilityState!=='visible' || mode!=='online') return;
-  if(role==='guest' && !(conn && conn.open)) connectGuest();
-  if(role==='host'){ if(!peer || peer.destroyed) startHost(); else if(peer.disconnected){ try{ peer.reconnect() }catch(e){} } }
+  if(document.visibilityState!=='visible') return;
+  if(mode!=='online'){ autoResume(); return; }
+  netCheck();
 });
+// Kontrollera nätet direkt (efter appbyte, skärmlås eller när mobilen får nät igen)
+function netCheck(){
+  if(mode!=='online') return;
+  const t0=Date.now();
+  if(role==='guest'){
+    if(!peer || peer.destroyed){ startGuest(); return; }
+    if(peer.disconnected){ try{ peer.reconnect() }catch(e){} }
+    if(!(conn && conn.open)){ connectGuest(); return; }
+    const c=conn; sendTo(c,{t:'ping'});                                   // lever anslutningen? värden svarar direkt
+    setTimeout(()=>{ if(conn===c && lastHeard<t0){ try{ c.close() }catch(e){} conn=null; setNet('lost'); connectGuest(); } },4000);
+  } else if(role==='host'){
+    if(!peer || peer.destroyed){ startHost(); return; }
+    if(peer.disconnected){ try{ peer.reconnect() }catch(e){ startHost(); return; } }
+    for(const c of hostConns) sendTo(c,{t:'ping'});
+    setTimeout(()=>{ for(const c of [...hostConns]) if((c._heard||0)<t0){ try{ c.close() }catch(e){} hostConns.delete(c); } updateHostNet(); },4000);
+  }
+}
+window.addEventListener('online', ()=>{ setTimeout(netCheck,500); });
+window.addEventListener('pageshow', e=>{ if(e.persisted) setTimeout(()=>{ mode==='online' ? netCheck() : autoResume(); },300); });
+// Starta: om ett onlinespel pågick när appen stängdes går vi direkt tillbaka in i det
+function canAutoResume(){
+  if(mode==='online' || BOT) return false;
+  try{
+    const n=JSON.parse(lsGet('ry_net')); if(!n || !n.code) return false;
+    const s=JSON.parse(lsGet('ry_net_state'));
+    if(!s || s.over) return false;                                    // avslutade spel öppnas inte automatiskt
+    return Date.now()-(s.updatedAt||0) < 12*3600e3;                   // gamla spel (över ett halvt dygn) väntar i lobbyn
+  }catch(e){ return false; }
+}
+function autoResume(){ if(!canAutoResume()) return false; resumeNet(); return mode==='online'; }
 function startOnlineGame(){
   if(role!=='host' || !G || G.started!==false) return;
   if(G.names.length<2){ toast('Vänta tills minst en till har gått med 🔭'); return; }
@@ -705,9 +743,9 @@ function resumeNet(){
     const n=JSON.parse(lsGet('ry_net')); if(!n || !n.code) return;
     let s=null; try{ s=JSON.parse(lsGet('ry_net_state')) }catch(e){}
     stopNet(); mode='online'; role=n.role; mySeat=(n.seat===undefined?null:n.seat); myName=n.name||''; gameId=n.code;
-    G = validState(s) ? s : null; if(G) shown=G.dice.slice(); freshCell=null; view='game'; render();
+    G = validState(s) ? s : null; if(G && Array.isArray(G.dice)) shown=G.dice.slice(); freshCell=null; view='game'; render();
     role==='host' ? startHost() : startGuest(); keepAwake();
-  }catch(e){}
+  }catch(e){ console.error('resumeNet', e); }
 }
 
 /* ================= Emojis & puffar ================= */
@@ -2155,7 +2193,10 @@ document.addEventListener('keydown',e=>{
 if(DEV && !BOT){ const d=document.createElement('div'); d.className='devribbon'; d.textContent='DEV'; document.body.appendChild(d); }
 if(!BOT){
 spBuild();
-render();
+const willResume=canAutoResume();
+if(!willResume) render();
+// spelfilerna (games.js m.fl.) laddas efter den här filen – återuppta när allt finns
+document.addEventListener('DOMContentLoaded',()=>{ if(willResume && !autoResume()) render(); });
 spHandleRedirect();
 }
 window.addEventListener('storage',e=>{ if(e.key==='ry_spauth'){ spUser=null; spLists=null; if(spOpen) spInit(); spRefreshChrome(); } });
