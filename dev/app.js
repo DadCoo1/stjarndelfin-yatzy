@@ -624,7 +624,7 @@ function onGuestMsg(m){
   lastHeard=Date.now();
   if(m.t==='ping'){ sendTo(conn,{t:'pong'}); return; }
   if(!m.t || m.t==='pong') return;
-  if(m.t==='welcome'){ if(!isI(m.seat,1,MAXP-1) || (m.name!=null && !okPName(m.name))) return; const first=mySeat===null; mySeat=m.seat; if(m.name) myName=String(m.name); saveNet(); render(); if(first) toast(`Du är med i spelet ${gameId}! 🐬`); return; }
+  if(m.t==='welcome'){ if(!isI(m.seat,1,5) || (m.name!=null && !okPName(m.name))) return; const first=mySeat===null; mySeat=m.seat; if(m.name) myName=String(m.name); saveNet(); render(); if(first) toast(`Du är med i spelet ${gameId}! 🐬`); return; }
   if(m.t==='full'){
     if(m.reason==='started' && G && G.started!==false && Array.isArray(G.names) && G.names.includes(myName)){
       setNet('lost'); retry(connectGuest,5000); return;                 // vi hör hemma i spelet – försök igen i stället för att lämna
@@ -656,9 +656,10 @@ function validYatzy(s){
 }
 function validState(s){
   if(!s || typeof s!=='object' || Array.isArray(s)) return false;
-  if(!Array.isArray(s.names) || s.names.length<1 || s.names.length>MAXP || !s.names.every(okPName)) return false;
+  const maxN = s.kind && s.kind!=='yatzy' && typeof GINFO!=='undefined' && Object.prototype.hasOwnProperty.call(GINFO,s.kind) ? (GINFO[s.kind].max||2) : MAXP;
+  if(!Array.isArray(s.names) || s.names.length<1 || s.names.length>maxN || !s.names.every(okPName)) return false;
   if(typeof s.seq!=='number' || !isFinite(s.seq)) return false;
-  if(s.kind!==undefined && s.kind!=='yatzy') return typeof KIND!=='undefined' && Object.prototype.hasOwnProperty.call(KIND,s.kind) && s.names.length<=2 && (!KIND[s.kind].valid || KIND[s.kind].valid(s));
+  if(s.kind!==undefined && s.kind!=='yatzy') return typeof KIND!=='undefined' && Object.prototype.hasOwnProperty.call(KIND,s.kind) && (!KIND[s.kind].valid || KIND[s.kind].valid(s));
   return validYatzy(s);
 }
 // Får gästen på plats `seat` byta Yatzy-tillståndet från `prev` till `s`? (värden bestämmer)
@@ -1997,6 +1998,7 @@ function lobbyHTML(){
       <button class="tile" style="--tg:linear-gradient(135deg,#0ea5e9,#1e3a8a)" data-act="gmenu" data-k="ships"><span class="ti">🚢</span><b>Sänka skepp</b><small>Mot datorn eller en kompis</small></button>
       <button class="tile" style="--tg:linear-gradient(135deg,#c026d3,#ec4899)" data-act="gmenu" data-k="mm"><span class="ti">🔮</span><b>Mastermind</b><small>Knäck den hemliga färgkoden</small></button>
       <button class="tile" style="--tg:linear-gradient(135deg,#f59e0b,#ef4444)" data-act="gmenu" data-k="hang"><span class="ti">🪢</span><b>Hänga gubbe</b><small>Gissa ordet innan gubben hängs</small></button>
+      <button class="tile" style="--tg:linear-gradient(135deg,#f43f5e,#f59e0b 55%,#22c55e)" data-act="gmenu" data-k="kina"><span class="ti">⭐</span><b>Kinaschack</b><small>2–6 spelare · online eller mot datorn</small></button>
       <button class="tile" style="--tg:linear-gradient(135deg,#16a34a,#0f172a 75%)" data-act="openinv"><span class="ti">👾</span><b>Space Invaders</b><small>Ensam · 100+ nivåer</small>${invS.best?`<span class="badge">🏆 ${invS.best}</span>`:''}</button>
     </div>
     <div class="chipsrow"><button class="bigbtn chatbtn" data-act="openchat">💬 Chatt <small>🔒 krypterad</small>${(typeof CHAT!=='undefined'&&CHAT.unread())?`<span class="badge">${CHAT.unread()}</span>`:''}</button></div>
@@ -2037,7 +2039,7 @@ function waitingHTML(){
     <div>Spelkod</div><div class="code">${esc(gameId||'')}</div>
     <div class="lobbyp">${G.names.map((nm,i)=>`<span class="${i===mySeat?'me':''}">${i===0?'👑 ':'🐬 '}${esc(nm)}</span>`).join('')}${Array.from({length:Math.max(0,maxP()-n)},()=>'<span class="empty">ledig plats</span>').join('')}</div>
     ${isHost ? `<button class="bigbtn" data-act="startgame" ${n<2?'disabled':''} style="margin-top:12px">▶️ Starta spelet${n>=2?` med ${n} spelare`:''}</button>${inviteBtn}
-       <div style="color:var(--dim);font-size:13px;margin-top:8px">${n<2?'Vänta på att någon går med. ':''}${maxP()===2?'Två spelare.':'Upp till 4 spelare.'} De andra trycker <b>🔗 Gå med i spel</b> och skriver koden.</div>`
+       <div style="color:var(--dim);font-size:13px;margin-top:8px">${n<2?'Vänta på att någon går med. ':''}${maxP()===2?'Två spelare.':`Upp till ${maxP()} spelare.`} De andra trycker <b>🔗 Gå med i spel</b> och skriver koden.</div>`
      : `<div style="margin-top:10px">${mySeat===null?'Ansluter…':`Väntar på att <b>${esc(pname(0))}</b> startar spelet… 🐬`}</div>`}
     <div style="font-size:13px;margin-top:8px">${netText()}</div></div>`;
 }

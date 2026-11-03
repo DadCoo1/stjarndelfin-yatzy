@@ -545,7 +545,7 @@ const CHAT = (()=>{
     if(c.unread){ c.unread=0; } saveConvs(); }
 
   /* ---------- spelinbjudningar ---------- */
-  const GAMES=[['yatzy','🎲','Yatzy'],['ships','🚢','Sänka skepp'],['mm','🔮','Mastermind'],['hang','🪢','Hänga gubbe']];
+  const GAMES=[['yatzy','🎲','Yatzy'],['ships','🚢','Sänka skepp'],['mm','🔮','Mastermind'],['hang','🪢','Hänga gubbe'],['kina','⭐','Kinaschack']];
   function inviteToGame(cid, kind){
     closeModal(); const name=lsGet('ry_name')||ME.name; const g=GAMES.find(x=>x[0]===kind);
     hostGame(name,'free', kind==='yatzy'?undefined:kind);
@@ -1020,7 +1020,7 @@ const CHAT = (()=>{
   }
   function showInvite(cid){
     openModal(`<h3>🎮 Bjud in till spel</h3><p>Ett onlinespel skapas och ${cid.startsWith('g:')?'gruppen':esc(nameOf(peerOfConv(cid)))} får en inbjudan med en knapp för att gå med.</p>
-      <div class="wa-games">${GAMES.map(([k,i,n])=>`<button data-c="invitegame" data-k="${k}" data-cid="${cid}"><span>${i}</span>${n}${k==='yatzy'?'<small>2–4 spelare</small>':'<small>2 spelare</small>'}</button>`).join('')}</div>
+      <div class="wa-games">${GAMES.map(([k,i,n])=>`<button data-c="invitegame" data-k="${k}" data-cid="${cid}"><span>${i}</span>${n}${k==='yatzy'?'<small>2–4 spelare</small>':k==='kina'?'<small>2–6 spelare</small>':'<small>2 spelare</small>'}</button>`).join('')}</div>
       <div class="btns"><button data-act="close">Avbryt</button></div>`,'chatinv');
   }
   const cardLink = card => location.origin+location.pathname+'#k='+btoa(unescape(encodeURIComponent(JSON.stringify(normCard(card))))).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
