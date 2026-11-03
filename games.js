@@ -33,7 +33,7 @@ const isArrI=(a,n,lo,hi)=>Array.isArray(a) && a.length<=n && a.every(x=>Number.i
 function startGameLocal(kind, name, level){
   stopNet(); clearTimeout(aiTimer); closeModal();
   mode='local'; mySeat=0; gameId=null; role=null;
-  G=gNewState(kind,[name, GINFO[kind].ai],0,[false,level]); KIND[kind].start(G);
+  G=gNewState(kind,[name, GINFO[kind].ai],0,[false,level]); KIND[kind].start(G); lsSet('ry_local', JSON.stringify(G));
   view='game'; resetDrafts(); render(); gMaybeAI();
 }
 function gStartOnline(){
@@ -61,6 +61,7 @@ function applyAndPublish(a, seat){
   }
   G.seq=(G.seq||0)+1; G.updatedAt=Date.now();
   if(mode==='online'){ saveNet(); hostBroadcast({t:'state',state:G}); }
+  else if(mode==='local') lsSet('ry_local', JSON.stringify(G));        // spel mot datorn finns kvar om appen stängs
   gOnChange(prev,G); render(); gMaybeAI();
   return true;
 }

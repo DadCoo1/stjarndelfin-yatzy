@@ -6,7 +6,7 @@
   if(!same || !/[?&]bot=1/.test(location.search)){ document.documentElement.innerHTML=''; throw new Error('Inramning blockerad'); }
 })();
 /* ================= Version & utvecklingsläge ================= */
-const APP_VERSION='2026.11.03.3';
+const APP_VERSION='2026.11.03.4';
 const DEV = /\/dev(\/|$)/.test(location.pathname);      // testversionen ligger i mappen /dev/
 const BOT = DEV && /[?&]bot=1/.test(location.search) && window.parent!==window;   // osynlig testkompis i en ram (bara dev)
 const LSP = DEV ? (BOT ? 'dev:bot:' : 'dev:') : '';    // egen sparad data i testversionen
@@ -1749,9 +1749,25 @@ function startLocal(names,order,ai){
   toast(names.length===1 ? 'Lycka till! Sikta mot rekordet 🏆' : `${names[0]} börjar! 🚀`);
 }
 function resumeLocal(){
-  try{ const g=JSON.parse(lsGet('ry_local')); if(!g) return;
-    if(!g.scores || g.scores.length!==g.names.length) g.scores=g.names.map((_,i)=>g.scores&&g.scores[i]||{});
-    stopNet(); mode='local'; G=g; shown=g.dice.slice(); view='game'; aiPlan=null; render(); maybeAI(1200); }catch(e){}
+  try{ const g=JSON.parse(lsGet('ry_local')); if(!g || !validState(g)) return false;
+    if(g.kind && g.kind!=='yatzy'){ stopNet(); mode='local'; mySeat=0; gameId=null; role=null; G=g; view='game'; resetDrafts(); render(); gMaybeAI(); return true; }
+    stopNet(); mode='local'; G=g; shown=g.dice.slice(); view='game'; aiPlan=null; render(); maybeAI(1200); return true; }catch(e){ console.error('resumeLocal',e); return false; }
+}
+// Kom ihåg var man är, så att appen öppnas på samma ställe efter att mobilen stängt den
+let lastWhere='';
+function rememberWhere(){
+  if(BOT) return;
+  const w = view==='game' ? (mode==='local' ? 'local' : mode==='online' ? 'online' : 'lobby') : (view==='sol'||view==='inv') ? view : 'lobby';
+  if(w!==lastWhere){ lastWhere=w; lsSet('ry_where', JSON.stringify({w, t:Date.now()})); }
+}
+function restoreWhere(){
+  try{
+    const r=JSON.parse(lsGet('ry_where')); if(!r || Date.now()-r.t>12*3600e3) return false;
+    if(r.w==='local'){ const g=JSON.parse(lsGet('ry_local')); if(g && !g.over) return resumeLocal(); }
+    if(r.w==='sol'){ const sv=solLoad(); if(sv && !sv.won && sv.started){ openSol(); return view==='sol'; } }
+    if(r.w==='inv' && typeof INV!=='undefined'){ INV.open(); return true; }
+  }catch(e){ console.error('restoreWhere',e); }
+  return false;
 }
 function goLobby(){
   if(typeof INV!=='undefined') INV.stop();
@@ -1884,6 +1900,7 @@ function kbHintHTML(){
   return `<div class="kbhint"><span><kbd>Mellanslag</kbd>kasta</span><span><kbd>1</kbd>–<kbd>5</kbd>spara</span><span><kbd>↑</kbd><kbd>↓</kbd>välj rad</span><span><kbd>Enter</kbd>skriv in</span><span><kbd>E</kbd>emoji</span><span><kbd>M</kbd>musik</span></div>`;
 }
 function render(){
+  rememberWhere();
   const app=document.getElementById('app'), dock=document.getElementById('dockRoot');
   const desk=isDesk(); document.body.classList.toggle('desk', desk);
   view==='lobby' ? startBubbles() : stopBubbles();
@@ -2194,9 +2211,18 @@ if(DEV && !BOT){ const d=document.createElement('div'); d.className='devribbon';
 if(!BOT){
 spBuild();
 const willResume=canAutoResume();
-if(!willResume) render();
+const whereSaved=(()=>{ try{ const r=JSON.parse(lsGet('ry_where')); return r && r.w!=='lobby' && Date.now()-r.t<12*3600e3; }catch(e){ return false; } })();
+const pendingOpen = willResume || whereSaved;
+if(!pendingOpen) render();
 // spelfilerna (games.js m.fl.) laddas efter den här filen – återuppta när allt finns
-document.addEventListener('DOMContentLoaded',()=>{ if(willResume && !autoResume()) render(); });
+document.addEventListener('DOMContentLoaded',()=>{
+  if(!pendingOpen) return;
+  const resumed = willResume && autoResume();                         // pågående onlinespel kopplar upp igen
+  let w=''; try{ w=(JSON.parse(lsGet('ry_where'))||{}).w||''; }catch(e){}
+  if(w==='sol' || w==='inv'){ if(restoreWhere()) return; }           // patiens/invaders på skärmen, onlinespelet i bakgrunden
+  else if(!resumed && restoreWhere()) return;                         // spel mot datorn
+  if(!resumed) render();                                              // annars lobbyn
+});
 spHandleRedirect();
 }
 window.addEventListener('storage',e=>{ if(e.key==='ry_spauth'){ spUser=null; spLists=null; if(spOpen) spInit(); spRefreshChrome(); } });
