@@ -106,8 +106,9 @@
       g.board=new Array(HN).fill(-1); g.corners.forEach((c,s)=>CORNER_HOLES[c].forEach(i=>g.board[i]=s));
       g.hist={}; g.moves=0; g.cur=g.starter%n; g.last=null;
     },
-    valid(g){ const n=g.names.length; return n>=2 && n<=6 && Array.isArray(g.board) && g.board.length===HN && g.board.every(v=>Number.isInteger(v)&&v>=-1&&v<n)
-      && Array.isArray(g.corners) && g.corners.length===n && g.corners.every(c=>isI(c,0,5)) && isI(g.cur,0,n-1)
+    valid(g){ const n=g.names.length, waiting=g.started===false;      // i väntrummet finns inga hörn än
+      return n>=1 && n<=6 && (waiting || n>=2) && Array.isArray(g.board) && g.board.length===HN && g.board.every(v=>Number.isInteger(v)&&v>=-1&&v<6)
+      && Array.isArray(g.corners) && (waiting ? g.corners.length<=6 : g.corners.length===n) && g.corners.every(c=>isI(c,0,5)) && isI(g.cur,0,Math.max(0,n-1))
       && (g.last==null || (typeof g.last==='object' && Array.isArray(g.last.path) && g.last.path.length<=40 && g.last.path.every(i=>isI(i,0,HN-1)))); },
     waitingFor(g){ return g.cur; },
     scoreOf(g,i){ return `${inTarget(g,i)}/10 i mål`; },

@@ -6,7 +6,7 @@
   if(!same || !/[?&]bot=1/.test(location.search)){ document.documentElement.innerHTML=''; throw new Error('Inramning blockerad'); }
 })();
 /* ================= Version & utvecklingsläge ================= */
-const APP_VERSION='2026.11.03.7';
+const APP_VERSION='2026.11.03.8-dev';
 const DEV = /\/dev(\/|$)/.test(location.pathname);      // testversionen ligger i mappen /dev/
 const BOT = DEV && /[?&]bot=1/.test(location.search) && window.parent!==window;   // osynlig testkompis i en ram (bara dev)
 const LSP = DEV ? (BOT ? 'dev:bot:' : 'dev:') : '';    // egen sparad data i testversionen
@@ -1770,7 +1770,9 @@ function leaveOnline(){ stopNet(); releaseWake(); mode=null; G=null; gameId=null
 window.addEventListener('hashchange',()=>{
   const h=(location.hash||'').replace('#','').toUpperCase(); if(!/^[A-Z0-9]{4}$/.test(h)) return;
   if(mode==='online' && gameId===h) return;
-  notice({icon:'✉️', title:'Inbjudan till Yatzy', text:`Spelkod ${h}`, actions:[{label:'Gå med', run:()=>showJoin(h)}]});
+  try{ history.replaceState(null,'',location.pathname+location.search); }catch(e){}
+  if(mode==='online' && G && !G.over) notice({icon:'✉️', title:'Inbjudan till ett spel', text:`Spelkod ${h}`, actions:[{label:'Gå med', run:()=>showJoin(h)}]});
+  else showJoin(h);
 });
 
 /* ================= Lokalt ================= */
