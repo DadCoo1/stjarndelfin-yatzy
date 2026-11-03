@@ -48,8 +48,13 @@ const INV = (()=>{
     if(p===5) return !(r===1 && c>1 && c<C-2);
     return true;
   }
+  // pågående runda sparas, så att den finns kvar om mobilen stänger appen
+  const RUN='ry_inv_run';
+  function saveRun(){ if(st && st.live && st.lives>0 && st.level) lsSet(RUN, JSON.stringify({level:st.level, score:Math.round(st.score), lives:st.lives, kills:st.kills||0, startLevel:st.startLevel||1, t:Date.now()})); }
+  function clearRun(){ lsSet(RUN,''); }
+  function loadRun(){ try{ const r=JSON.parse(lsGet(RUN)); return r && Number.isInteger(r.level) && r.level>=1 && r.level<=9999 && Number.isInteger(r.lives) && r.lives>0 && r.lives<=6 && Number.isFinite(r.score) && Date.now()-r.t<14*864e5 ? r : null; }catch(e){ return null; } }
   function newLevel(n){
-    const L=levelCfg(n); st.resetting=false; st.level=n; st.cfg=L; st.aliens=[]; st.ab=[]; st.pb=[]; st.drops=[]; st.ufo=null; st.boss=null; st.dir=1; st.fireT=1.2; st.marchT=0; st.march=0; st.frame=0; st.frameT=0; st.banner=1.6;
+    const L=levelCfg(n); st.resetting=false; st.level=n; setTimeout(saveRun,0); st.cfg=L; st.aliens=[]; st.ab=[]; st.pb=[]; st.drops=[]; st.ufo=null; st.boss=null; st.dir=1; st.fireT=1.2; st.marchT=0; st.march=0; st.frame=0; st.frameT=0; st.banner=1.6;
     const sw=33, sh=28, gx=(W-(L.cols-1)*sw)/2;
     if(!L.boss){
       for(let r=0;r<L.rows;r++) for(let c=0;c<L.cols;c++){ if(!mask(L.pattern,r,c,L.rows,L.cols)) continue;
@@ -66,7 +71,7 @@ const INV = (()=>{
   }
   function newGame(lv){
     const sv=save(); sv.games++; store(sv);
-    st={score:0, lives:3, p:{x:W/2, y:H-46, cd:0, inv:2}, pow:{double:0,rapid:0,shield:0}, parts:[], stars:makeStars(), kills:0, startLevel:lv};
+    st={score:0, lives:3, p:{x:W/2, y:H-46, cd:0, inv:2}, pow:{double:0,rapid:0,shield:0}, parts:[], stars:makeStars(), kills:0, startLevel:lv, live:true};
     newLevel(lv); overlay=null; paused=false; showOverlay(); hud(); start();
   }
   function makeStars(){ const a=[]; for(let i=0;i<90;i++) a.push({x:Math.random()*W, y:Math.random()*H, z:.3+Math.random()*1.7}); return a; }
@@ -149,6 +154,7 @@ const INV = (()=>{
     if(st.lives<=0) gameOver();
   }
   function gameOver(){
+    clearRun(); st.live=false;
     const sv=save(); const rec=st.score>sv.best; if(rec) sv.best=Math.round(st.score); sv.kills+=st.kills; store(sv);
     overlay='over'; st.rec=rec; showOverlay(); if(rec){ celebrate('REKORD!'); sparkles(40); }
   }
@@ -223,7 +229,7 @@ const INV = (()=>{
         ${cps.length>2?`<div class="iv-cps">${cps.slice(-12).map(l=>`<button data-iv="go" data-l="${l}">${l}</button>`).join('')}</div>`:''}
         <div class="iv-help">${FINE_PTR?'⬅ ➡ styr · Mellanslag skjuter · P pausar':'Håll fingret på skärmen och dra – skeppet följer och skjuter av sig självt'}<br>Varje 10:e nivå väntar en boss. Fånga ⚡ 🔥 🛡️ ❤️!</div></div>`;
     } else if(overlay==='pause'){
-      o.innerHTML=`<div class="iv-card"><div class="iv-title sm">Paus</div><button class="iv-btn" data-iv="resume">▶ Fortsätt</button><button class="iv-btn alt" data-iv="menu">↺ Avsluta rundan</button><button class="iv-btn alt" data-act="lobby">🏠 Lobby</button></div>`;
+      o.innerHTML=`<div class="iv-card"><div class="iv-title sm">Paus</div><div class="iv-stats col"><span>Nivå <b>${st.level}</b></span><span>Poäng <b>${Math.round(st.score)}</b></span><span>Liv <b>${'❤'.repeat(Math.max(0,st.lives))}</b></span></div><button class="iv-btn" data-iv="resume">▶ Fortsätt</button><button class="iv-btn alt" data-iv="menu">↺ Avsluta rundan</button><button class="iv-btn alt" data-act="lobby">🏠 Lobby</button></div>`;
     } else if(overlay==='over'){
       o.innerHTML=`<div class="iv-card"><div class="iv-title sm">${st.rec?'NYTT REKORD!':'GAME OVER'}</div>
         <div class="iv-stats col"><span>Poäng <b>${Math.round(st.score)}</b></span><span>Nivå <b>${st.level}</b></span><span>Fiender <b>${st.kills}</b></span></div>
@@ -239,7 +245,9 @@ const INV = (()=>{
   }
   function mount(){
     cv=document.getElementById('ivc'); ctx=cv.getContext('2d');
-    if(!st){ st={score:0,lives:3,p:{x:W/2,y:H-46,cd:0,inv:0},pow:{double:0,rapid:0,shield:0},parts:[],stars:makeStars(),kills:0}; newLevel(1); st.banner=0; overlay='menu'; }
+    const run=!st && loadRun();
+    if(run){ st={score:run.score,lives:run.lives,p:{x:W/2,y:H-46,cd:0,inv:2},pow:{double:0,rapid:0,shield:0},parts:[],stars:makeStars(),kills:run.kills,startLevel:run.startLevel,live:true}; newLevel(run.level); overlay='pause'; paused=true; }
+    else if(!st){ st={score:0,lives:3,p:{x:W/2,y:H-46,cd:0,inv:0},pow:{double:0,rapid:0,shield:0},parts:[],stars:makeStars(),kills:0}; newLevel(1); st.banner=0; overlay='menu'; }
     else if(!overlay){ overlay='pause'; paused=true; }
     fit(); showOverlay(); hud(); start();
     const pos=e=>{ const r=cv.getBoundingClientRect(); return {x:(e.clientX-r.left)/sc, y:(e.clientY-r.top)/sc}; };
@@ -248,7 +256,8 @@ const INV = (()=>{
     const up=()=>{ touch=null; }; cv.addEventListener('pointerup',up); cv.addEventListener('pointercancel',up);
   }
   window.addEventListener('resize',()=>{ if(view==='inv') requestAnimationFrame(fit); });
-  document.addEventListener('visibilitychange',()=>{ if(document.hidden && view==='inv' && st && !overlay){ overlay='pause'; paused=true; showOverlay(); } });
+  document.addEventListener('visibilitychange',()=>{ if(document.hidden && view==='inv' && st){ saveRun(); if(!overlay){ overlay='pause'; paused=true; showOverlay(); } } });
+  window.addEventListener('pagehide',()=>{ if(view==='inv') saveRun(); });
   document.addEventListener('keydown',e=>{
     if(view!=='inv') return;
     if(/INPUT|TEXTAREA/.test((e.target&&e.target.tagName)||'')) return;
@@ -264,7 +273,8 @@ const INV = (()=>{
     if(a==='go') newGame(+b.dataset.l||1);
     if(a==='pause' && st){ if(overlay==='pause'){ overlay=null; paused=false; } else if(!overlay){ overlay='pause'; paused=true; } showOverlay(); }
     if(a==='resume'){ overlay=null; paused=false; showOverlay(); }
-    if(a==='menu'){ if(st && overlay==='pause'){ const sv=save(); if(st.score>sv.best){ sv.best=Math.round(st.score); store(sv); } } overlay='menu'; showOverlay(); }
+    if(a==='menu'){ if(st && overlay==='pause'){ clearRun(); st.live=false; }
+      if(st && overlay==='pause'){ const sv=save(); if(st.score>sv.best){ sv.best=Math.round(st.score); store(sv); } } overlay='menu'; showOverlay(); }
   });
   return { html, mount, stop, open(){ closeModal(); view='inv'; render(); }, stats(){ return save(); } };
 })();

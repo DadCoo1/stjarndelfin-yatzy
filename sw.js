@@ -2,7 +2,7 @@
 // Release och testversion (/dev/) har varsin cache och rör aldrig varandras.
 const DEV = /\/dev\//.test(self.location.pathname);
 const PFX = DEV ? 'fl-dev-' : 'stjarndelfin-';
-const CACHE = PFX + 'v16';
+const CACHE = PFX + 'v17';
 const FILES = ['./', './index.html', './manifest.webmanifest', './icon-192.png', './icon-512.png', './icon-180.png', './games.js', './invaders.js', './chat.js', './app.js', './peerjs.min.js', './qr.js'];
 self.addEventListener('install', e => { e.waitUntil(caches.open(CACHE).then(c => c.addAll(FILES)).then(() => self.skipWaiting())); });
 self.addEventListener('activate', e => {
