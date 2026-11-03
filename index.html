@@ -137,7 +137,7 @@ h2.sec{font-size:15px;color:var(--dim);font-weight:500;margin:22px 4px 8px;lette
 .dock{position:fixed;left:0;right:0;bottom:0;z-index:5;padding:10px 12px calc(14px + env(safe-area-inset-bottom));
   background:linear-gradient(180deg,rgba(3,10,31,0) 0%,rgba(4,18,52,.88) 22%,rgba(6,30,75,.97) 100%)}
 .dock-in{max-width:520px;margin:0 auto}
-.status{text-align:center;font-size:16px;font-weight:500;min-height:24px;margin:6px 0 10px;color:#cdeeff}
+.status{text-align:center;font-size:clamp(13px,4.1vw,16px);font-weight:500;min-height:24px;margin:6px 0 10px;color:#cdeeff}
 .status b{color:var(--aqua)}
 .dice{display:flex;justify-content:center;gap:10px;margin-bottom:12px}
 .die{position:relative;width:min(60px,calc((100vw - 64px)/5));aspect-ratio:1;border-radius:16px;padding:0;
@@ -157,7 +157,7 @@ h2.sec{font-size:15px;color:var(--dim);font-weight:500;margin:22px 4px 8px;lette
 @keyframes tumble{0%{transform:rotate(-14deg) translateY(-6px)}50%{transform:rotate(12deg) translateY(2px)}100%{transform:rotate(-14deg) translateY(-6px)}}
 .die:active:not(.idle){transform:scale(.93)}
 .rollrow{display:flex;gap:10px;align-items:center}
-.rollbtn{flex:1;height:58px;border-radius:22px;font-size:21px;font-weight:700;letter-spacing:.5px;
+.rollbtn{flex:1;min-width:0;height:58px;border-radius:22px;font-size:clamp(16px,5.2vw,21px);white-space:nowrap;font-weight:700;letter-spacing:.5px;
   background:linear-gradient(135deg,#22d3ee,#6366f1 60%,#a855f7);
   box-shadow:0 6px 0 #3730a3,0 12px 26px rgba(99,102,241,.5),inset 0 1px 0 rgba(255,255,255,.4);transition:transform .1s}
 .rollbtn:active:not(:disabled){transform:translateY(4px);box-shadow:0 2px 0 #3730a3,0 6px 14px rgba(99,102,241,.5)}
@@ -202,7 +202,11 @@ h2.sec{font-size:15px;color:var(--dim);font-weight:500;margin:22px 4px 8px;lette
 .chips button.sel{border-color:var(--aqua);background:rgba(62,230,255,.16);box-shadow:0 0 12px rgba(62,230,255,.35)}
 .setnote{font-size:12px;color:var(--dim);margin-top:6px}
 .sheet{max-height:92vh;overflow:auto}
-#bubbles{position:fixed;inset:0;z-index:3;pointer-events:none;overflow:hidden}
+#bubbles{position:fixed;inset:0;z-index:0;pointer-events:none;overflow:hidden}
+body:not(.ingame) #app, body:not(.ingame) #app .lobby, body:not(.ingame) #app .lob-hero, body:not(.ingame) #app .logo, body:not(.ingame) #app .topbar,
+body:not(.ingame) #app .tag, body:not(.ingame) #app h2, body:not(.ingame) #app .duo, body:not(.ingame) #app .tb-title{pointer-events:none}
+body:not(.ingame) #app button, body:not(.ingame) #app .note, body:not(.ingame) #app .getwell, body:not(.ingame) #app .bgcard, body:not(.ingame) #app .popc, body:not(.desk) #app .lob-menu > *{pointer-events:auto}
+body:not(.desk):not(.ingame) #app .lob-menu{pointer-events:none}
 .pbub{position:absolute;bottom:-90px;border-radius:50%;pointer-events:auto;cursor:pointer;touch-action:manipulation;
   border:2px solid rgba(190,245,255,.7);background:radial-gradient(circle at 30% 26%,rgba(255,255,255,.75),rgba(140,230,255,.18) 38%,rgba(90,170,255,.08) 70%);
   box-shadow:inset 0 0 12px rgba(170,240,255,.35),0 0 14px rgba(62,230,255,.25);animation:pbrise linear forwards;display:grid;place-items:center}
@@ -346,7 +350,7 @@ h2.sec{font-size:15px;color:var(--dim);font-weight:500;margin:22px 4px 8px;lette
    DATORLAYOUT – slår bara på i breda fönster (body.desk)
    ===================================================================== */
 :focus-visible{outline:2px solid var(--aqua);outline-offset:3px;border-radius:12px}
-body.desk #app{max-width:1280px;padding:26px 40px 48px}
+body.desk #app{max-width:1280px;padding:26px clamp(16px,3vw,40px) 48px}
 body.desk .topbar{margin-bottom:22px}
 body.desk .tb-title{font-size:18px}
 body.desk .iconbtn{width:46px;height:46px;border-radius:16px;font-size:20px}
@@ -356,7 +360,7 @@ body.desk .moon{width:40px;height:40px;top:200px;left:60px}
 body.desk .swimmer{width:190px}
 
 /* Spelvy: protokoll till vänster, kontrollpanel till höger */
-.desk-grid{display:grid;grid-template-columns:minmax(560px,1fr) 460px;gap:32px;align-items:start}
+.desk-grid{display:grid;grid-template-columns:minmax(0,1fr) clamp(370px,34vw,460px);gap:clamp(18px,2.4vw,32px);align-items:start}
 .desk-left{min-width:0}
 .desk-right{position:sticky;top:20px;max-height:calc(100vh - 40px);overflow-y:auto;overflow-x:hidden;
   padding:20px;border-radius:30px;background:linear-gradient(165deg,rgba(14,40,100,.62),rgba(22,14,70,.55));
@@ -372,7 +376,8 @@ body.desk .swimmer{width:190px}
 .desk-right .dock-in{max-width:none}
 .desk-right .status{font-size:17px;margin:4px 0 16px;min-height:26px}
 .desk-right .dice{gap:12px;margin-bottom:20px}
-.desk-right .die{width:74px;border-radius:20px}
+.desk-right .dice{gap:clamp(8px,1vw,12px)}
+.desk-right .die{width:min(74px,calc((100% - 48px)/5));border-radius:20px}
 .desk-right .die em{bottom:-24px;font-size:16px}
 .desk-right .rollbtn{height:66px;font-size:23px;border-radius:24px}
 .desk-right .reactbtn{width:66px;height:66px;border-radius:22px}
@@ -465,12 +470,12 @@ body.desk .sp-tab.open{right:380px}
 .sol-info .dim{color:var(--dim)}
 .sol-board{position:relative;width:100%;max-width:880px;margin:0 auto;touch-action:none;user-select:none;-webkit-user-select:none;min-height:300px}
 body.desk .sol-board{max-width:980px}
-.slot{position:absolute;width:var(--cw);height:var(--ch);border-radius:calc(var(--cw)*.11);border:2px dashed rgba(190,235,255,.28);
+.sol-board .slot{position:absolute;width:var(--cw);height:var(--ch);border-radius:calc(var(--cw)*.11);border:2px dashed rgba(190,235,255,.28);
   background:rgba(255,255,255,.04);display:grid;place-items:center;color:rgba(220,245,255,.32);font-weight:700;font-size:calc(var(--cw)*.36)}
-.slot.stock{border-style:solid;cursor:pointer}
-.slot.stock span{opacity:0;transition:opacity .2s}
-.slot.stock.empty span{opacity:1;color:rgba(220,245,255,.65);font-size:calc(var(--cw)*.5)}
-.slot.found{border-color:rgba(255,211,110,.35);color:rgba(255,211,110,.38)}
+.sol-board .slot.stock{border-style:solid;cursor:pointer}
+.sol-board .slot.stock span{opacity:0;transition:opacity .2s}
+.sol-board .slot.stock.empty span{opacity:1;color:rgba(220,245,255,.65);font-size:calc(var(--cw)*.5)}
+.sol-board .slot.found{border-color:rgba(255,211,110,.35);color:rgba(255,211,110,.38)}
 .stockcount{position:absolute;z-index:90;min-width:22px;height:22px;padding:0 6px;border-radius:999px;background:#0b1e4a;border:1.5px solid rgba(125,249,255,.6);
   font-size:12px;font-weight:700;display:grid;place-items:center;pointer-events:none}
 .stockcount:empty{display:none}
@@ -492,17 +497,17 @@ body.desk .sol-board{max-width:980px}
 .scard .court{font-size:calc(var(--cw)*.52);filter:drop-shadow(0 2px 3px rgba(0,0,0,.25))}
 .scard.dragging{transition:none!important;cursor:grabbing}
 .scard.dragging .f,.scard.dragging .b{box-shadow:0 14px 30px rgba(0,0,0,.55)}
-.scard.hint .f,.slot.hint,.scard.hint .b{animation:hintp .9s ease-in-out 2;box-shadow:0 0 0 3px #ffd36e,0 0 22px rgba(255,211,110,.8)}
+.scard.hint .f,.sol-board .slot.hint,.scard.hint .b{animation:hintp .9s ease-in-out 2;box-shadow:0 0 0 3px #ffd36e,0 0 22px rgba(255,211,110,.8)}
 @keyframes hintp{50%{box-shadow:0 0 0 4px #fff,0 0 30px rgba(255,255,255,.9)}}
-.scard.droptarget .f,.slot.droptarget{box-shadow:0 0 0 3px #7df9ff,0 0 26px rgba(125,249,255,.8)!important}
+.scard.droptarget .f,.sol-board .slot.droptarget{box-shadow:0 0 0 3px #7df9ff,0 0 26px rgba(125,249,255,.8)!important}
 .scard.shake{animation:shake .32s ease}
 @keyframes shake{20%{transform:translateX(-5px)}40%{transform:translateX(5px)}60%{transform:translateX(-3px)}80%{transform:translateX(3px)}}
 .scard.cascade{animation:casc 1.6s cubic-bezier(.3,.6,.4,1) forwards}
 @keyframes casc{0%{transform:none}30%{transform:translate(calc(var(--cx)*.4),-60px) rotate(calc(var(--cr)*.5))}100%{transform:translate(var(--cx),110vh) rotate(var(--cr))}}
 .sol{padding-bottom:84px}
-.sol-actions{position:fixed;left:0;right:0;bottom:0;z-index:40;display:flex;justify-content:center;gap:8px;
+.sol-actions{position:fixed;left:0;right:0;bottom:0;z-index:4000;display:flex;justify-content:center;gap:8px;
   padding:14px max(12px,calc((100vw - 880px)/2)) calc(12px + env(safe-area-inset-bottom));background:linear-gradient(180deg,rgba(3,10,31,0),rgba(4,18,52,.92) 32%)}
-.sol-actions button{flex:1;min-width:0;max-width:200px;padding:12px 6px;border-radius:16px;font-size:15px;font-weight:600;background:var(--glass2);border:1px solid var(--line);white-space:nowrap}
+.sol-actions button{flex:1;min-width:0;max-width:200px;padding:12px 6px;border-radius:16px;font-size:15px;font-weight:600;background:rgba(22,44,100,.92);border:1px solid var(--line);white-space:nowrap}
 .sol-actions button:disabled{opacity:.4}
 .sol-actions button i{font-style:normal;margin-right:6px}
 @media (max-width:640px){ .sol-actions{gap:6px} .sol-actions button{display:flex;flex-direction:column;align-items:center;gap:2px;font-size:12px;padding:8px 2px;border-radius:14px} .sol-actions button i{margin:0;font-size:20px;line-height:1} }
@@ -1774,7 +1779,7 @@ function solMove(src,dst,opt={}){
   if(dst.t==='f') S.found[dst.f].push(ids[0]); else ids.forEach(id=>S.tab[dst.c].push({id,up:true}));
   let flipped=null;
   if(src.t==='t'){ const t=topOf(S.tab[src.c]); if(t && !t.up){ t.up=true; flipped=t.id; } }
-  S.moves++;
+  S.moves++; S.idle=0;
   if(!opt.quiet){ dst.t==='f' ? solSnd('found') : solSnd('place'); if(flipped!==null) setTimeout(()=>solSnd('flip'),120); }
   solAfter(opt);
   return true;
@@ -1783,6 +1788,7 @@ function solDraw(){
   if(!S || S.won) return;
   if(!S.stock.length && !S.waste.length) return;
   solSnap(); solStart();
+  S.idle=(S.idle||0)+1;
   if(!S.stock.length){ S.stock=S.waste.reverse(); S.waste=[]; S.passes++; S.moves++; solSnd('shuffle'); solAfter(); return; }
   const n=S.mode==='1'?1:3, take=S.stock.splice(-n);
   if(S.mode==='3r') S.waste.push(...take); else S.waste.push(...take.reverse());
@@ -1838,6 +1844,8 @@ function solHint(){
   const h=solFindHint(); clearTimeout(solHintT);
   document.querySelectorAll('.hint').forEach(e=>e.classList.remove('hint'));
   if(!h){ toast('Inga fler drag hittades – prova 🆕 Nytt spel',3500); return; }
+  const cycle = Math.ceil((S.stock.length+S.waste.length)/(S.mode==='1'?1:3))+1;
+  if(h.draw && (S.idle||0) > cycle){ toast('Du har vänt hela högen utan att något gick att lägga – det verkar inte finnas fler drag. Prova 🔄 Nytt spel',5000); solSnd('nope'); return; }
   if(h.draw){ document.getElementById('slotStock')?.classList.add('hint'); toast(S.stock.length?'Vänd upp ett kort från högen 🃏':'Vänd högen och kör ett varv till 🔄',2600); }
   else {
     cardsAt(h.src).forEach(id=>document.querySelector(`.scard[data-id="${id}"]`)?.classList.add('hint'));
@@ -1995,7 +2003,9 @@ let SL=null;
 function solLayout(){
   const board=document.getElementById('solBoard'); if(!board) return null;
   const W=board.clientWidth, gap=Math.max(5,Math.min(14,W*.014));
-  let cw=Math.min((W-6*gap)/7, isDesk()?118:96); const ch=cw*1.4;
+  const top=board.getBoundingClientRect().top+window.scrollY, act=document.getElementById('solActions')?.offsetHeight||70;
+  const hCap=Math.max(36,(window.innerHeight-top-act-24)/3.7/1.4);   // så att korten ryms även på låga skärmar
+  let cw=Math.min((W-6*gap)/7, isDesk()?118:96, hCap); const ch=cw*1.4;
   const ox=(W-(7*cw+6*gap))/2, X=c=>ox+c*(cw+gap);
   const ty=ch+gap*2.2;
   const avail=Math.max(ch*3, window.innerHeight - board.getBoundingClientRect().top - (document.getElementById('solActions')?.offsetHeight||60) - 26 - ty);
@@ -2114,7 +2124,7 @@ function solPointerUp(e){
     if(src.t==='w') ids=[S.waste.pop()]; else if(src.t==='f') ids=[S.found[src.f].pop()]; else ids=S.tab[src.c].splice(src.i).map(x=>x.id);
     if(t.t==='f') S.found[t.f].push(ids[0]); else ids.forEach(id=>S.tab[t.c].push({id,up:true}));
     let flipped=false; if(src.t==='t'){ const tp=topOf(S.tab[src.c]); if(tp && !tp.up){ tp.up=true; flipped=true; } }
-    S.moves++; t.t==='f'?solSnd('found'):solSnd('place'); if(flipped) setTimeout(()=>solSnd('flip'),120);
+    S.moves++; S.idle=0; t.t==='f'?solSnd('found'):solSnd('place'); if(flipped) setTimeout(()=>solSnd('flip'),120);
     solSaveN++; solSave(); solSync(false,dragPos);
     if(S.found.every(f=>f.length===13) && !S.won){ S.won=true; solSave(); solWin(); }
     solRefreshChrome();
@@ -2144,14 +2154,14 @@ function showSolNew(fromLobby){
     <label>Hur många kort vänder du upp?</label>
     <div class="solmodes">${Object.entries(SOL_MODES).map(([k,m])=>`<button data-act="solmode" data-m="${k}" class="${solMode===k?'sel':''}"><b>${m.label}</b><small>${m.sub}</small></button>`).join('')}</div>
     <label>Korttema</label><div class="themes">${themeBtns()}</div>
-    <div class="btns"><button data-act="${fromLobby?'close':'close'}">Avbryt</button><button class="pri" data-act="solstart">Dela ut 🃏</button></div>`);
+    <div class="btns"><button data-act="close">Avbryt</button><button class="pri" data-act="solstart">Dela ut 🃏</button></div>`,'solnew');
 }
 function themeBtns(){
   return Object.entries(SOL_THEMES).map(([k,t])=>`<button data-act="solpicktheme" data-t="${k}" class="${solTheme===k?'sel':''}"><span class="mini-back" style="background-image:${backSVG(k)}"></span><span>${t.label}</span></button>`).join('');
 }
 function showSolTheme(){
   openModal(`<h3>🎨 Korttema</h3><p>Byt när du vill – spelet fortsätter.</p><div class="themes">${themeBtns()}</div>
-    <div class="btns"><button class="pri" data-act="close">Klar</button></div>`);
+    <div class="btns"><button class="pri" data-act="close">Klar</button></div>`,'soltheme');
 }
 function solStartNew(){
   closeModal(); clearTimeout(solAutoT);
@@ -2202,8 +2212,15 @@ function goLobby(){
 /* ================= Modaler ================= */
 const M = () => document.getElementById('modal');
 function closeModal(){ M().classList.remove('show'); M().innerHTML=''; }
-function openModal(html){ M().innerHTML=`<div class="sheet">${html}</div>`; M().classList.add('show');
-  const inp=M().querySelector('input:not([value]), input[value=""]')||M().querySelector('input'); if(inp) setTimeout(()=>inp.focus(),80); }
+// kind: samma ruta som redan är öppen byggs om på plats – utan att hoppa till toppen eller fälla upp tangentbordet
+function openModal(html, kind){
+  const old=M().querySelector('.sheet');
+  if(kind && old && M().classList.contains('show') && old.dataset.kind===kind){ const st=old.scrollTop; old.innerHTML=html; old.scrollTop=st; return; }
+  M().innerHTML=`<div class="sheet" ${kind?`data-kind="${kind}"`:''}>${html}</div>`; M().classList.add('show');
+  if(!FINE_PTR_M) return;   // på mobil: fäll inte upp tangentbordet automatiskt
+  const inp=M().querySelector('input:not([value]), input[value=""]')||M().querySelector('input'); if(inp) setTimeout(()=>inp.focus(),80);
+}
+const FINE_PTR_M = window.matchMedia ? window.matchMedia('(hover: hover) and (pointer: fine)').matches : true;
 function showCreate(){
   openModal(`<h3>🚀 Skapa spel</h3><p>Du får en kod med fyra tecken. Den andra mobilen trycker <b>Gå med</b> och skriver in koden.</p>
     <label>Ditt namn</label><input id="nm" maxlength="14" value="${esc(lsGet('ry_name')||'')}" placeholder="t.ex. Pappa">
@@ -2256,11 +2273,11 @@ function showSettings(){
       <div class="setnote">Status: ${permTxt}. Ljud, vibration och en stor "Din tur!"-skylt kommer alltid. Systemaviseringar fungerar bara om webbläsaren tillåter det.</div></div>
     <div class="setrow"><div class="lbl">☀️ Håll skärmen tänd under onlinespel</div>${onoff('setwake',wakeOn)}
       <div class="setnote">Rekommenderas – då tappar mobilerna inte kontakten och du märker direkt när det är din tur.</div></div>
-    <div class="btns"><button class="pri" data-act="close">Klar</button></div>`);
+    <div class="btns"><button class="pri" data-act="close">Klar</button></div>`,'settings');
 }
 const BOT_NAMES=['Blixt 🤖','Bubbla 🤖','Kosmo 🤖','Nova 🤖'];
 let slots=[];
-function showMulti(){ if(!slots.length) slots=[{n:lsGet('ry_name')||'',t:'h'},{n:'',t:'h'}]; openModal(multiHTML()); }
+function showMulti(){ if(!slots.length) slots=[{n:lsGet('ry_name')||'',t:'h'},{n:'',t:'h'}]; openModal(multiHTML(),'multi'); }
 function captureSlots(){ slots.forEach((s,i)=>{ const el=document.getElementById('sl'+i); if(el && !el.disabled) s.n=el.value.trim(); }); }
 function multiHTML(){
   let bot=0;
@@ -2308,7 +2325,7 @@ function render(){
   document.body.classList.toggle('ingame', view!=='lobby');
   if(view==='lobby'){ app.innerHTML=lobbyHTML(); dock.innerHTML=''; fitDock(); return; }
   if(view==='stats'){ app.innerHTML=statsHTML(); dock.innerHTML=''; fitDock(); return; }
-  if(view==='sol'){ dock.innerHTML=''; if(!document.getElementById('solRoot')){ app.innerHTML=solHTML(); solMount(); } else { solRefreshChrome(); solSync(true); } app.style.paddingBottom='0px'; return; }
+  if(view==='sol'){ dock.innerHTML=''; if(!document.getElementById('solRoot')){ app.innerHTML=solHTML(); solMount(); } else { solRefreshChrome(); } app.style.paddingBottom='0px'; return; }
   if(!G){ app.innerHTML=topbar()+`<div class="loading">${DOLPHIN('ld')}<p>Simmar till spelet <b>${esc(gameId||'')}</b>…</p><p style="font-size:14px">${netText()}</p><button class="bigbtn alt" data-act="lobby" style="max-width:260px;margin:20px auto">Avbryt</button></div>`; dock.innerHTML=''; return; }
   if(desk){
     app.innerHTML = topbar() + `<div class="desk-grid"><div class="desk-left">${sheetHTML()}</div>
@@ -2531,9 +2548,9 @@ document.addEventListener('click', e=>{
     case 'resumenet': resumeNet(); break;
     case 'ord': chosenOrder=b.dataset.o; document.getElementById('seg').innerHTML=segHTML(); sfx.bubble(); break;
     case 'newlocal': chosenOrder='free'; slots=[]; showMulti(); break;
-    case 'slott': captureSlots(); slots[+b.dataset.i].t=b.dataset.t; openModal(multiHTML()); break;
-    case 'slotadd': captureSlots(); if(slots.length<4) slots.push({n:'',t:'h'}); openModal(multiHTML()); break;
-    case 'slotdel': captureSlots(); slots.splice(+b.dataset.i,1); openModal(multiHTML()); break;
+    case 'slott': captureSlots(); slots[+b.dataset.i].t=b.dataset.t; openModal(multiHTML(),'multi'); break;
+    case 'slotadd': captureSlots(); if(slots.length<4) slots.push({n:'',t:'h'}); openModal(multiHTML(),'multi'); break;
+    case 'slotdel': captureSlots(); slots.splice(+b.dataset.i,1); openModal(multiHTML(),'multi'); break;
     case 'startmulti': startMulti(); break;
     case 'startgame': startOnlineGame(); break;
     case 'resumelocal': resumeLocal(); break;
@@ -2565,7 +2582,7 @@ document.addEventListener('keydown',e=>{
   if(M().classList.contains('show')) return;
   if(e.key==='m' || e.key==='M'){ spToggle(); return; }
   if(view==='sol' && S){
-    if(e.key===' '){ e.preventDefault(); unlockAudio(); solDraw(); }
+    if(e.key===' '){ e.preventDefault(); if(document.activeElement && document.activeElement!==document.body) document.activeElement.blur(); unlockAudio(); solDraw(); }
     else if(e.key==='z' || e.key==='Z' || e.key==='Backspace'){ e.preventDefault(); solUndo(); }
     else if(e.key==='h' || e.key==='H'){ solHint(); }
     else if(e.key==='n' || e.key==='N'){ showSolNew(); }
