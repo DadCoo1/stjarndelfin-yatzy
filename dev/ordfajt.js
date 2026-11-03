@@ -100,6 +100,26 @@
     g.over=true; const mx=Math.max(...g.scores); g.winner = g.scores.filter(x=>x===mx).length>1 ? -1 : g.scores.indexOf(mx);
   }
 
+  // Ord som datorspelaren aldrig lägger (grova ord, könsord, svordomar, skällsord)
+  const CRUDE_SV=[
+    /knull|våldt|porno|orgasm|fuck|jävl|jävel|helvet|dildo|bordell|prostitu|blatte|efterbliv|pervers|svartskall|rövhål/,
+    /^onan/,
+    /^(porr|sperm)/, /arsle(n|t|na|ns|ts|nas|s)?$/,
+    /^neger(n|ns|s)?$|^negr(er|erna|ernas|ers|inna|innan|innor)$/,
+    /hor(a|an|ans|as|or|orna|ornas|ors)$/, /^kåt(a|are|ast|aste|e|t|het|heten)?$/,
+    /^runk(a|ar|ade|at|ande|are|aren|arna|ning)?$/, /^pitt(en|ar|arna|ens|ars)?$/, /^snopp(en|ar|arna|ens|ars|s)?$/,
+    /^sly(na|nan|nor|norna|nas)$/, /^slamp(a|an|ans|or|orna|ig|iga|igt)$/, /^lud(er|ret|ren|rens|ers|rets|ren)$/,
+    /^röv(en|ens|s)?$/, /^kuk(en|ens|ar|arna|s)?$/, /fitt(a|an|ans|or|orna|ors)$/, /^bög(ar|en|arna|ens|ig|iga|igt|s)?$/
+  ];
+  const CRUDE_NO=[
+    /knull|voldt|porno|orgasm|fuck|(?<!g)jævl|helvet|dildo|bordell|prostitu|pervers|homse|rasshøl|rævhol/,
+    /^(porr|onan|dritt|ludder|tispe)/, /^sperm(a|ie|ier|iene|en)?$/,
+    /^pikk(en|er|ene|ar|ane|s)?$/, /^kuk(en|er|ene|ar|ane|s)?$/, /^fitte(n|r|ne|ar|ane|s)?$/,
+    /^hore|^hor(a|ar|ane|er|ene)$|(luksus|gate)hor/, /^faen$/, /^ræv(en|a|er|ane|ene|s)?$/,
+    /^kåt(e|t|ere|est|are|ast|heit|het|heten|heita)?$/, /^neger(en|e|ne|s)?$|^negr(ar|ane|er|ene)$/
+  ];
+  const crude = w => ((LANG.wiki==='sv') ? CRUDE_SV : CRUDE_NO).some(r=>r.test(w));
+
   /* ---------- datorspelaren (Appel–Jacobson med DAWG) ---------- */
   function genMoves(g, seat){
     const board=g.board, rack=g.racks[seat]; const cnt={}; for(const l of rack) cnt[l]=(cnt[l]||0)+1;
@@ -176,6 +196,7 @@
   function aiMove(g,seat){
     if(!D) return null;
     const lvl=g.ai[seat]; let ms=genMoves(g,seat);
+    ms=ms.filter(m=>!m.words.some(x=>crude(x.w)));   // datorn lägger inga grova ord
     if(!ms.length){ if(g.bag.length>=7){ const r=g.racks[seat]; const keep=new Set(['?','e','a','r','s','t','n']); const sw=r.filter(l=>!keep.has(l)); return {type:'swap', letters:(sw.length?sw:r).slice(0,7)}; } return {type:'pass'}; }
     // spara blankbrickor till något bra
     ms.forEach(m=>{ m.v=m.score - (m.tiles.some(t=>t.b) ? (m.score<30?12:4) : 0); });
@@ -525,5 +546,5 @@
 body.desk .of-wrap{max-width:min(640px,100%,calc(100vh - 360px))}
 `; document.head.appendChild(st);
 
-  window.__ofTest = (typeof DEV!=='undefined' && DEV) ? {loadDict, inDawg, isWord, evaluate, genMoves, aiMove, PREM, C} : undefined;
+  window.__ofTest = (typeof DEV!=='undefined' && DEV) ? {crude, useLang, loadDict, inDawg, isWord, evaluate, genMoves, aiMove, PREM, C} : undefined;
 })();
