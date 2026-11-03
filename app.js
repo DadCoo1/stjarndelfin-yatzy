@@ -6,7 +6,7 @@
   if(!same || !/[?&]bot=1/.test(location.search)){ document.documentElement.innerHTML=''; throw new Error('Inramning blockerad'); }
 })();
 /* ================= Version & utvecklingsläge ================= */
-const APP_VERSION='2026.11.03.8';
+const APP_VERSION='2026.11.03.9';
 const DEV = /\/dev(\/|$)/.test(location.pathname);      // testversionen ligger i mappen /dev/
 const BOT = DEV && /[?&]bot=1/.test(location.search) && window.parent!==window;   // osynlig testkompis i en ram (bara dev)
 const LSP = DEV ? (BOT ? 'dev:bot:' : 'dev:') : '';    // egen sparad data i testversionen
@@ -65,13 +65,16 @@ const HELP = {
 const PIPS = {1:[4],2:[0,8],3:[0,4,8],4:[0,2,6,8],5:[0,2,4,6,8],6:[0,2,3,5,6,8]};
 
 function counts(d){const c=[0,0,0,0,0,0,0];d.forEach(v=>c[v]++);return c}
+const houseTwoPair = () => typeof G!=='undefined' && !!G && G.hr4===true;
 function score(cat,d){
   const c=counts(d), sum=d.reduce((a,b)=>a+b,0);
   const up={ones:1,twos:2,threes:3,fours:4,fives:5,sixes:6}[cat];
   if(up) return up*c[up];
   switch(cat){
     case 'pair': for(let v=6;v>=1;v--) if(c[v]>=2) return 2*v; return 0;
-    case 'twopair': {const p=[];for(let v=6;v>=1;v--) if(c[v]>=2) p.push(v); return p.length>=2?2*p[0]+2*p[1]:0}
+    case 'twopair': {const p=[];for(let v=6;v>=1;v--) if(c[v]>=2) p.push(v); if(p.length>=2) return 2*p[0]+2*p[1];
+      if(houseTwoPair() && p.length===1 && c[p[0]]>=4) return 4*p[0];   // husregel (bara om vald): fyra lika = två par
+      return 0}
     case 'three': for(let v=6;v>=1;v--) if(c[v]>=3) return 3*v; return 0;
     case 'four': for(let v=6;v>=1;v--) if(c[v]>=4) return 4*v; return 0;
     case 'small': return [1,2,3,4,5].every(v=>c[v]===1)?15:0;
@@ -315,7 +318,7 @@ function pickCore(cat, byAI){
 function rematch(){
   closeModal();
   const P=NP(), starter = ((G.starter||0)+1)%P;
-  const st = newState(G.names.slice(), starter, G.order||'free', G.seq||0, G.ai||null); st.started=true;
+  const st = newState(G.names.slice(), starter, G.order||'free', G.seq||0, G.ai||null); st.started=true; st.hr4=!!G.hr4;
   shown = st.dice.slice(); freshCell=null;
   commit(st);
   if(P>1) toast(`Ny match! ${pname(starter)} börjar 🚀`); else toast('Ny runda – sikta mot rekordet! 🏆');
@@ -503,7 +506,7 @@ function parseMsg(d){ try{ return typeof d==='string' ? JSON.parse(d) : d }catch
 function hostGame(name, order, kind){
   stopNet(); mode='online'; role='host'; mySeat=0; myName=name; gameId=newCode();
   if(kind && kind!=='yatzy'){ G=gNewState(kind,[name],0,null); G.started=false; resetDrafts(); }
-  else { G=newState([name],0,order); G.started=false; shown=G.dice.slice(); }
+  else { G=newState([name],0,order); G.started=false; G.hr4=chosenHR; shown=G.dice.slice(); }
   freshCell=null; view='game';
   saveNet(); render(); startHost(); keepAwake();
 }
@@ -668,7 +671,7 @@ function validState(s){
 // Får gästen på plats `seat` byta Yatzy-tillståndet från `prev` till `s`? (värden bestämmer)
 function guestMayUpdate(prev, s, seat){
   if(!prev || !validState(s) || (s.kind && s.kind!=='yatzy') || (prev.kind && prev.kind!=='yatzy')) return false;
-  if(JSON.stringify(s.names)!==JSON.stringify(prev.names) || s.order!==prev.order || JSON.stringify(s.ai||null)!==JSON.stringify(prev.ai||null)) return false;
+  if(JSON.stringify(s.names)!==JSON.stringify(prev.names) || s.order!==prev.order || !!s.hr4!==!!prev.hr4 || JSON.stringify(s.ai||null)!==JSON.stringify(prev.ai||null)) return false;
   if(prev.started===false && s.started!==false) return false;                       // bara värden startar
   const rematch = prev.over && !s.over && s.scores.every(sc=>Object.keys(sc).length===0);
   if(rematch) return true;
@@ -1780,7 +1783,7 @@ window.addEventListener('hashchange',()=>{
 function startLocal(names,order,ai){
   stopNet(); clearTimeout(aiTimer); aiPlan=null;
   mode='local'; gameId=null; mySeat=null; G=newState(names,0,order,0,ai); shown=G.dice.slice(); freshCell=null; view='game';
-  lsSet('ry_local',JSON.stringify(G)); render();
+  G.hr4=chosenHR; lsSet('ry_local',JSON.stringify(G)); render();
   toast(names.length===1 ? 'Lycka till! Sikta mot rekordet 🏆' : `${names[0]} börjar! 🚀`);
 }
 function resumeLocal(){
@@ -1839,7 +1842,7 @@ function showYatzyMenu(){
 function showCreate(){
   openModal(`<h3>🚀 Skapa spel</h3><p>Du får en kod med fyra tecken. Den andra mobilen trycker <b>Gå med</b> och skriver in koden.</p>
     <label>Ditt namn</label><input id="nm" maxlength="14" value="${esc(lsGet('ry_name')||'')}" placeholder="t.ex. Pappa">
-    <label>Hur spelar ni?</label><div class="seg" id="seg">${segHTML()}</div>
+    <label>Hur spelar ni?</label><div class="seg" id="seg">${segHTML()}</div>${hrHTML()}
     <div class="btns"><button data-act="close">Avbryt</button><button class="pri" data-act="create">Skapa 🐬</button></div>`);
 }
 function showJoin(code=''){
@@ -1852,7 +1855,7 @@ function showLocal(){
   openModal(`<h3>📱 Spela på samma mobil</h3><p>Ni turas om att trycka på samma skärm.</p>
     <label>Spelare 1</label><input id="n0" maxlength="14" value="${esc(lsGet('ry_name')||'')}" placeholder="Spelare 1">
     <label>Spelare 2</label><input id="n1" maxlength="14" placeholder="Spelare 2">
-    <label>Hur spelar ni?</label><div class="seg" id="seg">${segHTML()}</div>
+    <label>Hur spelar ni?</label><div class="seg" id="seg">${segHTML()}</div>${hrHTML()}
     <div class="btns"><button data-act="close">Avbryt</button><button class="pri" data-act="local">Starta 🚀</button></div>`);
 }
 let chosenLevel='easy';
@@ -1860,7 +1863,7 @@ function showAI(){
   openModal(`<h3>🤖 Spela mot Blixt</h3><p>Blixt är en robotdelfin som älskar tärningar.</p>
     <label>Ditt namn</label><input id="nm" maxlength="14" value="${esc(lsGet('ry_name')||'')}" placeholder="Ditt namn">
     <label>Hur bra är Blixt?</label><div class="seg" id="segl">${segLevelHTML()}</div>
-    <label>Hur spelar ni?</label><div class="seg" id="seg">${segHTML()}</div>
+    <label>Hur spelar ni?</label><div class="seg" id="seg">${segHTML()}</div>${hrHTML()}
     <div class="btns"><button data-act="close">Avbryt</button><button class="pri" data-act="startai">Kör! 🚀</button></div>`);
 }
 function segLevelHTML(){
@@ -1870,7 +1873,7 @@ function segLevelHTML(){
 function showSolo(){
   openModal(`<h3>🧑‍🚀 Spela ensam</h3><p>Hur många poäng kan du få? Slå ditt rekord!</p>
     <label>Ditt namn</label><input id="nm" maxlength="14" value="${esc(lsGet('ry_name')||'')}" placeholder="Ditt namn">
-    <label>Hur spelar du?</label><div class="seg" id="seg">${segHTML()}</div>
+    <label>Hur spelar du?</label><div class="seg" id="seg">${segHTML()}</div>${hrHTML()}
     <div class="btns"><button data-act="close">Avbryt</button><button class="pri" data-act="startsolo">Kör! 🚀</button></div>`);
 }
 function showSettings(){
@@ -1901,7 +1904,7 @@ function multiHTML(){
       return `<div class="slot"><div class="slotrow"><input id="sl${i}" maxlength="14" value="${s.t==='h'?esc(s.n):esc(bn)}" placeholder="Spelare ${i+1}" ${s.t!=='h'?'disabled':''}>${i>=2?`<button class="x" data-act="slotdel" data-i="${i}" aria-label="Ta bort">✕</button>`:''}</div>
       <div class="chips">${[['h','👤 Människa'],['easy','🤖 Lätt'],['hard','🤖 Svår']].map(([k,l])=>`<button data-act="slott" data-i="${i}" data-t="${k}" class="${s.t===k?'sel':''}">${l}</button>`).join('')}</div></div>`; }).join('')}
     ${slots.length<4?`<button class="addslot" data-act="slotadd">➕ Lägg till spelare</button>`:''}
-    <label>Hur spelar ni?</label><div class="seg" id="seg">${segHTML()}</div>
+    <label>Hur spelar ni?</label><div class="seg" id="seg">${segHTML()}</div>${hrHTML()}
     <div class="btns"><button data-act="close">Avbryt</button><button class="pri" data-act="startmulti">Starta 🚀</button></div>`;
 }
 function startMulti(){
@@ -1915,6 +1918,10 @@ function startMulti(){
   const firstHuman=slots.find(s=>s.t==='h'&&s.n); if(firstHuman) lsSet('ry_name',firstHuman.n);
   closeModal(); startLocal(names, chosenOrder, ai.some(Boolean)?ai:null); maybeAI(1400);
 }
+let chosenHR=false;
+// husregeln är alltid AV när man öppnar en meny – man måste aktivt slå på den
+function hrHTML(){ chosenHR=false; return `<button class="hrtog" data-act="hr4" id="hrtog">${hrInner()}</button>`; }
+const hrInner = () => `<span>🃏 Husregel: fyra lika räknas som <b>två par</b></span><i>${chosenHR?'PÅ':'AV'}</i>`;
 function segHTML(){
   return `<button data-act="ord" data-o="free" class="${chosenOrder==='free'?'sel':''}">🌌 Valfritt<small>välj fritt bland raderna</small></button>
     <button data-act="ord" data-o="down" class="${chosenOrder==='down'?'sel':''}">⬇️ I ordning<small>uppifrån och ned</small></button>`;
@@ -2038,7 +2045,7 @@ function waitingHTML(){
   const isHost=role==='host', n=G.names.length;
   const inviteBtn = /^https?:$/.test(location.protocol) && n<maxP() ? `<button class="bigbtn alt" data-act="invite" style="margin-top:10px">📤 Skicka inbjudningslänk</button>` : '';
   return `<div class="waiting"><div style="font-size:34px">🔭</div>
-    <div>Spelkod</div><div class="code">${esc(gameId||'')}</div>
+    <div>Spelkod</div><div class="code">${esc(gameId||'')}</div>${G.hr4?'<div style="font-size:13px;margin:4px 0">🃏 Husregel: fyra lika räknas som två par</div>':''}
     <div class="lobbyp">${G.names.map((nm,i)=>`<span class="${i===mySeat?'me':''}">${i===0?'👑 ':'🐬 '}${esc(nm)}</span>`).join('')}${Array.from({length:Math.max(0,maxP()-n)},()=>'<span class="empty">ledig plats</span>').join('')}</div>
     ${isHost ? `<button class="bigbtn" data-act="startgame" ${n<2?'disabled':''} style="margin-top:12px">▶️ Starta spelet${n>=2?` med ${n} spelare`:''}</button>${inviteBtn}
        <div style="color:var(--dim);font-size:13px;margin-top:8px">${n<2?'Vänta på att någon går med. ':''}${maxP()===2?'Två spelare.':'Upp till 4 spelare.'} De andra trycker <b>🔗 Gå med i spel</b> och skriver koden.</div>`
@@ -2072,7 +2079,7 @@ function sheetHTML(){
       return `<div class="c ${colCls(i)}"><button class="pv ${v===0?'zero':''} ${v>0&&v===best?'best':''} ${kbCat===k?'kb':''}" data-act="pick" data-k="${k}">${v}</button></div>`; }
     return `<div class="c ${colCls(i)}"></div>`;
   };
-  const head = `<div class="row head"><div style="text-align:left;padding-left:12px">Protokoll<span class="modetag">${G.order==='down'?'⬇️ I ordning':'🌌 Valfritt'}</span></div>${IX.map(i=>`<div class="${mode==='online'&&mySeat===i?'mine':''}">${esc(G.names[i]||'…')}</div>`).join('')}</div>`;
+  const head = `<div class="row head"><div style="text-align:left;padding-left:12px">Protokoll<span class="modetag">${G.order==='down'?'⬇️ I ordning':'🌌 Valfritt'}</span>${G.hr4?'<span class="modetag" title="Husregel: fyra lika räknas som två par">🃏 4 lika = 2 par</span>':''}</div>${IX.map(i=>`<div class="${mode==='online'&&mySeat===i?'mine':''}">${esc(G.names[i]||'…')}</div>`).join('')}</div>`;
   const many=IX.length>2, cw=IX.length<=2?70:IX.length===3?60:52;
   const cwd=IX.length<=2?120:IX.length===3?104:92;
   let h = `<div class="card ${many?'many':''}" style="--n:${IX.length};--cw:${cw}px;--cwd:${cwd}px">` + head;
@@ -2181,6 +2188,7 @@ document.addEventListener('click', e=>{
     case 'newonline': chosenOrder='free'; showCreate(); break;
     case 'joinonline': showJoin(); break;
     case 'resumenet': resumeNet(); break;
+    case 'hr4': { chosenHR=!chosenHR; const t=document.getElementById('hrtog'); if(t){ t.classList.toggle('on',chosenHR); t.innerHTML=hrInner(); } sfx.bubble(); break; }
     case 'ord': chosenOrder=b.dataset.o; document.getElementById('seg').innerHTML=segHTML(); sfx.bubble(); break;
     case 'newlocal': chosenOrder='free'; slots=[]; showMulti(); break;
     case 'slott': captureSlots(); slots[+b.dataset.i].t=b.dataset.t; openModal(multiHTML(),'multi'); break;
