@@ -82,6 +82,7 @@ const CHAT = (()=>{
 
   /* ---------- Double Ratchet (enskilda chattar) ---------- */
   let SESS=ld('sess',{});
+  const resetAt={};      // när sessionen med en kontakt senast startades om (spärr)
   const saveS=()=>sv('sess',SESS);
   const locks=new Map();
   function lock(id,fn){ const p=(locks.get(id)||Promise.resolve()).then(fn,fn); locks.set(id,p.catch(()=>{})); return p; }
@@ -107,19 +108,8 @@ const CHAT = (()=>{
   async function dhRatchet(st,hdr){ st.PN=st.Ns; st.Ns=0; st.Nr=0; st.DHr=hdr.dh;
     const [rk,ckr]=await kdfRK(ub64(st.RK), await dh(ME.curve,st.DHs,st.DHr)); st.DHs=await genKP(ME.curve);
     const [rk2,cks]=await kdfRK(rk, await dh(ME.curve,st.DHs,st.DHr)); st.RK=b64(rk2); st.CKr=b64(ckr); st.CKs=b64(cks); }
-  function decryptFrom(peer, hdr, ct){ return lock(peer, async()=>{
-    let st=SESS[peer] ? JSON.parse(JSON.stringify(SESS[peer])) : null, reset=false;
-    const ad=te.encode(JSON.stringify(hdr)+peer+'>'+ME.id);
-    if(hdr.ek){
-      const need = !st || (st.role==='B' && st.ek!==hdr.ek) || (st.role==='A' && !st.confirmed && ME.id>peer);
-      if(need){
-        if(hdr.cv!==ME.curve) throw new Error('olika krypteringskurvor');
-        const sk=await hkdf(cat(await dh(ME.curve,ME.ik,hdr.ek), await dh(ME.curve,ME.ik,hdr.ik)), new Uint8Array(32), 'FL-X3DH-v1', 32);
-        st={role:'B', ek:hdr.ek, confirmed:true, DHs:ME.ik, DHr:null, RK:b64(sk), CKs:null, CKr:null, Ns:0, Nr:0, PN:0, skipped:{}};
-        reset=!!SESS[peer];
-      }
-    }
-    if(!st) throw new Error('ingen session');
+  // Ett försök att dekryptera med en given (kopierad) sessionsstatus – ändrar bara kopian
+  async function ratchetDecrypt(st, hdr, ct, ad){
     const key=hdr.dh+':'+hdr.n;
     let mk;
     if(st.skipped[key]){ mk=ub64(st.skipped[key]); delete st.skipped[key]; }
@@ -128,11 +118,34 @@ const CHAT = (()=>{
       await skipKeys(st,hdr.n);
       const [ck,m]=await kdfCK(ub64(st.CKr)); st.CKr=b64(ck); st.Nr++; mk=m;
     }
-    const pt=await aesDec(mk, ct, ad);   // kastar fel om något inte stämmer – då sparas inget
-    if(st.role==='A') st.confirmed=true;
-    SESS[peer]=st; saveS();
-    if(reset) requeueFor(peer);
-    return JSON.parse(td.decode(pt));
+    return aesDec(mk, ct, ad);   // kastar fel om något inte stämmer
+  }
+  async function freshB(hdr){
+    if(hdr.cv!==ME.curve) throw new Error('olika krypteringskurvor');
+    const sk=await hkdf(cat(await dh(ME.curve,ME.ik,hdr.ek), await dh(ME.curve,ME.ik,hdr.ik)), new Uint8Array(32), 'FL-X3DH-v1', 32);
+    return {role:'B', ek:hdr.ek, confirmed:true, DHs:ME.ik, DHr:null, RK:b64(sk), CKs:null, CKr:null, Ns:0, Nr:0, PN:0, skipped:{}};
+  }
+  function decryptFrom(peer, hdr, ct){ return lock(peer, async()=>{
+    const ad=te.encode(JSON.stringify(hdr)+peer+'>'+ME.id);
+    const cur=SESS[peer] ? JSON.parse(JSON.stringify(SESS[peer])) : null;
+    // vilka sessioner ska provas, i ordning? [status|null=ny, är det en återstart?]
+    const tries=[];
+    if(hdr.ek){
+      const need = !cur || (cur.role==='B' && cur.ek!==hdr.ek) || (cur.role==='A' && !cur.confirmed && ME.id>peer);
+      tries.push(need ? [null, !!cur] : [cur,false]);
+    } else { if(!cur) throw new Error('ingen session'); tries.push([cur,false]); }
+    let err;
+    for(const [st0,reset] of tries){
+      try{
+        const st = st0 || await freshB(hdr);
+        const pt=await ratchetDecrypt(st, hdr, ct, ad);
+        if(st.role==='A') st.confirmed=true;
+        SESS[peer]=st; saveS();
+        if(reset) requeueFor(peer);
+        return JSON.parse(td.decode(pt));
+      }catch(e){ err=e; }
+    }
+    throw err;
   }); }
 
   /* ---------- Sender Keys (grupper) ---------- */
@@ -197,12 +210,21 @@ const CHAT = (()=>{
     if(o.kind==='g') return {...o.genv, to:o.to};
     const {hdr,ct}=await encryptFor(o.to, o.payload); return {t:'env', mid:o.mid, from:ME.id, to:o.to, k:'d', hdr, ct, ts:o.ts};
   }
+  // reservväg: om kontakten är med i samma onlinespel går meddelandet genom spelets anslutning
+  const bridgeOK = id => typeof gameBridgeHas==='function' && gameBridgeHas(id);
+  async function viaBridge(o){
+    if(!bridgeOK(o.to) || Date.now()-(o.bridgeAt||0)<12000) return false;
+    try{ const env=await makeEnv(o); if(gameBridge(o.to, env)){ o.bridgeAt=Date.now(); if(o.status==='queued'){ o.status='sent'; if(!o.ctl) markStatus(o.cid||'', o.mid, o.to, 'sent'); } return true; } }catch(e){}
+    return false;
+  }
   async function flushTo(id){
     const c=conns.get(id);
     const items=outbox.filter(o=>o.to===id);
     if(!items.length) return;
+    // inte kvitterat på länge via chattanslutningen? prova spelets anslutning också
+    for(const o of items) if(!o.acked && (!(c && c.open) || (o.lastSend && Date.now()-o.lastSend>8000))) await viaBridge(o);
     if(c && c.open){
-      for(const o of items){ if(o.acked || Date.now()-(o.lastSend||0)<25000) continue; try{ const env=await makeEnv(o); sendRaw(c, env); o.lastSend=Date.now(); if(o.status==='queued'){ o.status='sent'; if(!o.ctl) markStatus(o.cid||'', o.mid, id, 'sent'); } }catch(e){ if(!/väntar/.test(e.message)) console.warn('chatt: kunde inte kryptera', e.message); } }
+      for(const o of items){ if(o.acked || Date.now()-(o.lastSend||0)<15000) continue; try{ const env=await makeEnv(o); sendRaw(c, env); o.lastSend=Date.now(); if(o.status==='queued'){ o.status='sent'; if(!o.ctl) markStatus(o.cid||'', o.mid, id, 'sent'); } }catch(e){ if(!/väntar/.test(e.message)) console.warn('chatt: kunde inte kryptera', e.message); } }
       saveConvs();
     } else {
       connectTo(id);
@@ -220,7 +242,9 @@ const CHAT = (()=>{
   /* ---------- transport (PeerJS, direkt mellan enheter) ---------- */
   const CPREFIX='fl-chat-v1-'+(DEV?'dev-':'');
   let cpeer=null; const conns=new Map(), connecting=new Map(), lastSeen=ld('lastseen',{}), typing={};
+  let testNoNet=false;
   function startTransport(){
+    if(testNoNet) return;
     if(!owner || BOTMODE || cpeer || !ME || typeof Peer==='undefined') return;
     const p=cpeer=new Peer(CPREFIX+ME.id, peerOpts());
     p.on('open',()=>{ flushAll(); presenceSweep(); });
@@ -242,7 +266,7 @@ const CHAT = (()=>{
   const sendRaw=(c,m)=>{ try{ if(c && c.open) c.send(JSON.stringify(m)); }catch(e){} };
   function attach(c, id){
     c.on('open',()=>{ c._n=uid()+uid(); sendRaw(c,{t:'hi', card:myCard(), n:c._n}); });
-    c.on('data',d=>{ if(typeof d!=='string' || d.length>300000) return; let m; try{ m=JSON.parse(d); }catch(e){ return; } if(!m || typeof m!=='object' || Array.isArray(m)) return; onData(c,m).catch(()=>{}); });
+    c.on('data',d=>{ c._heard=Date.now(); if(typeof d!=='string' || d.length>300000) return; let m; try{ m=JSON.parse(d); }catch(e){ return; } if(!m || typeof m!=='object' || Array.isArray(m)) return; onData(c,m).catch(()=>{}); });
     c.on('close',()=>{ if(c._id && conns.get(c._id)===c){ conns.delete(c._id); lastSeen[c._id]=Date.now(); sv('lastseen',lastSeen); if(vis()) refreshHead(); } });
     c.on('error',()=>{});
   }
@@ -277,7 +301,8 @@ const CHAT = (()=>{
       if(old && old!==c && old.open){
         // båda ringde samtidigt: behåll anslutningen som det lägsta ID:t startade, på båda sidor
         const initiator = x => x._out ? ME.id : c._id;
-        const keep = initiator(c) < initiator(old) ? c : (initiator(old) < initiator(c) ? old : c);
+        const oldStale = Date.now()-(old._heard||0) > 5000;                       // gammal tyst anslutning = död: den nya vinner
+        const keep = oldStale ? c : initiator(c) < initiator(old) ? c : (initiator(old) < initiator(c) ? old : c);
         const drop = keep===c ? old : c;
         setTimeout(()=>{ try{ drop.close() }catch(_){} },1500);
         if(keep===old){ return; }
@@ -291,6 +316,11 @@ const CHAT = (()=>{
   }
   async function onData2(c,m){
     if(!c._id) return;                                       // inget annat än hi/proof före verifiering
+    if(m.t==='ping'){ sendRaw(c,{t:'pong'}); return; }
+    if(m.t==='pong'){ c._pong=true; c._pongAt=Date.now(); return; }
+    if(m.t==='resync'){                                      // motparten kunde inte läsa oss och har börjat om: gör samma sak
+      const now=Date.now(); if(now-(resetAt[c._id]||0)<30000) return; resetAt[c._id]=now;
+      lock(c._id, async()=>{ delete SESS[c._id]; saveS(); }).then(()=>requeueFor(c._id)); return; }
     if(m.t==='env'){ if(m.to===ME.id) receiveEnv(m, c); return; }
     if(m.t==='ack'){ if(!isH(m.mid)) return; let ch=false; outbox=outbox.filter(o=>{ if(o.mid!==m.mid || o.to!==c._id) return true; ch=true; if(o.ctl) return false; o.acked=true; if(!o.ctl) markStatus(o.cid||'',o.mid,o.to,'sent'); return true; }); if(ch) saveConvs(); return; }
     if(m.t==='relay'){ if(!isH(m.to) || !m.env || typeof m.env!=='object' || !isH(m.env.mid) || m.env.to!==m.to) return; if(!contacts[c._id] && !sharesGroup(c._id,m.to)) return; if(m.to===ME.id){ receiveEnv(m.env,null); return; }
@@ -320,7 +350,18 @@ const CHAT = (()=>{
       seen.add(dkey); saveConvs(); if(c) sendRaw(c,{t:'ack', mid:env.mid});
       if(!p || typeof p!=='object' || Array.isArray(p) || typeof p.type!=='string') return;
       await handlePayload(env.from, p, env);
-    }catch(e){ console.warn('chatt: kunde inte läsa meddelande', e.name, e.message, env.k, JSON.stringify(env.hdr||{iter:env.iter})); }
+    }catch(e){
+      // Riktig otakt? Börja om sessionen på båda sidor (bara över en verifierad anslutning, med spärr mot upprepning).
+      // Meddelanden från en samtidig start där vi "vann" är väntade fel och räknas inte.
+      if(c && c._id===env.from && env.k==='d'){
+        const st=SESS[env.from], now=Date.now();
+        const raceLeftover = env.hdr.ek && st && st.role==='A' && !st.confirmed && ME.id<env.from;
+        if(!raceLeftover && now-(resetAt[env.from]||0)>30000){
+          resetAt[env.from]=now;
+          lock(env.from, async()=>{ delete SESS[env.from]; saveS(); }).then(()=>{ sendRaw(c,{t:'resync'}); requeueFor(env.from); });
+        }
+      }
+      console.warn('chatt: kunde inte läsa meddelande', e.name, e.message, env.k, JSON.stringify(env.hdr||{iter:env.iter})); }
   }
   const normInvite = v => { if(!v || typeof v!=='object' || typeof v.code!=='string' || !/^[A-Z0-9]{4}$/.test(v.code)) return null; const g=GAMES.find(x=>x[0]===v.game); return g ? {game:g[0], icon:g[1], gname:g[2], code:v.code} : null; };
   async function handlePayload(from, p, env){
@@ -454,9 +495,39 @@ const CHAT = (()=>{
   setInterval(()=>{ if(!owner) return; const now=Date.now(); let ch=false; Object.values(convs).forEach(c=>{ const n=c.msgs.length; c.msgs=c.msgs.filter(m=>!m.expireAt || m.expireAt>now); if(c.msgs.length!==n) ch=true; }); if(ch){ saveConvs(); if(vis()) refresh(); } },15000);
   // närvaro: koppla upp mot kontakter med jämna mellanrum
   function presenceSweep(){ if(!ME) return; Object.keys(contacts).slice(0,25).forEach(connectTo); Object.values(GROUPS).forEach(g=>g.members.forEach(connectTo)); }
-  setInterval(()=>{ if(owner && cpeer && cpeer.open && !document.hidden){ flushAll(); } },20000);
+  // Hjärtslag: upptäck döda anslutningar (skärmen släckt, appbyte, tappat nät) och koppla upp igen
+  function dropConn(c){
+    try{ c.close() }catch(_){}
+    if(c._id && conns.get(c._id)===c){ conns.delete(c._id); lastSeen[c._id]=Date.now(); }
+    connecting.delete(c._id);
+    outbox.forEach(o=>{ if(o.to===c._id && !o.acked) o.lastSend=0; });   // skickas om när vi är uppkopplade igen
+    if(vis()) refreshHead();
+    setTimeout(()=>connectTo(c._id),300);
+  }
+  setInterval(()=>{
+    if(!owner || BOTMODE) return;
+    const now=Date.now();
+    for(const c of [...conns.values()]){
+      if(c._local) continue;
+      if(c._pong && now-(c._heard||0)>25000){ dropConn(c); continue; }       // (äldre versioner svarar inte på ping)
+      // skickat men inte kvitterat på 10 s, och inget hört sedan dess? då är anslutningen död
+      if(outbox.some(o=>o.to===c._id && o.lastSend && !o.acked && now-o.lastSend>10000 && (c._pong ? (c._pongAt||0) : (c._heard||0))<o.lastSend)){ dropConn(c); continue; }
+      sendRaw(c,{t:'ping'});
+    }
+    if(cpeer && cpeer.disconnected && !cpeer.destroyed){ try{ cpeer.reconnect() }catch(e){} }
+    if(cpeer && cpeer.open) flushAll(); else if(outbox.length) new Set(outbox.map(o=>o.to)).forEach(id=>flushTo(id));
+  },8000);
+  // När appen visas igen / får nät: pinga alla och koppla om dem som inte svarar
+  function probe(){
+    if(!owner || BOTMODE || !ME) return;
+    if(!cpeer || cpeer.destroyed){ cpeer=null; startTransport(); }
+    else if(cpeer.disconnected){ try{ cpeer.reconnect() }catch(e){} }
+    const t0=Date.now(); for(const c of conns.values()) if(!c._local) sendRaw(c,{t:'ping'});
+    setTimeout(()=>{ for(const c of [...conns.values()]) if(!c._local && c._pong && (c._heard||0)<t0) dropConn(c); flushAll(); presenceSweep(); },3500);
+  }
+  window.addEventListener('online',()=>setTimeout(probe,600));
   setInterval(()=>{ if(cpeer && cpeer.open && !document.hidden) presenceSweep(); },60000);
-  document.addEventListener('visibilitychange',()=>{ if(!document.hidden && ME && owner){ startTransport(); if(cpeer && cpeer.disconnected){ try{ cpeer.reconnect() }catch(e){} } setTimeout(()=>{ flushAll(); presenceSweep(); },800); if(vis() && openCid) markRead(openCid); } });
+  document.addEventListener('visibilitychange',()=>{ if(!document.hidden && ME && owner){ probe(); if(vis() && openCid) markRead(openCid); } });
 
   /* ---------- aviseringar ---------- */
   function notifyMsg(cid, from, m){
@@ -489,8 +560,8 @@ const CHAT = (()=>{
   const EMOJI_SETS={
     '😀':'😀 😃 😄 😁 😆 😅 🤣 😂 🙂 😉 😊 😇 🥰 😍 🤩 😘 😋 😛 😜 🤪 🤗 🤭 🤫 🤔 😐 😏 😒 🙄 😬 😌 😴 🤒 🤧 🥵 🥶 🥳 😎 🤓 😕 😟 🙁 😮 😲 😳 🥺 😢 😭 😱 😤 😡 🤬 😈 💀 👻 👽 🤖 💩',
     '❤️':'❤️ 🧡 💛 💚 💙 💜 🖤 🤍 💖 💗 💓 💞 💕 💘 💝 💔 ❣️ 💯 ✨ ⭐ 🌟 💫 🔥 💥 🎉 🎊 🎈 🎁 🏆 🥇',
-    '👍':'👍 👎 👌 ✌️ 🤞 🤟 🤘 🤙 👋 👏 🙌 👐 🤲 🙏 💪 🤝 ✍️ 💅 👀 🫶 🫡 🤷 🙋 💁 🙆 🙅',
-    '🐬':'🐬 🐳 🐋 🦈 🐙 🦑 🐠 🐟 🐡 🦀 🐚 🪼 🐆 🐅 🦁 🐯 🐶 🐱 🐰 🦊 🐻 🐼 🐨 🐸 🦄 🦋 🐝 🐞 🦩 🐧 🦉 🐢',
+    '👍':'👍 👎 👌 ✌️ 🤞 🤟 🤘 🤙 👋 👏 🙌 👐 🤲 🙏 💪 🤝 ✍️ 💅 👀 🤷 🙋 💁 🙆 🙅',
+    '🐬':'🐬 🐳 🐋 🦈 🐙 🦑 🐠 🐟 🐡 🦀 🐚 🐆 🐅 🦁 🐯 🐶 🐱 🐰 🦊 🐻 🐼 🐨 🐸 🦄 🦋 🐝 🐞 🦩 🐧 🦉 🐢',
     '🍕':'🍕 🍔 🌮 🍝 🍣 🍩 🍪 🎂 🍰 🧁 🍫 🍬 🍭 🍿 🍓 🍉 🍌 🍎 🥝 🍦 🥤 🧃 ☕ 🧋',
     '⛷️':'⛷️ 🏂 🎿 ⛸️ 🏒 ⚽ 🏀 🎾 🏐 🏓 🎮 🕹️ 🎲 🧩 🃏 🎯 🎳 🏊 🚴 🤸 🧘 🎨 🎤 🎧 🎸 📚',
     '🚀':'🚀 🛸 🪐 🌍 🌙 ☀️ 🌈 ⭐ ☄️ 🌊 ❄️ ☃️ 🌸 🌺 🌻 🌲 🏔️ 🏖️ 🏝️ 🎄 🎃 🏠 🚗 ✈️ 🚂 ⛵'
@@ -596,8 +667,10 @@ const CHAT = (()=>{
     return h;
   }
   const linkify = t => esc(t).replace(/(https?:\/\/[^\s<]+)/g,'<a href="$1" target="_blank" rel="noopener">$1</a>').replace(/\n/g,'<br>');
+  // tecken som ☀ ❤ ⭐ ritas annars ibland som gråa textsymboler – tvinga färgemoji (VS16)
+  const asEmoji = e => /^[\u2190-\u2BFF\u3030\u303D\u3297\u3299]$/.test(e) ? e+'\uFE0F' : e;
   function emojiPickerHTML(){ const tabs=Object.keys(EMOJI_SETS); const cur=draft._et||tabs[0];
-    return `<div class="wa-picker"><div class="wa-ptabs">${tabs.map(t=>`<button class="${t===cur?'on':''}" data-c="etab" data-t="${t}">${t}</button>`).join('')}</div><div class="wa-pgrid">${EMOJI_SETS[cur].split(' ').map(e=>`<button data-c="pick" data-e="${e}">${e}</button>`).join('')}</div></div>`; }
+    return `<div class="wa-picker"><div class="wa-ptabs">${tabs.map(t=>`<button class="${t===cur?'on':''}" data-c="etab" data-t="${t}">${t}</button>`).join('')}</div><div class="wa-pgrid">${EMOJI_SETS[cur].split(' ').map(asEmoji).map(e=>`<button data-c="pick" data-e="${e}">${e}</button>`).join('')}</div></div>`; }
 
   /* ---------- uppdatering utan att tappa det man skriver ---------- */
   function refresh(){
@@ -839,7 +912,7 @@ const CHAT = (()=>{
       if(typeof spOpen!=='undefined' && spOpen && typeof spToggle==='function') spToggle(false);
       if(!dockable() && !CHATWIN){ try{ history.pushState({flchat:1},''); chatHist=true; }catch(e){} }   // mobilens bakåtknapp stänger chatten
     }
-    pn.classList.add('open'); setDock();
+    pn.classList.add('open'); setDock(); fitViewport();
     pn.innerHTML=html(); mount();
     if(openCid && convs[openCid]){ convs[openCid].unread=0; markRead(openCid); }
     updateBadges();
@@ -854,6 +927,14 @@ const CHAT = (()=>{
   }
   window.addEventListener('popstate',()=>{ if(panelOpen && !CHATWIN){ chatHist=false; closePanel(true); } });
   window.addEventListener('resize',()=>{ if(BOTMODE) return; if(panelOpen) setDock(); const r=document.getElementById('chatRoot'); if(r && CHATWIN) r.classList.toggle('wide', wide()); });
+  // Mobilens tangentbord: håll inmatningsrutan ovanför tangentbordet (VisualViewport)
+  function fitViewport(){
+    const vv=window.visualViewport, pn=document.getElementById('chatPanel'); if(!vv || !pn) return;
+    if(window.innerWidth>=700 && !CHATWIN){ pn.style.height=''; pn.style.top=''; return; }
+    pn.style.top=vv.offsetTop+'px'; pn.style.height=vv.height+'px'; pn.style.bottom='auto';
+    if(document.activeElement && document.activeElement.id==='waText') scrollBottom();
+  }
+  if(window.visualViewport){ visualViewport.addEventListener('resize',fitViewport); visualViewport.addEventListener('scroll',fitViewport); }
   function updateBadges(){ if(BOTMODE) return; const n=totalUnread(); document.querySelectorAll('[data-cbadge]').forEach(el=>{ el.textContent=n?String(n>99?'99+':n):''; el.classList.toggle('on',n>0); }); }
   setInterval(updateBadges,1500);
   function popout(){
@@ -965,6 +1046,8 @@ const CHAT = (()=>{
 
   /* ---------- händelser ---------- */
   let typingT=0;
+  // trycker man i textrutan stängs emojiväljaren (tangentbordet tar dess plats)
+  document.addEventListener('focusin',e=>{ if(e.target.id==='waText' && pickerOpen && !FINE_PTR){ pickerOpen=false; refresh(); setTimeout(()=>{ document.getElementById('waText')?.focus(); scrollBottom(); },30); } });
   document.addEventListener('input',e=>{
     if(e.target.id!=='waText' || !openCid) return; draft[openCid]=e.target.value; autoGrow();
     if(Date.now()-typingT>2500){ typingT=Date.now(); const k=openCid.startsWith('g:')?openCid:'dm'; recipients(openCid).forEach(id=>sendRaw(conns.get(id),{t:'typing', conv:k})); }
@@ -1001,8 +1084,10 @@ const CHAT = (()=>{
       case 'opendm': openConv('d:'+b.dataset.id); break;
       case 'close': openCid=null; editing=null; refresh(); break;
       case 'send': doSend(); break;
-      case 'emoji': pickerOpen=!pickerOpen; refresh(); break;
-      case 'etab': draft._et=b.dataset.t; refresh(); break;
+      case 'emoji': { pickerOpen=!pickerOpen; const ta=document.getElementById('waText');
+        if(pickerOpen){ ta && ta.blur(); refresh(); } else { refresh(); document.getElementById('waText')?.focus(); }
+        setTimeout(()=>scrollBottom(),60); break; }
+      case 'etab': { draft._et=b.dataset.t; const pk=document.querySelector('#chatPanel .wa-picker'); if(pk) pk.outerHTML=emojiPickerHTML(); else refresh(); break; }
       case 'pick': { const ta=document.getElementById('waText'); if(ta){ const s=ta.selectionStart??ta.value.length; ta.value=ta.value.slice(0,s)+b.dataset.e+ta.value.slice(ta.selectionEnd??s); draft[openCid]=ta.value; autoGrow(); } break; }
       case 'react': react(openCid, b.dataset.mid, b.dataset.e); menuFor=null; refreshMsgs(openCid); break;
       case 'copy': { const m=convs[openCid]?.msgs.find(x=>x.mid===b.dataset.mid); try{ await navigator.clipboard.writeText(m?.text||''); toast('Kopierat 📋'); }catch(_){} menuFor=null; refreshMsgs(openCid); break; }
@@ -1058,10 +1143,14 @@ const CHAT = (()=>{
   }
   setTimeout(boot, 300);
   return {
+    bridgeIn:env=>{ if(owner && ME && env && typeof env==='object' && env.to===ME.id) receiveEnv(env,null); },
+    myId:()=>ME && ME.id,
     html, mount, refresh, open:()=>openPanel(), openChat, close:()=>closePanel(), isOpen:()=>panelOpen, docked:()=>panelOpen && dockable(), seenCards, card:()=>myCard(), unread:totalUnread,
     hasIdentity:()=>!!ME,
     // bara i testversionen: krokar för automatiska säkerhetstester
-    __test: DEV ? {queueDirect, conns:()=>[...conns.keys()], typing:()=>({...typing}), groups:()=>GROUPS, convs:()=>convs, contacts:()=>contacts, scan:t=>onScanText(t)} : undefined
+    __test: DEV ? {queueDirect, conns:()=>[...conns.keys()], typing:()=>({...typing}), groups:()=>GROUPS, convs:()=>convs, contacts:()=>contacts, scan:t=>onScanText(t),
+      zombie:id=>{ const c=conns.get(id); if(c){ c.removeAllListeners('data'); c.on('data',()=>{}); } },   // anslutningen ser öppen ut men tar inte emot
+      noNet:()=>{ testNoNet=true; try{ cpeer && cpeer.destroy() }catch(e){} cpeer=null; conns.clear(); }} : undefined
   };
 })();
 function openChatView(){ CHAT.open(); }
@@ -1149,6 +1238,10 @@ function openChatView(){ CHAT.open(); }
 .wa-send{width:46px;height:46px;flex:none;border-radius:50%;background:var(--ca);color:#fff;font-size:20px;display:grid;place-items:center}
 .wa-picker{background:var(--chead);border-top:1px solid var(--cline)}
 .wa-ptabs{display:flex;overflow-x:auto;gap:2px;padding:4px 6px}.wa-ptabs button{font-size:20px;padding:6px 10px;border-radius:10px;opacity:.6}.wa-ptabs button.on{opacity:1;background:rgba(127,127,127,.18)}
+.wa-pgrid, .wa-rbar, .wa-reacts, .wa-tx.big, .wa-emos, .wa-av{font-family:"Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji","Fredoka",sans-serif}
+.wa-pgrid{touch-action:pan-y;overscroll-behavior:contain;-webkit-overflow-scrolling:touch}
+.wa-pgrid button{color:inherit;opacity:1;filter:none;-webkit-tap-highlight-color:transparent}
+.wa-msgs{overscroll-behavior:contain}
 .wa-pgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(42px,1fr));max-height:210px;overflow-y:auto;padding:4px 6px 8px}.wa-pgrid button{font-size:26px;padding:5px 0;border-radius:10px}.wa-pgrid button:hover{background:rgba(127,127,127,.18)}
 .wa-welcome{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;color:var(--cs);background:var(--cbg);padding:20px}
 .wa-welcome h2{color:var(--ct);margin:8px 0}.wa-lock{margin-top:30px;font-size:13px}

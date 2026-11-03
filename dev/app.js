@@ -6,7 +6,7 @@
   if(!same || !/[?&]bot=1/.test(location.search)){ document.documentElement.innerHTML=''; throw new Error('Inramning blockerad'); }
 })();
 /* ================= Version & utvecklingsläge ================= */
-const APP_VERSION='2026.11.03.4';
+const APP_VERSION='2026.11.03.6';
 const DEV = /\/dev(\/|$)/.test(location.pathname);      // testversionen ligger i mappen /dev/
 const BOT = DEV && /[?&]bot=1/.test(location.search) && window.parent!==window;   // osynlig testkompis i en ram (bara dev)
 const LSP = DEV ? (BOT ? 'dev:bot:' : 'dev:') : '';    // egen sparad data i testversionen
@@ -421,7 +421,12 @@ function animateRoll(final, held){
   const iv=setInterval(()=>{ shown=shown.map((v,i)=>held[i]?final[i]:rnd()); renderDice(); },75);
   setTimeout(()=>{
     clearInterval(iv); rolling=false; shown=final.slice(); render();
-    if(isYatzy(final)) celebrate();
+    if(isYatzy(final) && G && G.scores){
+      const p=G.cur, sc=G.scores[p]||{};
+      if(!('yatzy' in sc) && allowed('yatzy',p)) celebrate();                      // yatzy-raden kan tas just nu
+      else if('yatzy' in sc) toast('Fem lika! 🎲 Men yatzy-raden är redan använd',3200);
+      else toast(`Fem lika! 🎲 I ordning gäller ${NAME[nextCat(sc)]} – yatzy-raden kommer sist`,3600);
+    }
   },700);
 }
 function sparkles(n=30){
@@ -544,7 +549,7 @@ function onHostMsg(m,c){
     for(const o of hostConns) if(o!==c && o._seat===seat){ try{ o.close() }catch(e){} hostConns.delete(o); }
     c._seat=seat;
     if(!isKind() && (m.state?.seq||0)>(G.seq||0) && guestMayUpdate(G, m.state, seat)) onGameData(JSON.parse(JSON.stringify(m.state)));
-    if(typeof CHAT!=='undefined'){ if(m.card){ c._card=m.card; CHAT.seenCards([m.card],'ett spel'); } const cards=[CHAT.card(), ...[...hostConns].map(o=>o._card)].filter(Boolean); if(cards.length) hostBroadcast({t:'cards', cards}); }
+    if(typeof CHAT!=='undefined'){ if(m.card && typeof m.card==='object' && typeof m.card.id==='string' && /^[0-9a-f]{16}$/.test(m.card.id)){ c._card=m.card; CHAT.seenCards([m.card],'ett spel'); } const cards=[CHAT.card(), ...[...hostConns].map(o=>o._card)].filter(Boolean); if(cards.length) hostBroadcast({t:'cards', cards}); }
     sendTo(c,{t:'welcome', seat, name:G.names[seat]});
     sendTo(c,{t:'state', state:G, force:true});          // värdens version gäller alltid efter återanslutning
     hostBroadcast({t:'state', state:G}, c);
@@ -558,6 +563,13 @@ function onHostMsg(m,c){
     return;
   }
   if(m.t==='act'){ if(isKind()) applyAndPublish(m.a, c._seat); return; }
+  if(m.t==='chat'){                                   // krypterat chattmeddelande via spelet: till mig eller vidare till en annan spelare
+    if(typeof m.to!=='string' || !/^[0-9a-f]{16}$/.test(m.to) || !m.env || typeof m.env!=='object') return;
+    const now=Date.now(); c._chatN=(now-(c._chatT||0)>10000)?1:(c._chatN||0)+1; if(c._chatN===1) c._chatT=now; if(c._chatN>60) return;   // ingen spam
+    if(typeof CHAT!=='undefined' && m.to===CHAT.myId()){ CHAT.bridgeIn(m.env); return; }
+    for(const o of hostConns) if(o!==c && o.open && o._card && o._card.id===m.to){ sendTo(o,{t:'chat', to:m.to, env:m.env}); break; }
+    return;
+  }
   if((m.t==='emoji'||m.t==='poke') && Date.now()-(c._socT||0) < (m.t==='poke'?4000:300)) return;   // ingen spam
   if(m.t==='emoji'||m.t==='poke') c._socT=Date.now();
   if(m.t==='emoji' || m.t==='poke'){
@@ -619,7 +631,8 @@ function onGuestMsg(m){
     lsSet('ry_net',''); stopNet(); setTimeout(goLobby,1200); return;
   }
   if(m.t==='state'){ if(validState(m.state) && (!G || (m.state.seq||0)>(G.seq||0) || (m.force && JSON.stringify(m.state)!==JSON.stringify(G)))) onGameData(JSON.parse(JSON.stringify(m.state))); return; }
-  if(m.t==='cards'){ if(typeof CHAT!=='undefined') CHAT.seenCards(m.cards,'ett spel'); return; }
+  if(m.t==='cards'){ if(Array.isArray(m.cards)){ gameCardIds=m.cards.slice(0,8).map(c=>c&&c.id).filter(id=>typeof id==='string'&&/^[0-9a-f]{16}$/.test(id)); if(typeof CHAT!=='undefined') CHAT.seenCards(m.cards,'ett spel'); } return; }
+  if(m.t==='chat'){ if(typeof CHAT!=='undefined' && m.env && typeof m.env==='object') CHAT.bridgeIn(m.env); return; }
   if(m.t==='emoji' || m.t==='poke') onSocial(m);
 }
 /* ---------- Validering av speldata från andra enheter ----------
@@ -675,6 +688,19 @@ document.addEventListener('visibilitychange',()=>{
   if(mode!=='online'){ autoResume(); return; }
   netCheck();
 });
+// Chattens reservväg genom spelanslutningen
+let gameCardIds=[];
+function gameBridgeHas(id){
+  if(mode!=='online' || !G) return false;
+  if(role==='host') return [...hostConns].some(o=>o.open && o._card && o._card.id===id);
+  return !!(conn && conn.open && gameCardIds.includes(id));
+}
+function gameBridge(id, env){
+  if(!gameBridgeHas(id)) return false;
+  const msg={t:'chat', to:id, env};
+  if(role==='host'){ for(const o of hostConns) if(o.open && o._card && o._card.id===id){ sendTo(o,msg); return true; } return false; }
+  sendTo(conn,msg); return true;
+}
 // Kontrollera nätet direkt (efter appbyte, skärmlås eller när mobilen får nät igen)
 function netCheck(){
   if(mode!=='online') return;
