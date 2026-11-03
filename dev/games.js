@@ -89,8 +89,9 @@ function gFinish(d){
   if(!st.games.some(g=>g.id===d.id) && me!==null && me!==undefined){
     const res = d.winner===-1 ? 'T' : d.winner===me ? 'W' : 'L';
     const others=d.names.map((n,i)=>i).filter(i=>i!==me);
-    const oppName = i => isAI(i) ? `${bare(d.names[i])} 🤖 ${d.ai[i]==='hard'?'svår':'lätt'}` : d.names[i];
-    const opp = others.length===1 ? oppName(others[0]) : others.every(i=>isAI(i)) ? `${others.length} datorspelare (${d.ai[others[0]]==='hard'?'svår':'lätt'})` : others.map(i=>bare(d.names[i])).join(', ');
+    const lvl = x => ({hard:'svår',medium:'medel'})[x]||'lätt';
+    const oppName = i => isAI(i) ? `${bare(d.names[i])} 🤖 ${lvl(d.ai[i])}` : d.names[i];
+    const opp = others.length===1 ? oppName(others[0]) : others.every(i=>isAI(i)) ? `${others.length} datorspelare (${lvl(d.ai[others[0]])})` : others.map(i=>bare(d.names[i])).join(', ');
     st.games.push({id:d.id, kind:d.kind, d:Date.now(), me:d.names[me], opp, res, mode});
     if(st.games.length>500) st.games=st.games.slice(-500);
     lsSet('ry_stats2', JSON.stringify(st));
@@ -559,6 +560,7 @@ document.addEventListener('keydown',e=>{
 let gLevel='easy';
 function showGameMenu(kind){
   if(kind==='kina' && typeof showKinaMenu==='function') return showKinaMenu();
+  if(kind==='ordfajt' && typeof showOrdfajtMenu==='function') return showOrdfajtMenu();
   const info=GINFO[kind];
   const rules={ships:'Placera fem skepp i hemlighet och turas om att skjuta. Träff = skjut igen. Den som först sänker hela flottan vinner.',
     mm:'Den ena hittar på en hemlig kod med fyra färger, den andra gissar rad för rad. Två rundor – den som knäcker koden på minst gissningar vinner.',

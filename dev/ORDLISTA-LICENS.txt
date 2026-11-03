@@ -1,0 +1,31 @@
+Ordfajts ordlistor
+==================
+
+Ordlistorna är framräknade ur öppna stavningslexikon för Hunspell/LibreOffice:
+affixreglerna är expanderade till alla böjningsformer, egennamn och ord som inte
+består av spelets bokstäver är borttagna (2–15 bokstäver), och resultatet är
+packat som en DAWG. Skripten finns i appens källkod (tools/ordfajt/).
+
+ordfajt-sv.bin – svenska
+  "Den Stora Svenska Ordlistan" (DSSO), via npm-paketet dictionary-sv 4.0.0
+  Copyright © 2003-19 Göran Andersson <goran@init.se>
+  Licens: GNU Lesser General Public License version 3 (LGPL-3.0)
+  https://github.com/wooorm/dictionaries/tree/main/dictionaries/sv
+  Följer svensk rättstavning. Ord märkta "föreslå inte" och ord utan vokal
+  (förkortningar) är borttagna.
+
+ordfajt-nb.bin – norska (bokmål)
+ordfajt-nn.bin – norska (nynorsk)
+  spell-norwegian v2.2, via npm-paketen dictionary-nb 3.0.0 och dictionary-nn 3.0.0
+  Licens: GNU General Public License version 2 (GPL-2.0)
+  https://github.com/wooorm/dictionaries/tree/main/dictionaries/nb
+  https://github.com/wooorm/dictionaries/tree/main/dictionaries/nn
+
+Jamska: appen innehåller ingen jamsk ordlista. Bo Oscarssons Orlboka är
+upphovsrättsskyddad och får bara läggas in med tillstånd. Tills dess spelas
+jamska med den svenska ordlistan plus egna tilläggsordlistor med jamska ord.
+
+Betydelser och synonymer hämtas vid behov från svenska respektive norska
+Wiktionary (https://sv.wiktionary.org, https://no.wiktionary.org,
+https://nn.wiktionary.org), CC BY-SA 4.0. SAOL (Svenska Akademiens ordlista)
+och Ordbøkene (Språkrådet/UiB) länkas men ingår inte i appen.
