@@ -612,7 +612,8 @@ body.desk .brand h1{font-size:64px} body.desk .brand .gb{font-size:32px}
 /* ================= Version & utvecklingsläge ================= */
 const APP_VERSION='2026.11.03';
 const DEV = /\/dev(\/|$)/.test(location.pathname);      // testversionen ligger i mappen /dev/
-const LSP = DEV ? 'dev:' : '';                           // egen sparad data i testversionen
+const BOT = DEV && /[?&]bot=1/.test(location.search) && window.parent!==window;   // osynlig testkompis i en ram (bara dev)
+const LSP = DEV ? (BOT ? 'dev:bot:' : 'dev:') : '';    // egen sparad data i testversionen
 if(DEV) document.title='DEV · '+document.title;
 /* ================= Grafik ================= */
 const DOLPHIN = (id='d', c1='#7df9ff', c2='#4f7cff') => `
@@ -989,10 +990,11 @@ function showTurnBanner(msg,icon='🐬'){
 function startBlink(msg){ if(blinkT) return; let on=false; blinkT=setInterval(()=>{ document.title=(on=!on)?'🔔 '+msg:BASE_TITLE; },900); }
 function stopBlink(){ clearInterval(blinkT); blinkT=null; document.title=BASE_TITLE; }
 let SWREG=null;
-if('serviceWorker' in navigator && /^https?:$/.test(location.protocol)){
+if(!BOT && 'serviceWorker' in navigator && /^https?:$/.test(location.protocol)){
   window.addEventListener('load',()=>{ navigator.serviceWorker.register('sw.js').then(r=>{ SWREG=r; }).catch(()=>{}); });
 }
 function systemNotify(msg){
+  if(BOT) return;
   if(!('Notification' in window) || Notification.permission!=='granted') return;
   if(SWREG && SWREG.showNotification){ SWREG.showNotification('Stjärndelfin Yatzy 🐬',{body:msg, tag:'yatzy-tur', renotify:true, icon:'icon-192.png', badge:'icon-192.png', vibrate:[180,90,180]}).catch(()=>{}); return; }
   try{ const n=new Notification('Stjärndelfin Yatzy 🐬',{body:msg, tag:'yatzy-tur', renotify:true}); n.onclick=()=>{ try{ window.focus(); }catch(e){} n.close(); }; }catch(e){}
@@ -2241,6 +2243,7 @@ function solStartNew(){
 
 /* ================= Aviseringar medan man är någon annanstans ================= */
 function notice(o){
+  if(BOT) return;
   const box=document.getElementById('notices'); if(!box) return;
   const n=document.createElement('div'); n.className='notice';
   n.innerHTML=`<div class="ic">${o.icon}</div><div><b>${esc(o.title)}</b><span>${esc(o.text||'')}</span></div><div class="acts">${(o.actions||[]).map((a,i)=>`<button data-nact="${i}">${esc(a.label)}</button>`).join('')}<button class="x" data-nact="x">Stäng</button></div>`;
@@ -2707,10 +2710,12 @@ document.addEventListener('keydown',e=>{
 });
 
 /* ================= Start ================= */
-if(DEV){ const d=document.createElement('div'); d.className='devribbon'; d.textContent='DEV'; document.body.appendChild(d); }
+if(DEV && !BOT){ const d=document.createElement('div'); d.className='devribbon'; d.textContent='DEV'; document.body.appendChild(d); }
+if(!BOT){
 spBuild();
 render();
 spHandleRedirect();
+}
 window.addEventListener('storage',e=>{ if(e.key==='ry_spauth'){ spUser=null; spLists=null; if(spOpen) spInit(); spRefreshChrome(); } });
 document.addEventListener('visibilitychange',()=>{ if(document.visibilityState==='visible' && spAuth() && spOpen && !spUser) spInit(); });
 (function(){ const h=(location.hash||'').replace('#','').toUpperCase(); if(/^[A-Z0-9]{4}$/.test(h)) showJoin(h); })();
