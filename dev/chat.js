@@ -13,6 +13,7 @@
 const CHAT = (()=>{
   /* ---------- lagring ---------- */
   const NS='chat:';
+  const BOTMODE = typeof BOT!=='undefined' && BOT;     // den här sidan ÄR testkompisen (osynlig ram)
   const ld=(k,d)=>{ try{ const v=JSON.parse(lsGet(NS+k)); return v===null||v===undefined?d:v; }catch(e){ return d; } };
   const sv=(k,v)=>lsSet(NS+k, JSON.stringify(v));
   const te=new TextEncoder(), td=new TextDecoder();
@@ -150,10 +151,15 @@ const CHAT = (()=>{
   // outbox-post: {mid, to, kind:'d'|'g', payload|genv, status:'queued'|'sent'|'relayed', ts, ctl}
   function queueDirect(to, payload, ctl){ outbox.push({mid: payload.mid || uid(), to, kind:'d', payload, status:'queued', ts:Date.now(), ctl:!!ctl}); saveConvs(); flushTo(to); }
   function requeueFor(peer){ outbox.forEach(o=>{ if(o.to===peer && o.kind==='d'){ o.status='queued'; o.acked=false; o.lastSend=0; } }); saveConvs(); flushTo(peer); }
-  function markStatus(cid, mid, who, st){
+  function markStatus(cid, mid, who, st, at){
     const c=convs[cid]; if(!c) return; const m=c.msgs.find(x=>x.mid===mid); if(!m || !m.out) return;
     m.st=m.st||{}; const rank={queued:0,sent:1,relayed:1,delivered:2,read:3};
-    if((rank[st]||0) >= (rank[m.st[who]]||0)) m.st[who]=st; saveConvs(); if(view==='chat') refreshMsgs(cid);
+    if((rank[st]||0) >= (rank[m.st[who]]||0)) m.st[who]=st;
+    m.stT=m.stT||{}; const T=m.stT[who]=m.stT[who]||{}, t=Math.min(at||Date.now(), Date.now()), k= st==='relayed'?'sent':st;
+    if(k!=='queued' && !T[k]) T[k]=t;
+    if((k==='delivered'||k==='read') && !T.sent) T.sent=t;
+    if(k==='read' && !T.delivered) T.delivered=t;
+    saveConvs(); if(view==='chat') refreshMsgs(cid); infoLive(cid,mid);
   }
   function aggStatus(m, cid){ const r=recipients(cid); if(!r.length) return 'read'; const vals=r.map(id=>(m.st||{})[id]||'queued'); const rank={queued:0,sent:1,relayed:1,delivered:2,read:3};
     const min=Math.min(...vals.map(v=>rank[v])); return ['queued','sent','delivered','read'][min]; }
@@ -171,7 +177,7 @@ const CHAT = (()=>{
     } else {
       connectTo(id);
       // lämna till en kompis som reläar
-      const relays=[...conns.keys()].filter(x=>x!==id).sort((a,b)=>sharesGroup(b,id)-sharesGroup(a,id)).slice(0,2);
+      const relays=[...conns.keys()].filter(x=>x!==id && (BOTMODE || !conns.get(x)._local)).sort((a,b)=>sharesGroup(b,id)-sharesGroup(a,id)).slice(0,2);
       for(const o of items){ if(o.status!=='queued' || !relays.length || Date.now()-(o.relayTry||0)<5*60e3) continue; o.relayTry=Date.now();
         try{ const env=await makeEnv(o); relays.forEach(r=>sendRaw(conns.get(r), {t:'relay', to:id, env})); }catch(e){} }
       saveConvs();
@@ -179,13 +185,13 @@ const CHAT = (()=>{
   }
   const sharesGroup=(a,b)=>Object.values(GROUPS).some(g=>g.members.includes(a)&&g.members.includes(b))?1:0;
   function flushAll(){ new Set(outbox.map(o=>o.to)).forEach(flushTo); relayQ=relayQ.filter(r=>r.until>Date.now()); new Set(relayQ.map(r=>r.to)).forEach(id=>{ const c=conns.get(id); if(c&&c.open){ relayQ.filter(r=>r.to===id).forEach(r=>sendRaw(c,r.env)); relayQ=relayQ.filter(r=>r.to!==id); saveConvs(); } else connectTo(id); }); }
-  function sendReceipt(to, mids, kind, gid){ if(!mids.length || !to) return; queueDirect(to, {type:'receipt', mids, kind, gid}, true); }
+  function sendReceipt(to, mids, kind, gid){ if(!mids.length || !to) return; queueDirect(to, {type:'receipt', mids, kind, gid, at:Date.now()}, true); }
 
   /* ---------- transport (PeerJS, direkt mellan enheter) ---------- */
   const CPREFIX='fl-chat-v1-'+(DEV?'dev-':'');
   let cpeer=null; const conns=new Map(), connecting=new Map(), lastSeen=ld('lastseen',{}), typing={};
   function startTransport(){
-    if(cpeer || !ME || typeof Peer==='undefined') return;
+    if(BOTMODE || cpeer || !ME || typeof Peer==='undefined') return;
     const p=cpeer=new Peer(CPREFIX+ME.id, peerOpts());
     p.on('open',()=>{ flushAll(); presenceSweep(); });
     p.on('connection',c=>attach(c,null));
@@ -197,7 +203,7 @@ const CHAT = (()=>{
     });
   }
   function connectTo(id){
-    if(!cpeer || !cpeer.open || !id || id===ME.id || conns.has(id) || blocked.includes(id)) return;
+    if(!cpeer || !cpeer.open || !id || id===ME.id || conns.has(id) || blocked.includes(id) || id===ld('botid',null)) return;
     const t=connecting.get(id); if(t && Date.now()-t<15000) return;
     connecting.set(id,Date.now());
     const c=cpeer.connect(CPREFIX+id,{reliable:true}); c._out=true; attach(c,id);
@@ -215,6 +221,7 @@ const CHAT = (()=>{
     if(m.t==='hi'){
       if(!(await okCard(m.card)) || blocked.includes(m.card.id)) { try{ c.close() }catch(_){} return; }
       c._id=m.card.id; await remember(m.card);
+      if(BOTMODE && !contacts[c._id]){ contacts[c._id]={...m.card, added:Date.now()}; saveC(); setTimeout(()=>botSay('d:'+c._id,'Hej! Jag är din testkompis 🤖 Skriv hjälp så ser du vad vi kan testa.',600),400); }
       const old=conns.get(c._id);
       if(old && old!==c && old.open){
         // båda ringde samtidigt: behåll anslutningen som det lägsta ID:t startade, på båda sidor
@@ -264,21 +271,29 @@ const CHAT = (()=>{
         const isNew=!contacts[from] && env.k==='d';
         if(isNew && p.fromName && known[from]){ known[from].name=p.fromName.slice(0,20); if(p.fromEmoji) known[from].emoji=p.fromEmoji; saveC(); }
         const c=conv(cid, isNew?{request:true}:{});
-        const m={mid:p.mid, from, text:String(p.text||'').slice(0,4000), ts:p.ts||Date.now(), exp:p.exp||0, invite:p.invite||null, reactions:{}};
-        if(m.exp) m.expireAt=m.ts+m.exp*1000;
+        const m={mid:p.mid, from, text:String(p.text||'').slice(0,4000), ts:p.ts||Date.now(), rcv:Date.now(), exp:p.exp||0, invite:p.invite||null, reactions:{}};
+        if(m.exp) m.expireAt=Math.max(m.ts,Date.now()-60e3)+m.exp*1000;
+        if(typing[cid] && typing[cid].who===from) delete typing[cid];
         if(addMsg(cid,m)){
-          const open = view==='chat' && openCid===cid && !document.hidden;
-          if(!open){ c.unread=(c.unread||0)+1; notifyMsg(cid, from, m); }
-          else sendReceipt(from,[m.mid],'read', env.gid);
+          const orph=orphans[m.mid]; if(orph && orph.from===from){ delete orphans[m.mid]; sv('orph',orphans); applyChange(cid,m,orph.p,true); }
+          const open = !BOTMODE && view==='chat' && openCid===cid && !document.hidden;
+          if(!open){ c.unread=(c.unread||0)+1; if(!BOTMODE) notifyMsg(cid, from, m); }
+          else { m.readAt=Date.now(); m.readSent=true; sendReceipt(from,[m.mid],'read', env.gid); }
+          if(BOTMODE) botOnMsg(cid, from, m, env.gid);
           if(!open) sendReceipt(from,[m.mid],'delivered', env.gid);
           saveConvs(); if(view==='chat') refresh(); else if(view==='lobby') render();
         }
         break; }
       case 'receipt': {
         const cid = p.gid ? 'g:'+p.gid : 'd:'+from;
-        (p.mids||[]).forEach(mid=>{ markStatus(cid, mid, from, p.kind==='read'?'read':'delivered'); outbox=outbox.filter(o=>!(o.mid===mid && o.to===from)); });
+        (p.mids||[]).forEach(mid=>{ markStatus(cid, mid, from, p.kind==='read'?'read':'delivered', +p.at||0); outbox=outbox.filter(o=>!(o.mid===mid && o.to===from)); });
         saveConvs(); break; }
       case 'react': { const cid = p.gid ? 'g:'+p.gid : 'd:'+from; const m=convs[cid]?.msgs.find(x=>x.mid===p.target); if(m){ m.reactions=m.reactions||{}; if(p.emoji) m.reactions[from]=p.emoji; else delete m.reactions[from]; saveConvs(); if(view==='chat') refreshMsgs(cid); } break; }
+      case 'edit': case 'revoke': {
+        const cid = p.gid ? 'g:'+p.gid : 'd:'+from; const m=convs[cid]?.msgs.find(x=>x.mid===p.target);
+        if(!m){ orphans[p.target]={from,p}; const ks=Object.keys(orphans); if(ks.length>200) delete orphans[ks[0]]; sv('orph',orphans); break; }
+        if(m.from!==from || m.out) break;
+        applyChange(cid,m,p,false); break; }
       case 'timer': { const cid = p.gid ? 'g:'+p.gid : 'd:'+from; const c=conv(cid); c.timer=p.secs|0; sysMsg(cid, `${nameOf(from)} ändrade försvinnande meddelanden till: ${timerName(c.timer)}`); if(view==='chat') refresh(); break; }
       case 'profile': { if(known[from]){ known[from].name=String(p.name||'').slice(0,20)||known[from].name; known[from].emoji=p.emoji||known[from].emoji; } if(contacts[from]){ contacts[from].name=known[from].name; contacts[from].emoji=known[from].emoji; } saveC(); if(view==='chat') refresh(); break; }
       case 'ginfo': {
@@ -304,6 +319,14 @@ const CHAT = (()=>{
     }
   }
 
+  let orphans=ld('orph',{});
+  function applyChange(cid,m,p,quiet){
+    if(p.type==='edit'){ if(m.revoked) return; m.text=String(p.text||'').slice(0,4000); m.edited=Math.min(+p.at||Date.now(),Date.now()); }
+    else { m.revoked=true; m.revokedAt=Date.now(); m.text=''; m.invite=null; m.reactions={}; m.edited=0; }
+    saveConvs(); if(view==='chat') refresh(); infoLive(cid,m.mid);
+    if(BOTMODE && !quiet) botOnChange(cid,m,p);
+  }
+
   /* ---------- skicka ---------- */
   function sendMsg(cid, text, invite){
     text=String(text||'').trim(); if(!text && !invite) return;
@@ -320,6 +343,17 @@ const CHAT = (()=>{
     tone(880,.06,'sine',.05); refresh();
   }
   function ctlAll(cid, payload){ const gid=cid.startsWith('g:')?cid.slice(2):null; recipients(cid).forEach(id=>queueDirect(id,{...payload, gid},true)); }
+  function editMsg(cid, mid, text){
+    const m=convs[cid]?.msgs.find(x=>x.mid===mid); text=String(text||'').trim();
+    if(!m || !m.out || m.revoked || m.invite || !text || text===m.text) return;
+    m.text=text; m.edited=Date.now(); saveConvs();
+    ctlAll(cid,{type:'edit', target:mid, text, at:m.edited}); refresh(); infoLive(cid,mid);
+  }
+  function revokeMsg(cid, mid){
+    const m=convs[cid]?.msgs.find(x=>x.mid===mid); if(!m || !m.out || m.revoked) return;
+    m.revoked=true; m.revokedAt=Date.now(); m.text=''; m.invite=null; m.reactions={}; m.edited=0; saveConvs();
+    ctlAll(cid,{type:'revoke', target:mid}); refresh(); infoLive(cid,mid);
+  }
   function setTimer(cid,secs){ const c=conv(cid); c.timer=secs; sysMsg(cid,`Du ändrade försvinnande meddelanden till: ${timerName(secs)}`); ctlAll(cid,{type:'timer', secs}); saveConvs(); refresh(); }
   function react(cid, mid, emoji){ const m=convs[cid]?.msgs.find(x=>x.mid===mid); if(!m) return; m.reactions=m.reactions||{}; const same=m.reactions[ME.id]===emoji;
     if(same) delete m.reactions[ME.id]; else m.reactions[ME.id]=emoji; saveConvs(); ctlAll(cid,{type:'react', target:mid, emoji: same?null:emoji}); refreshMsgs(cid); }
@@ -361,7 +395,7 @@ const CHAT = (()=>{
   }
   const totalUnread = () => Object.values(convs).reduce((a,c)=>a+(c.unread||0),0);
   function markRead(cid){ const c=convs[cid]; if(!c) return; const unreadMsgs=c.msgs.filter(m=>!m.out && !m.sys && !m.readSent);
-    const by={}; unreadMsgs.forEach(m=>{ m.readSent=true; (by[m.from]=by[m.from]||[]).push(m.mid); });
+    const by={}, now=Date.now(); unreadMsgs.forEach(m=>{ m.readSent=true; if(!m.readAt) m.readAt=now; (by[m.from]=by[m.from]||[]).push(m.mid); });
     Object.entries(by).forEach(([f,mids])=>sendReceipt(f,mids,'read', cid.startsWith('g:')?cid.slice(2):undefined));
     if(c.unread){ c.unread=0; } saveConvs(); }
 
@@ -376,6 +410,7 @@ const CHAT = (()=>{
   /* =====================================================================
      UTSEENDE (WhatsApp-stil)
      ===================================================================== */
+  let editing=null, infoFor=null;
   let openCid=null, tab='chats', theme=lsGet('chat_theme')||'wa-dark', pickerOpen=false, menuFor=null, draft={};
   const THEMES={'wa-dark':'🌙 Klassisk mörk','wa-light':'☀️ Klassisk ljus','space':'🚀 Rymd','ocean':'🐬 Delfin & hav','leopard':'🐆 Leopard','pink':'💖 Rosa'};
   const EMOJI_SETS={
@@ -394,6 +429,7 @@ const CHAT = (()=>{
   function convTitle(cid){ if(cid.startsWith('g:')){ const g=GROUPS[cid.slice(2)]; return g?`${g.emoji} ${g.name}`:'Grupp'; } return nameOf(cid.slice(2)); }
   function convAvatar(cid,size){ if(cid.startsWith('g:')){ const g=GROUPS[cid.slice(2)]; return avatar(g?g.emoji:'👥', cid, size); } const id=cid.slice(2); return avatar(emoOf(id), id, size, conns.has(id)); }
   function preview(c){ const m=[...c.msgs].reverse().find(x=>!x.hidden); if(!m) return c.type==='grp'?'Ny grupp':'Säg hej! 👋'; if(m.sys) return m.text;
+    if(m.revoked) return '🚫 <i>'+(m.out?'Du tog bort ett meddelande':'Meddelandet togs bort')+'</i>';
     const who = c.type==='grp' && !m.out ? nameOf(m.from)+': ' : ''; const tick = m.out ? tickHTML(aggStatus(m,c.id))+' ' : '';
     return tick + esc(who + (m.invite ? `🎮 Inbjudan: ${m.invite.gname}` : m.text)); }
   function tickHTML(st){ return st==='queued' ? '<i class="tk q">🕓</i>' : st==='sent' ? '<i class="tk">✓</i>' : st==='delivered' ? '<i class="tk">✓✓</i>' : '<i class="tk rd">✓✓</i>'; }
@@ -423,8 +459,9 @@ const CHAT = (()=>{
       body = `<button class="wa-row act" data-c="newgroup"><span class="wa-av ic">👥</span><span class="wa-rt"><b>Ny grupp</b></span></button>
         <button class="wa-row act" data-c="sharecard"><span class="wa-av ic">🔗</span><span class="wa-rt"><b>Dela min kontakt</b><small class="wa-sub">Skicka en länk så kan någon lägga till dig</small></span></button>
         ${fr.length?`<div class="wa-sec">Spelkompisar – lägg till som kontakt</div>`+fr.map(([id,f])=>`<div class="wa-row">${avatar(f.card.emoji,id)}<span class="wa-rt"><b>${esc(f.card.name)}</b><small class="wa-sub">Från ${esc(f.where)}</small></span><button class="wa-add" data-c="addc" data-id="${id}">＋ Lägg till</button></div>`).join(''):''}
+        ${DEV && !BOTMODE && !ld('botid',null) ? `<button class="wa-row act" data-c="mkbot"><span class="wa-av ic" style="background:#b45309">🤖</span><span class="wa-rt"><b>Skapa testkompis</b><small class="wa-sub">Bara i testversionen – svarar, läser, ändrar och tar bort</small></span></button>`:''}
         <div class="wa-sec">Kontakter${cs.length?` (${cs.length})`:''}</div>
-        ${cs.length?cs.map(c=>`<button class="wa-row" data-c="opendm" data-id="${c.id}">${avatar(c.emoji,c.id,'',conns.has(c.id))}<span class="wa-rt"><b>${esc(nameOf(c.id))}</b><small class="wa-sub">${conns.has(c.id)?'online':'🔒 krypterad'}</small></span></button>`).join(''):'<div class="wa-empty">Spela ett onlinespel med någon – då dyker de upp här som spelkompisar.</div>'}`;
+        ${cs.length?cs.map(c=>`<button class="wa-row" data-c="opendm" data-id="${c.id}">${avatar(c.emoji,c.id,'',conns.has(c.id))}<span class="wa-rt"><b>${esc(nameOf(c.id))}</b><small class="wa-sub">${c.bot?'🤖 testkompis · ':''}${conns.has(c.id)?'online':'🔒 krypterad'}</small></span></button>`).join(''):'<div class="wa-empty">Spela ett onlinespel med någon – då dyker de upp här som spelkompisar.</div>'}`;
     }
     return `<div class="wa-head"><button class="wa-ib" data-act="lobby" aria-label="Lobby">‹</button><b class="wa-title">Chattar</b>
         <button class="wa-ib" data-c="theme" aria-label="Tema">🎨</button><button class="wa-ib" data-c="profile" aria-label="Profil">${ME.emoji}</button></div>
@@ -448,9 +485,10 @@ const CHAT = (()=>{
       ${c.request?`<div class="wa-req">${esc(nameOf(peerOfConv(openCid)))} finns inte bland dina kontakter. <button data-c="addc" data-id="${peerOfConv(openCid)}">Lägg till</button><button data-c="block" data-id="${peerOfConv(openCid)}">Blockera</button></div>`:''}
       <div class="wa-msgs" id="waMsgs">${msgsHTML(openCid)}</div>
       ${pickerOpen?emojiPickerHTML():''}
+      ${editing && editing.cid===openCid ? `<div class="wa-edit"><span>✏️</span><div><b>Redigerar meddelande</b><small>${esc((convs[openCid].msgs.find(x=>x.mid===editing.mid)||{}).text||'').slice(0,90)}</small></div><button class="wa-ib" data-c="canceledit" aria-label="Avbryt">✕</button></div>`:''}
       <div class="wa-input"><button class="wa-ib" data-c="emoji" aria-label="Emojis">${pickerOpen?'⌨️':'😊'}</button>
         <textarea id="waText" rows="1" placeholder="Meddelande" maxlength="4000">${esc(draft[openCid]||'')}</textarea>
-        <button class="wa-send" data-c="send" aria-label="Skicka">➤</button></div></div>`;
+        <button class="wa-send" data-c="send" aria-label="${editing?'Spara':'Skicka'}">${editing && editing.cid===openCid?'✓':'➤'}</button></div></div>`;
   }
   function msgsHTML(cid){
     const c=convs[cid]; let h=`<div class="wa-sys lock" data-c="safety">🔒 Meddelanden och samtal är end-to-end-krypterade. Ingen utanför den här chatten kan läsa dem. Tryck för att se säkerhetsnumret.</div>`;
@@ -461,13 +499,18 @@ const CHAT = (()=>{
       if(m.sys){ h+=`<div class="wa-sys">${esc(m.text)}</div>`; lastFrom=''; return; }
       const first = lastFrom!==(m.out?'me':m.from); lastFrom=m.out?'me':m.from;
       const reacts=Object.values(m.reactions||{}); const rc={}; reacts.forEach(e=>rc[e]=(rc[e]||0)+1);
-      const body = m.invite ? `<div class="wa-inv"><span class="gi">${m.invite.icon||'🎮'}</span><div><b>${esc(m.invite.gname)}</b><small>${m.out?'Du bjöd in till ett spel':'Inbjudan till ett spel'} · kod ${esc(m.invite.code)}</small></div>${m.out?'':`<button data-c="join" data-code="${esc(m.invite.code)}">Gå med</button>`}</div>${m.text?`<div class="wa-tx">${linkify(m.text)}</div>`:''}`
+      const body = m.revoked ? `<div class="wa-tx wa-rev">🚫 ${m.out?'Du tog bort det här meddelandet':'Det här meddelandet togs bort'}</div>` : m.invite ? `<div class="wa-inv"><span class="gi">${m.invite.icon||'🎮'}</span><div><b>${esc(m.invite.gname)}</b><small>${m.out?'Du bjöd in till ett spel':'Inbjudan till ett spel'} · kod ${esc(m.invite.code)}</small></div>${m.out?'':`<button data-c="join" data-code="${esc(m.invite.code)}">Gå med</button>`}</div>${m.text?`<div class="wa-tx">${linkify(m.text)}</div>`:''}`
         : `<div class="wa-tx ${/^\p{Extended_Pictographic}{1,3}$/u.test(m.text)?'big':''}">${linkify(m.text)}</div>`;
       h+=`<div class="wa-msg ${m.out?'out':'in'} ${first?'first':''}" data-mid="${m.mid}">
         <div class="wa-bub">${!m.out && c.type==='grp' && first?`<span class="wa-from" style="--h:${hue(m.from)}">${esc(nameOf(m.from))}</span>`:''}${body}
-          <span class="wa-meta">${m.exp?'<i>⏱</i>':''}${fmtT(m.ts)}${m.out?' '+tickHTML(aggStatus(m,cid)):''}</span></div>
+          <span class="wa-meta">${m.exp?'<i>⏱</i>':''}${m.edited?'<i class="wa-ed">redigerat</i>':''}${fmtT(m.ts)}${m.out?' '+tickHTML(aggStatus(m,cid)):''}</span></div>
         ${reacts.length?`<div class="wa-reacts">${Object.entries(rc).map(([e,n])=>e+(n>1?n:'')).join(' ')}</div>`:''}
-        ${menuFor===m.mid?`<div class="wa-menu"><div class="wa-rbar">${['❤️','😂','😮','😭','🙏','👍'].map(e=>`<button data-c="react" data-mid="${m.mid}" data-e="${e}">${e}</button>`).join('')}</div><button data-c="copy" data-mid="${m.mid}">📋 Kopiera</button><button data-c="delme" data-mid="${m.mid}">🗑 Ta bort för mig</button></div>`:''}</div>`;
+        ${menuFor===m.mid?`<div class="wa-menu">${m.revoked?'':`<div class="wa-rbar">${['❤️','😂','😮','😭','🙏','👍'].map(e=>`<button data-c="react" data-mid="${m.mid}" data-e="${e}">${e}</button>`).join('')}</div>`}
+          <button data-c="minfo" data-mid="${m.mid}">ℹ️ Info</button>
+          ${m.out && !m.revoked && !m.invite && m.text ? `<button data-c="edit" data-mid="${m.mid}">✏️ Redigera</button>`:''}
+          ${!m.revoked && m.text ? `<button data-c="copy" data-mid="${m.mid}">📋 Kopiera</button>`:''}
+          ${m.out && !m.revoked ? `<button data-c="revoke" data-mid="${m.mid}">🚫 Ta bort för alla</button>`:''}
+          <button data-c="delme" data-mid="${m.mid}">🗑 Ta bort för mig</button></div>`:''}</div>`;
     });
     const t=typing[cid]; if(t && t.until>Date.now()) h+=`<div class="wa-msg in first"><div class="wa-bub typingdots"><i></i><i></i><i></i></div></div>`;
     return h;
@@ -484,7 +527,7 @@ const CHAT = (()=>{
     root.className=`wa t-${theme} ${openCid?'has-open':''}`;
     const side=document.getElementById('waSide'), st=side.querySelector('.wa-list')?.scrollTop||0; side.innerHTML=sideHTML(); const nl=side.querySelector('.wa-list'); if(nl) nl.scrollTop=st;
     const main=document.getElementById('waMain'), ta=document.getElementById('waText');
-    const sameConv = main.dataset.cid===String(openCid) && ta && !!pickerOpen===!!main.querySelector('.wa-picker') && !!convs[openCid]?.request===!!main.querySelector('.wa-req');
+    const sameConv = main.dataset.cid===String(openCid) && ta && !!pickerOpen===!!main.querySelector('.wa-picker') && !!convs[openCid]?.request===!!main.querySelector('.wa-req') && !!(editing&&editing.cid===openCid)===!!main.querySelector('.wa-edit');
     if(sameConv){ refreshHead(); refreshMsgs(openCid); }
     else { main.innerHTML=mainHTML(); main.dataset.cid=openCid||''; scrollBottom(true); autoGrow(); }
   }
@@ -493,8 +536,134 @@ const CHAT = (()=>{
   function scrollBottom(instant){ const box=document.getElementById('waMsgs'); if(box) requestAnimationFrame(()=>{ box.scrollTop=box.scrollHeight; }); }
   function autoGrow(){ const ta=document.getElementById('waText'); if(!ta) return; ta.style.height='auto'; ta.style.height=Math.min(140,ta.scrollHeight)+'px'; }
   function mount(){ const main=document.getElementById('waMain'); if(main) main.dataset.cid=openCid||''; scrollBottom(true); autoGrow(); if(openCid) markRead(openCid); }
-  function openConv(cid){ openCid=cid; pickerOpen=false; menuFor=null; const c=conv(cid); c.unread=0; saveConvs(); if(view==='chat'){ refresh(); markRead(cid); } }
+  function openConv(cid){ openCid=cid; pickerOpen=false; menuFor=null; editing=null; const c=conv(cid); c.unread=0; saveConvs(); if(view==='chat'){ refresh(); markRead(cid); } }
   function openChat(cid){ closeModal(); if(typeof INV!=='undefined') INV.stop(); view='chat'; if(cid){ openCid=cid; conv(cid); pickerOpen=false; menuFor=null; } const r=document.getElementById('chatRoot'); if(r) r.remove(); render(); if(cid){ conv(cid).unread=0; markRead(cid); } }
+
+  /* ---------- meddelandeinfo ---------- */
+  const fmtFull = t => t ? new Date(t).toLocaleString('sv-SE',{weekday:'short', day:'numeric', month:'short', hour:'2-digit', minute:'2-digit', second:'2-digit'}) : '–';
+  const infoRow = (ic,label,t,note) => `<div class="wa-irow"><span class="ic">${ic}</span><span class="lb">${label}${note?`<small>${note}</small>`:''}</span><span class="tm">${t?fmtFull(t):'<em>inte än</em>'}</span></div>`;
+  function showMsgInfo(cid, mid){
+    const c=convs[cid], m=c && c.msgs.find(x=>x.mid===mid); if(!m) return; infoFor={cid,mid};
+    let rows='';
+    if(m.out){
+      rows += infoRow('📝','Skrivet',m.ts);
+      recipients(cid).forEach(id=>{
+        const T=(m.stT||{})[id]||{}, st=(m.st||{})[id]||'queued';
+        if(cid.startsWith('g:')) rows += `<div class="wa-isec">${avatar(emoOf(id),id,'sm')} ${esc(nameOf(id))}</div>`;
+        rows += infoRow('<i class="tk">✓</i>','Skickat',T.sent, !T.sent && st==='queued' ? 'väntar på att mottagaren blir nåbar' : '');
+        rows += infoRow('<i class="tk">✓✓</i>','Levererat',T.delivered);
+        rows += infoRow('<i class="tk rd">✓✓</i>','Läst',T.read);
+      });
+    } else {
+      rows += infoRow('📤',`Skickat av ${esc(nameOf(m.from))}`,m.ts,'enligt avsändarens klocka');
+      rows += infoRow('📥','Mottaget',m.rcv);
+      rows += infoRow('👀','Läst av dig',m.readAt);
+    }
+    if(m.edited) rows += infoRow('✏️','Redigerat',m.edited);
+    if(m.revoked) rows += infoRow('🚫','Borttaget för alla',m.revokedAt);
+    if(m.expireAt) rows += infoRow('⏱','Försvinner',m.expireAt);
+    const body = m.revoked ? `<i>🚫 ${m.out?'Du tog bort det här meddelandet':'Det här meddelandet togs bort'}</i>` : m.invite ? `${m.invite.icon||'🎮'} Inbjudan: ${esc(m.invite.gname)}` : linkify(m.text);
+    openModal(`<h3>ℹ️ Meddelandeinfo</h3><div class="wa-ibub ${m.out?'out':''}">${body}</div><div class="wa-irows">${rows}</div>
+      <div class="setnote">Tiderna uppdateras medan rutan är öppen. Tider från andra enheter följer deras klocka.</div>
+      <div class="btns"><button class="pri" data-act="close">Klar</button></div>`,'msginfo');
+  }
+  function infoLive(cid,mid){ if(!infoFor || infoFor.cid!==cid || infoFor.mid!==mid) return; const md=document.getElementById('modal'); if(md && md.classList.contains('show') && md.querySelector('.wa-irows')) showMsgInfo(cid,mid); else infoFor=null; }
+
+  /* =====================================================================
+     TESTKOMPIS (bara i dev): en riktig andra chattklient i en osynlig ram,
+     med egna nycklar. Allt går genom samma kryptering som mellan två mobiler,
+     men transporten är postMessage i stället för internet.
+     ===================================================================== */
+  let botFrame=null, botLink=null;
+  const parentLink = BOTMODE ? {open:true,_local:true,send:s=>{ if(botDown) return; window.parent.postMessage({fl:'link',d:s},location.origin); },close(){}} : null;
+  function spawnBot(first){
+    if(BOTMODE || !DEV || !ME || botFrame) return;
+    sv('bot',true);
+    botLink={open:false,_local:true,send:s=>{ try{ botFrame.contentWindow.postMessage({fl:'link',d:s},location.origin); }catch(e){} },close(){}};
+    botFrame=document.createElement('iframe'); botFrame.src=location.pathname+'?bot=1'; botFrame.setAttribute('aria-hidden','true'); botFrame.tabIndex=-1;
+    botFrame.style.cssText='position:fixed;left:-20px;top:-20px;width:1px;height:1px;opacity:0;pointer-events:none;border:0';
+    document.body.appendChild(botFrame);
+    if(first){ botFirst=true; toast('Testkompisen startar… 🤖',2500); }
+  }
+  let botFirst=false;
+  function removeBot(){
+    const id=ld('botid',null); closeModal();
+    if(botFrame){ botFrame.remove(); botFrame=null; } if(id){ conns.delete(id); delete contacts[id]; delete known[id]; delete friends[id]; delete convs['d:'+id]; delete SESS[id]; outbox=outbox.filter(o=>o.to!==id);
+      Object.values(GROUPS).forEach(g=>{ if(g.members.includes(id) && g.admin===ME.id) updateGroupMembers(g.id, g.members.filter(x=>x!==id)); }); }
+    try{ Object.keys(localStorage).filter(k=>k.startsWith('dev:bot:')).forEach(k=>localStorage.removeItem(k)); }catch(e){}
+    sv('bot',false); sv('botid',null); saveC(); saveS(); saveConvs(); openCid=null; refresh(); toast('Testkompisen är borttagen');
+  }
+  window.addEventListener('message',async e=>{
+    if(e.origin!==location.origin || !e.data || !e.data.fl) return;
+    if(BOTMODE){ if(e.source!==window.parent || botDown) return; if(e.data.fl==='link'){ try{ onData(parentLink, JSON.parse(e.data.d)); }catch(_){} } return; }
+    if(!botFrame || e.source!==botFrame.contentWindow) return;
+    if(e.data.fl==='ready'){
+      const card=e.data.card; if(!(await okCard(card))) return;
+      await remember(card); sv('botid',card.id); known[card.id].bot=true;
+      if(!contacts[card.id]){ contacts[card.id]={...card, added:Date.now(), bot:true}; delete friends[card.id]; }
+      saveC(); botLink.open=true;
+      sendRaw(botLink,{t:'hi',card:myCard()});
+      await onData(botLink,{t:'hi',card});
+      if(botFirst){ botFirst=false; openChat('d:'+card.id); }
+    } else if(e.data.fl==='link'){ try{ onData(botLink, JSON.parse(e.data.d)); }catch(_){} }
+    else if(e.data.fl==='down'){ botLink.open=false; const id=botLink._id; if(id && conns.get(id)===botLink){ conns.delete(id); lastSeen[id]=Date.now(); sv('lastseen',lastSeen); if(view==='chat') refresh(); } }
+  });
+  // ---- testkompisens eget beteende (körs inne i ramen) ----
+  let botDown=false, botQuiet=ld('botquiet',false);
+  const pick = a => a[rint(a.length)];
+  const BOT_HELP = `Jag är din testkompis 🤖 Skriv:
+• ändra – jag skickar ett meddelande och ändrar det
+• ångra – jag skickar ett meddelande och tar bort det för alla
+• hjärta – jag reagerar på ditt meddelande
+• offline – jag är borta i 20 sekunder (då ser du 🕓 och ✓)
+• läs inte – jag läser inte ditt nästa meddelande på 15 sek
+• fem – jag skickar fem meddelanden i rad
+• tyst / prata – jag slutar eller börjar svara
+Ändrar eller tar du bort ett av dina meddelanden så märker jag det 👀`;
+  function botReady(){ window.parent.postMessage({fl:'ready', card:myCard()}, location.origin); }
+  async function botBoot(){ if(!ME) await createIdentity('Testkompis','🤖'); botReady(); }
+  function botSay(cid, text, delay){ return new Promise(res=>{
+    const k=cid.startsWith('g:')?cid:'dm';
+    setTimeout(()=>{ if(botDown) return res(null); recipients(cid).forEach(id=>sendRaw(conns.get(id),{t:'typing', conv:k}));
+      setTimeout(()=>{ if(botDown) return res(null); sendMsg(cid,text); const c=convs[cid]; res(c.msgs[c.msgs.length-1]); }, 700+Math.min(2200,text.length*35)); }, delay||400);
+  }); }
+  let botNoRead=0;
+  function botOnMsg(cid, from, m, gid){
+    // läskvitto efter en liten stund, som en människa
+    const readIn = Date.now()<botNoRead ? 15000 : 900+rint(900);
+    setTimeout(()=>{ if(botDown) return; m.readAt=Date.now(); m.readSent=true; const c=convs[cid]; if(c) c.unread=0; saveConvs(); sendReceipt(from,[m.mid],'read',gid); }, readIn);
+    const t=(m.text||'').trim().toLowerCase();
+    if(t==='prata'){ botQuiet=false; sv('botquiet',false); botSay(cid,'Nu pratar jag igen! 😄',readIn); return; }
+    if(botQuiet) return;
+    if(m.invite){ botSay(cid,`Jag kan tyvärr inte spela ${m.invite.gname} – jag är bara en testbot 🤖🎮 Bjud in en riktig kompis!`,readIn); return; }
+    if(/^(hjälp|help|\?)$/.test(t)){ botSay(cid,BOT_HELP,readIn); return; }
+    if(t==='tyst'){ botSay(cid,'Okej, jag är tyst nu 🤐 Skriv prata när du vill höra av mig igen.',readIn).then(()=>{ botQuiet=true; sv('botquiet',true); }); return; }
+    if(t==='ändra'){ botSay(cid,'Det här meddelandet kommer att ändras om en stund… ⏳',readIn).then(bm=>{ if(bm) setTimeout(()=>editMsg(cid,bm.mid,'✏️ Tadaa, nu är jag ändrat! Tryck länge och välj Info för att se när.'),3000); }); return; }
+    if(t==='ångra' || t==='angra'){ botSay(cid,'Hemligt meddelande som snart försvinner 👻',readIn).then(bm=>{ if(bm) setTimeout(()=>revokeMsg(cid,bm.mid),3500); }); return; }
+    if(t==='hjärta' || t==='hjarta'){ setTimeout(()=>react(cid,m.mid,'❤️'),readIn+300); return; }
+    if(t==='fem'){ (async()=>{ for(let i=1;i<=5;i++) await botSay(cid,['Ett 🐬','Två 🐬🐬','Tre 🐬🐬🐬','Fyra 🐬🐬🐬🐬','Fem! 🐬🐬🐬🐬🐬'][i-1], i===1?readIn:150); })(); return; }
+    if(t==='läs inte' || t==='las inte'){ botNoRead=Date.now()+20000; botSay(cid,'Okej, jag blundar för ditt nästa meddelande en stund 🙈 (du ser grå bockar ✓✓ i 15 sek innan de blir blå)',readIn); return; }
+    if(t==='offline'){ botSay(cid,'Hejdå! Jag är tillbaka om 20 sekunder 👋',readIn).then(()=>setTimeout(()=>{
+        botDown=true; window.parent.postMessage({fl:'down'},location.origin); for(const [k,v] of conns) if(v===parentLink) conns.delete(k);
+        setTimeout(()=>{ botDown=false; botReady(); setTimeout(()=>{ botSay(cid,'Jag är tillbaka! 🙌 Kolla bockarna på det du skrev medan jag var borta.',200); },800); },20000);
+      },600)); return; }
+    if(rint(5)===0 && !gid) setTimeout(()=>react(cid,m.mid,pick(['❤️','😂','👍','😮'])),readIn+200);
+    botSay(cid, botAnswer(t, m.text||''), readIn);
+  }
+  function botAnswer(t, raw){
+    if(/^\p{Extended_Pictographic}/u.test(raw) && raw.length<=12) return raw+raw.slice(0,2);
+    if(/^(hej|hallå|halla|tja|tjena|hejsan|hejhej|god morgon|godmorgon|yo)/.test(t)) return pick(['Hej hej! 👋 Skriv hjälp så ser du vad jag kan testa.','Hallå där! 🐬','Tjenare! 😎']);
+    if(/mår|hur är det/.test(t)) return pick(['Jag mår toppen, jag är ju en robot 🤖 Hur mår du?','Prima! Batteriet är fullt 🔋 Och du?']);
+    if(/delfin/.test(t)) return 'Delfiner är världens bästa djur 🐬💙';
+    if(/tack/.test(t)) return pick(['Varsågod! 😊','Ingen orsak 🤖💙']);
+    if(/\?$/.test(t)) return pick(['Bra fråga! 🤔','Hmm… jag tror ja! 👍','Kanske? 🙃','Det får du fråga en människa 😄']);
+    return pick(['Coolt! 😎','Haha 😂','Berätta mer! 👀','Jag förstår 🤖','Oj! 😮','Vad kul! 🎉','Mm 🐬']);
+  }
+  function botOnChange(cid,m,p){
+    if(botQuiet) return;
+    if(p.type==='edit') botSay(cid,`✏️ Jag såg att du ändrade till: ”${m.text.slice(0,80)}”`,900);
+    else botSay(cid,'👀 Där försvann ett meddelande!',900);
+  }
 
   /* ---------- modaler ---------- */
   function showProfile(){
@@ -518,7 +687,7 @@ const CHAT = (()=>{
       ${g?`<label>👥 Medlemmar</label><div class="wa-mem">${g.members.map(id=>`<span>${avatar(emoOf(id),id,'sm')} ${esc(nameOf(id))}${id===g.admin?' <em>admin</em>':''}</span>`).join('')}</div>
          ${g.admin===ME.id?`<div class="chips" style="margin-top:8px"><button data-c="editmembers" data-gid="${g.id}">✏️ Ändra medlemmar</button></div>`:''}`:''}
       ${peer?`<label>🔐 Säkerhetsnummer</label><div class="wa-safety">${safety}</div><div class="setnote">Jämför numret med ${esc(nameOf(peer))}s skärm när ni ses. Är de lika vet ni att ingen sitter emellan.</div>`:''}
-      <div class="btns" style="flex-wrap:wrap"><button data-c="clear" data-cid="${cid}">🧹 Rensa chatten</button>${g?`<button data-c="leave" data-gid="${g.id}">🚪 Lämna gruppen</button>`:`<button data-c="block" data-id="${peer}">⛔ Blockera</button>`}<button class="pri" data-act="close">Klar</button></div>`,'chatinfo');
+      <div class="btns" style="flex-wrap:wrap"><button data-c="clear" data-cid="${cid}">🧹 Rensa chatten</button>${g?`<button data-c="leave" data-gid="${g.id}">🚪 Lämna gruppen</button>`: peer===ld('botid',null) ? `<button data-c="rmbot">🗑 Ta bort testkompisen</button>` : `<button data-c="block" data-id="${peer}">⛔ Blockera</button>`}<button class="pri" data-act="close">Klar</button></div>`,'chatinfo');
   }
   function showNewGroup(gid){
     const g=gid?GROUPS[gid]:null, sel=new Set(g?g.members:[]);
@@ -561,9 +730,17 @@ const CHAT = (()=>{
   });
   document.addEventListener('keydown',e=>{
     if(e.target.id==='waText' && e.key==='Enter' && !e.shiftKey && FINE_PTR){ e.preventDefault(); doSend(); }
-    if(view==='chat' && e.key==='Escape'){ if(menuFor){ menuFor=null; refreshMsgs(openCid); } else if(pickerOpen){ pickerOpen=false; refresh(); } }
+    if(view==='chat' && e.key==='Escape'){ if(editing){ cancelEdit(); } else if(menuFor){ menuFor=null; refreshMsgs(openCid); } else if(pickerOpen){ pickerOpen=false; refresh(); } }
   });
-  function doSend(){ const ta=document.getElementById('waText'); if(!ta || !openCid) return; const t=ta.value; if(!t.trim()) return; ta.value=''; draft[openCid]=''; autoGrow(); sendMsg(openCid,t); ta.focus(); }
+  function doSend(){ const ta=document.getElementById('waText'); if(!ta || !openCid) return; const t=ta.value; if(!t.trim()) return;
+    ta.value=''; draft[openCid]=''; autoGrow();
+    if(editing && editing.cid===openCid){ const e=editing; editing=null; editMsg(e.cid,e.mid,t); refresh(); }
+    else sendMsg(openCid,t);
+    document.getElementById('waText')?.focus(); }
+  function startEdit(mid){ const m=convs[openCid]?.msgs.find(x=>x.mid===mid); if(!m) return; editing={cid:openCid, mid}; menuFor=null; draft[openCid]=m.text; pickerOpen=false;
+    const main=document.getElementById('waMain'); if(main) main.dataset.cid='x'; refresh();
+    const ta=document.getElementById('waText'); if(ta){ ta.focus(); ta.setSelectionRange(ta.value.length,ta.value.length); } }
+  function cancelEdit(){ if(!editing) return; draft[editing.cid]=''; editing=null; const main=document.getElementById('waMain'); if(main) main.dataset.cid='x'; refresh(); }
   // långt tryck på en bubbla öppnar reaktioner
   let pressT=0, pressMid=null;
   document.addEventListener('pointerdown',e=>{ const b=e.target.closest('.wa-msg .wa-bub'); if(!b || view!=='chat') return; pressMid=b.parentElement.dataset.mid; clearTimeout(pressT); pressT=setTimeout(()=>{ menuFor=pressMid; buzz(15); refreshMsgs(openCid); },450); });
@@ -580,13 +757,19 @@ const CHAT = (()=>{
       case 'tab': tab=b.dataset.t; refresh(); break;
       case 'open': openConv(b.dataset.id); break;
       case 'opendm': openConv('d:'+b.dataset.id); break;
-      case 'close': openCid=null; refresh(); break;
+      case 'close': openCid=null; editing=null; refresh(); break;
       case 'send': doSend(); break;
       case 'emoji': pickerOpen=!pickerOpen; refresh(); break;
       case 'etab': draft._et=b.dataset.t; refresh(); break;
       case 'pick': { const ta=document.getElementById('waText'); if(ta){ const s=ta.selectionStart??ta.value.length; ta.value=ta.value.slice(0,s)+b.dataset.e+ta.value.slice(ta.selectionEnd??s); draft[openCid]=ta.value; autoGrow(); } break; }
       case 'react': react(openCid, b.dataset.mid, b.dataset.e); menuFor=null; refreshMsgs(openCid); break;
       case 'copy': { const m=convs[openCid]?.msgs.find(x=>x.mid===b.dataset.mid); try{ await navigator.clipboard.writeText(m?.text||''); toast('Kopierat 📋'); }catch(_){} menuFor=null; refreshMsgs(openCid); break; }
+      case 'edit': startEdit(b.dataset.mid); break;
+      case 'canceledit': cancelEdit(); break;
+      case 'revoke': revokeMsg(openCid, b.dataset.mid); menuFor=null; refreshMsgs(openCid); toast('Meddelandet togs bort för alla 🚫'); break;
+      case 'minfo': menuFor=null; refreshMsgs(openCid); showMsgInfo(openCid, b.dataset.mid); break;
+      case 'mkbot': spawnBot(true); break;
+      case 'rmbot': removeBot(); break;
       case 'delme': { const c=convs[openCid]; if(c){ c.msgs=c.msgs.filter(x=>x.mid!==b.dataset.mid); saveConvs(); } menuFor=null; refreshMsgs(openCid); break; }
       case 'theme': showThemes(null); break;
       case 'themefor': showThemes(b.dataset.cid); break;
@@ -614,7 +797,7 @@ const CHAT = (()=>{
   });
 
   /* ---------- start ---------- */
-  function boot(){ if(ME){ startTransport(); } handleHash(); }
+  function boot(){ if(BOTMODE){ botBoot(); return; } if(ME){ startTransport(); if(DEV && ld('bot',false)) spawnBot(false); } handleHash(); }
   setTimeout(boot, 300);
   return {
     html, mount, refresh, open:()=>openChat(null), openChat, seenCards, card:()=>myCard(), unread:totalUnread,
@@ -726,6 +909,17 @@ body.desk .wa-ib.back{display:none}
 .wa-pick{display:flex;flex-direction:column;gap:6px;max-height:280px;overflow-y:auto}
 .wa-chk{display:flex!important;align-items:center;gap:10px;padding:8px 10px;border-radius:12px;background:rgba(0,0,0,.2);margin:0!important;color:var(--txt)!important;font-size:15px!important}
 .wa-chk input{width:20px;height:20px;accent-color:#00a884}
+.wa-rev{font-style:italic;color:var(--cs)}
+.wa-ed{font-style:italic!important;margin-right:5px;opacity:.85}
+.wa-edit{display:flex;align-items:center;gap:10px;padding:8px 10px 8px 14px;background:var(--chead);border-top:1px solid var(--cline);border-left:4px solid var(--ca)}
+.wa-edit>span{font-size:18px}.wa-edit div{flex:1;min-width:0;display:flex;flex-direction:column}.wa-edit b{font-size:13px;color:var(--ca)}.wa-edit small{font-size:13px;color:var(--cs);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.wa-ibub{margin:4px 0 12px;padding:10px 12px;border-radius:12px;background:rgba(255,255,255,.08);font-size:15px;line-height:1.4;max-height:140px;overflow:auto;overflow-wrap:anywhere}.wa-ibub.out{background:rgba(0,168,132,.25)}
+.wa-irows{display:flex;flex-direction:column;gap:2px}
+.wa-irow{display:flex;align-items:center;gap:10px;padding:8px 6px;border-bottom:1px solid rgba(255,255,255,.08)}
+.wa-irow .ic{width:30px;text-align:center;flex:none}.wa-irow .ic .tk{letter-spacing:-3px;color:#8696a0}.wa-irow .ic .tk.rd{color:#53bdeb}
+.wa-irow .lb{flex:1;display:flex;flex-direction:column;font-weight:600}.wa-irow .lb small{font-weight:400;font-size:11.5px;color:var(--dim)}
+.wa-irow .tm{font-size:13px;text-align:right;color:var(--dim)}.wa-irow .tm em{font-style:normal;opacity:.6}
+.wa-isec{display:flex;align-items:center;gap:8px;margin:12px 0 2px;font-weight:700}
 .wa-games{display:grid;grid-template-columns:1fr 1fr;gap:8px}.wa-games button{display:flex;flex-direction:column;align-items:center;gap:4px;padding:14px 8px;border-radius:16px;background:rgba(0,0,0,.25);border:1px solid var(--line);font-weight:600}
 .wa-games span{font-size:34px}.wa-games small{font-size:11px;color:var(--dim);font-weight:400}
 `; document.head.appendChild(st); })();
