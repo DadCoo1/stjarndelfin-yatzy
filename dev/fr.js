@@ -10,7 +10,7 @@
 'use strict';
 const FR = (()=>{
   // Utvecklare som får sätta status. Lägg till ditt önske-ID här (visas under "Om önskelistan").
-  const FR_ROOT = [];
+  const FR_ROOT = ['359be5b3204e039d'];   // Everest
   const REPO = 'https://github.com/DadCoo1/stjarndelfin-yatzy';
 
   const te=new TextEncoder();
@@ -270,7 +270,7 @@ const FR = (()=>{
       <h3>Statusar</h3><div class="fr-legend">${Object.entries(STATUS).map(([k,v])=>`<div>${chip(k)}<span>${v[2]}</span></div>`).join('')}</div>
       <h3>Vem gör vad?</h3><p>Alla kan önska, kommentera och trycka 👍. Den som önskat kan ändra sin text eller återkalla önskan. Utvecklaren sätter status och prioritet och svarar i dialogen.</p>
       <h3>Hur delas listan?</h3><p>Det finns ingen server. Önskningarna sparas på varje mobil och skickas vidare – signerade så att ingen kan ändra någon annans text – när ni chattar eller spelar online med varandra.</p>
-      <h3>Ditt önske-ID</h3><div class="fr-id">${ME?ME.id.match(/.{4}/g).join(' '):'skapas när du skickar något'}</div>
+      <h3>Ditt önske-ID</h3><div class="fr-id">${ME?ME.id.match(/.{4}/g).join(' '):'skapas när du skickar något'}</div>${ME?'<div class="btns" style="margin-top:8px"><button data-fr="copyid">📋 Kopiera ID</button></div>':''}
       <p class="setnote">Ska du vara utvecklare? Skicka ditt önske-ID, så läggs det in i appen.</p>
       ${ME && isMaint(ME.id) ? `<h3>Utvecklare</h3><div class="fr-legend">${[...STATE.maint].map(id=>`<div><code>${id}</code></div>`).join('')}</div>
         <label for="frRole">Lägg till utvecklare (önske-ID)</label><div class="fr-row"><input id="frRole" maxlength="19" placeholder="xxxx xxxx xxxx xxxx"><button data-fr="addmaint">Lägg till</button></div>`:''}
@@ -324,6 +324,7 @@ const FR = (()=>{
           if(s===r.status && !pend.prio && !note.trim()){ toast('Välj en ny status, prioritet eller skriv ett meddelande'); return; }
           if(s==='rejected' && !note.trim()){ toast('Skriv varför den avvisas – det är snällt att förklara 💙',3500); return; }
           await publish('st', openId, {status:s, note, prio:pend.prio||'', dup: s==='duplicate' ? document.getElementById('frDup')?.value : ''}); pend={}; refresh(); toast('Status sparad'); break; }
+        case 'copyid': { const id=ME&&ME.id.match(/.{4}/g).join(' '); try{ await navigator.clipboard.writeText(id); toast('ID kopierat 📋'); }catch(e){ toast('Kunde inte kopiera – håll fingret på ID:t och välj Kopiera'); } break; }
         case 'addmaint': { const id=(document.getElementById('frRole')?.value||'').replace(/\s/g,'').toLowerCase(); if(!isHex(id,16)){ toast('Ett önske-ID är 16 tecken (0–9, a–f)'); return; } await publish('role', null, {target:id, add:true}); refresh(); toast('Utvecklare tillagd'); break; }
       }
     }catch(err){ console.error('fr',err); toast('Något gick fel – försök igen'); }
@@ -383,7 +384,7 @@ const FR = (()=>{
 .fr-reply{display:flex;gap:8px;align-items:flex-end}
 .fr-reply button{padding:12px 16px;border-radius:14px;flex:none}
 .fr-legend{display:flex;flex-direction:column;gap:6px}.fr-legend div{display:flex;gap:10px;align-items:center;font-size:14px}.fr-legend .fr-st{flex:none;min-width:118px}
-.fr-id{font:700 18px/1.5 ui-monospace,monospace;letter-spacing:1px;text-align:center;padding:10px;border-radius:12px;background:rgba(0,0,0,.3)}
+.fr-id{user-select:text;-webkit-user-select:text;font:700 18px/1.5 ui-monospace,monospace;letter-spacing:1px;text-align:center;padding:10px;border-radius:12px;background:rgba(0,0,0,.3)}
 .fr-row{display:flex;gap:8px}.fr-row button{padding:10px 14px;border-radius:14px;border:1px solid var(--line)}
 .lob-foot{margin:26px 0 6px;text-align:center;font-size:13.5px;opacity:.75;display:flex;justify-content:center;gap:14px;flex-wrap:wrap}
 .lob-foot button{color:var(--txt);text-decoration:underline;text-underline-offset:3px;font-size:inherit;position:relative}
