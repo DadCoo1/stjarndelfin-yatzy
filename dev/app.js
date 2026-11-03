@@ -6,7 +6,7 @@
   if(!same || !/[?&]bot=1/.test(location.search)){ document.documentElement.innerHTML=''; throw new Error('Inramning blockerad'); }
 })();
 /* ================= Version & utvecklingsläge ================= */
-const APP_VERSION='2026.11.03.8-dev';
+const APP_VERSION='2026.11.03.9-dev';
 const DEV = /\/dev(\/|$)/.test(location.pathname);      // testversionen ligger i mappen /dev/
 const BOT = DEV && /[?&]bot=1/.test(location.search) && window.parent!==window;   // osynlig testkompis i en ram (bara dev)
 const LSP = DEV ? (BOT ? 'dev:bot:' : 'dev:') : '';    // egen sparad data i testversionen
@@ -230,7 +230,9 @@ let gameId=null, G=null, mySeat=null;
 let shown=[1,2,3,4,5], rolling=false, freshCell=null;
 let chosenOrder='free', kbCat=null;
 const nextCat = s => { const c=CATS.find(([k])=>!(k in (s||{}))); return c?c[0]:null; };
-const allowed = (k,i) => !G || G.order!=='down' || nextCat(G.scores[i])===k;
+// I ordning tar man nästa rad – men slår man yatzy får yatzy-raden alltid fyllas i (den hoppade raden spelas nästa tur)
+const allowed = (k,i) => !G || G.order!=='down' || nextCat(G.scores[i])===k
+  || (k==='yatzy' && G.cur===i && G.rolls>0 && Array.isArray(G.dice) && isYatzy(G.dice) && !('yatzy' in (G.scores[i]||{})));
 
 function newState(names, starter=0, order='free', seq=0, ai=null){
   return {id:Math.random().toString(36).slice(2,9)+Date.now().toString(36), names, order, ai, cur:starter, starter, dice:[rnd(),rnd(),rnd(),rnd(),rnd()], held:F5(), rolls:0, rollSeq:0,
@@ -422,12 +424,14 @@ function animateRoll(final, held){
   setTimeout(()=>{
     clearInterval(iv); rolling=false; shown=final.slice(); render();
     if(isYatzy(final) && G && G.scores){
+      celebrate();                                                                 // fem lika firas alltid
       const p=G.cur, sc=G.scores[p]||{};
-      if(!('yatzy' in sc) && allowed('yatzy',p)) celebrate();                      // yatzy-raden kan tas just nu
-      else if('yatzy' in sc) toast('Fem lika! 🎲 Men yatzy-raden är redan använd',3200);
-      else toast(`Fem lika! 🎲 I ordning gäller ${NAME[nextCat(sc)]} – yatzy-raden kommer sist`,3600);
-    }
-  },700);
+      // i ordning fylls yatzy-raden i direkt (om den är tom) – den rad man stod på spelas nästa tur
+      if(G.order==='down' && !('yatzy' in sc) && myTurn()){
+        const seq=G.rollSeq, cur=G.cur;
+        setTimeout(()=>{ if(G && !G.over && G.rollSeq===seq && G.cur===cur && !('yatzy' in G.scores[cur]) && myTurn()){ toast('Yatzy-raden fylls i! 50 poäng 🐬',2600); pickCore('yatzy',false); } },1800);
+      }
+    }  },700);
 }
 function sparkles(n=30){
   const party=document.getElementById('party');
