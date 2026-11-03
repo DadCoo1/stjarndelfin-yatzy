@@ -24,6 +24,12 @@ function gNewState(kind, names, starter=0, ai=null, seq=0){
   return Object.assign({kind, id:Math.random().toString(36).slice(2,9)+Date.now().toString(36), names, ai, starter, cur:starter,
     started:true, over:false, winner:null, seq, last:null, createdAt:Date.now(), updatedAt:Date.now()}, KIND[kind].init());
 }
+// kopia av tillståndet där det som `seat` inte får se är bortplockat
+function gRedact(g, seat){
+  if(!g || g.over || !KIND[g.kind] || !KIND[g.kind].redact) return g;
+  const c=clone(g); KIND[g.kind].redact(c, seat); return c;
+}
+const isArrI=(a,n,lo,hi)=>Array.isArray(a) && a.length<=n && a.every(x=>Number.isInteger(x)&&x>=lo&&x<=hi);
 function startGameLocal(kind, name, level){
   stopNet(); clearTimeout(aiTimer); closeModal();
   mode='local'; mySeat=0; gameId=null; role=null;
@@ -44,12 +50,15 @@ function doAct(a){
 }
 // värden (eller lokalt spel) tillämpar ett drag och sprider resultatet
 function applyAndPublish(a, seat){
-  if(!isKind() || !a) return false;
+  if(!isKind() || !a || typeof a!=='object' || Array.isArray(a) || typeof a.type!=='string') return false;
   const prev=clone(G);
   if(a.type==='rematch'){
     if(!G.over) return false;
     const n=gNewState(G.kind, G.names.slice(), 1-(G.starter||0), G.ai, G.seq); KIND[G.kind].start(n); G=n;
-  } else if(!KIND[G.kind].apply(G,a,seat)) return false;
+  } else {
+    let ok=false; try{ ok=KIND[G.kind].apply(G,a,seat); }catch(e){ ok=false; }
+    if(!ok){ G=prev; return false; }                  // ogiltigt drag: inget ändras
+  }
   G.seq=(G.seq||0)+1; G.updatedAt=Date.now();
   if(mode==='online'){ saveNet(); hostBroadcast({t:'state',state:G}); }
   gOnChange(prev,G); render(); gMaybeAI();
@@ -146,6 +155,12 @@ function randomFleet(){
 const sunkShips = b => (b.ships||[]).filter(s=>s.cells.every(i=>b.shots.includes(i)));
 KIND.ships = {
   init(){ return {phase:'place', boards:[{ships:null,ready:false,shots:[]},{ships:null,ready:false,shots:[]}]}; },
+  redact(g,seat){ const b=g.boards && g.boards[1-seat]; if(!b || !b.ships) return;
+    if(g.phase!=='battle'){ b.ships=null; return; }
+    // osänkta skepp: bara träffade rutor syns (plus utfyllnad som aldrig kan vara skjuten)
+    b.ships=b.ships.map((s,k)=> s.cells.every(i=>b.shots.includes(i)) ? s : {id:'?'+k, len:s.len, cells:[...s.cells.filter(i=>b.shots.includes(i)), ...Array.from({length:s.len},(_,j)=>-1-j-k*10)]}); },
+  valid(g){ return ['place','battle'].includes(g.phase) && Array.isArray(g.boards) && g.boards.length===2 && g.boards.every(b=>b && typeof b==='object' && isArrI(b.shots,100,0,99) && typeof b.ready==='boolean' &&
+    (b.ships===null || (Array.isArray(b.ships) && b.ships.length<=5 && b.ships.every(s=>s && typeof s.id==='string' && s.id.length<12 && isI(s.len,1,5) && isArrI(s.cells,10,-100,99))))) && isI(g.cur,0,1); },
   start(g){ g.phase='place'; g.boards=[{ships:null,ready:false,shots:[]},{ships:null,ready:false,shots:[]}];
     [0,1].forEach(i=>{ if(g.ai && g.ai[i]){ g.boards[i].ships=randomFleet(); g.boards[i].ready=true; } }); },
   waitingFor(g){ if(g.phase==='place'){ const me=meSeat(); return g.boards[me] && !g.boards[me].ready ? me : null; } return g.cur; },
@@ -286,6 +301,10 @@ const validCode = c => Array.isArray(c) && c.length===MM_LEN && c.every(x=>Numbe
 const mmMaker = (g,r) => r===0 ? g.starter : 1-g.starter;
 KIND.mm = {
   init(){ return {round:0, phase:'set', codes:[null,null], guesses:[[],[]], results:[null,null]}; },
+  redact(g,seat){ const r=g.round; if(g.phase==='guess' && mmMaker(g,r)!==seat && g.codes[r]) g.codes[r]=[0,0,0,0]; },
+  valid(g){ return isI(g.round,0,1) && ['set','guess','reveal'].includes(g.phase) && isI(g.cur,0,1) && Array.isArray(g.codes) && g.codes.length===2 && g.codes.every(c=>c===null||validCode(c)) &&
+    Array.isArray(g.guesses) && g.guesses.length===2 && g.guesses.every(a=>Array.isArray(a) && a.length<=MM_ROWS && a.every(h=>h && validCode(h.g) && isI(h.b,0,4) && isI(h.w,0,4))) &&
+    Array.isArray(g.results) && g.results.every(v=>v===null||isI(v,1,MM_ROWS+1)); },
   start(g){ Object.assign(g,this.init()); g.cur=mmMaker(g,0); },
   waitingFor(g){ return g.phase==='reveal' ? null : g.cur; },
   scoreOf(g,i){ const r=[0,1].find(r=>1-mmMaker(g,r)===i); const v=g.results[r]; return v===null?'':v>MM_ROWS?'❌':`${v} gissn.`; },
@@ -381,6 +400,11 @@ function hgClean(w){ return (w||'').toUpperCase().replace(/\s+/g,' ').trim(); }
 function hgValid(w){ return /^[A-ZÅÄÖ]+( [A-ZÅÄÖ]+)?$/.test(w) && w.replace(/ /g,'').length>=3 && w.length<=16; }
 KIND.hang = {
   init(){ return {round:0, phase:'set', words:[null,null], hints:[null,null], guessed:[[],[]], results:[null,null]}; },
+  redact(g,seat){ const r=g.round, w=g.words[r]; if(g.phase==='guess' && hgSetter(g,r)!==seat && w) g.words[r]=[...w].map(ch=>ch===' '||g.guessed[r].includes(ch)?ch:'_').join(''); },
+  valid(g){ const okW=w=>w===null||(typeof w==='string' && w.length<=16 && /^[A-ZÅÄÖ _]*$/.test(w)); return isI(g.round,0,1) && ['set','guess','reveal'].includes(g.phase) && isI(g.cur,0,1) &&
+    Array.isArray(g.words) && g.words.length===2 && g.words.every(okW) && Array.isArray(g.hints) && g.hints.every(h=>h===null||(typeof h==='string'&&h.length<=24)) &&
+    Array.isArray(g.guessed) && g.guessed.length===2 && g.guessed.every(a=>Array.isArray(a) && a.length<=29 && a.every(l=>typeof l==='string' && /^[A-ZÅÄÖ]$/.test(l))) &&
+    Array.isArray(g.results) && g.results.every(v=>v===null||isI(v,0,40)); },
   start(g){ Object.assign(g,this.init()); g.cur=hgSetter(g,0); },
   waitingFor(g){ return g.phase==='reveal' ? null : g.cur; },
   scoreOf(g,i){ const r=[0,1].find(r=>1-hgSetter(g,r)===i); const v=g.results[r]; return v===null?'':v>HG_MAX?'💀':`${v} fel`; },
