@@ -36,6 +36,19 @@
   // bonusrutor (egen symmetrisk layout): W=3×ord, w=2×ord, L=3×bokstav, l=2×bokstav, *=start
   const Q=["L...W..l",".l...L..","..w...l.","...L...w","W...w.l.",".L...L..","..l.l...","l..w...*"];
   const PREM=(()=>{ const rows=Q.map(r=>r+[...r.slice(0,7)].reverse().join('')); const all=[...rows, ...rows.slice(0,7).reverse()]; return all.join('').split(''); })();
+  const STD_PREM=PREM.join('');
+  // slumpat bräde: samma antal bonusrutor som standardbrädet, utspridda; stjärnan alltid i mitten
+  function randomPrem(){
+    const cnt={}; for(const p of PREM) if(p!=='.'&&p!=='*') cnt[p]=(cnt[p]||0)+1;
+    const out=new Array(N*N).fill('.'); out[C]='*';
+    const near=(i,d)=>{ const [r,c]=rc(i); for(let dr=-d;dr<=d;dr++) for(let dc=-d;dc<=d;dc++){ const rr=r+dr, cc=c+dc; if((dr||dc) && rr>=0&&rr<N&&cc>=0&&cc<N && out[rr*N+cc]!=='.') return true; } return false; };
+    for(const p of ['W','w','L','l']) for(let k=0;k<cnt[p];k++){
+      let i, tries=0;
+      do { i=rint(N*N); tries++; } while(tries<4000 && (out[i]!=='.' || (Math.abs(rc(i)[0]-7)+Math.abs(rc(i)[1]-7)<2) || near(i, (p==='W'||p==='w') && tries<2000 ? 2 : (tries<3000?1:0))));
+      out[i]=p; }
+    return out.join('');
+  }
+  let PB=PREM;   // bonusrutorna i spelet som visas/räknas just nu
   const PLABEL={W:'TO',w:'DO',L:'TB',l:'DB','*':'★'};
   const isL = c => typeof c==='string' && c.length===1 && !!LI[c.toLowerCase()];
   const low = c => c.toLowerCase();
@@ -80,7 +93,7 @@
       if(!touch) return {ok:false, err:'Ordet måste sitta ihop med brickor som redan ligger'}; }
     const wordAt=(i,st)=>{ const isH=st===1; let s=i; while(true){ const [r,c]=rc(s); if(isH ? c===0 : r===0) break; if(!B[s-st]) break; s-=st; }
       const cells=[]; let k=s; while(k<N*N && B[k]){ cells.push(k); const [r,c]=rc(k); if(isH ? c===N-1 : r===N-1) break; k+=st; } return cells; };
-    const scoreCells=cells=>{ let sum=0, mul=1; for(const k of cells){ let v=tileVal(B[k]); if(P.has(k)){ const p=PREM[k]; if(p==='l') v*=2; if(p==='L') v*=3; if(p==='w') mul*=2; if(p==='W') mul*=3; } sum+=v; } return sum*mul; };
+    const scoreCells=cells=>{ let sum=0, mul=1; for(const k of cells){ let v=tileVal(B[k]); if(P.has(k)){ const p=PB[k]; if(p==='l') v*=2; if(p==='L') v*=3; if(p==='w') mul*=2; if(p==='W') mul*=3; } sum+=v; } return sum*mul; };
     const words=[]; const main=wordAt(idxs[0],step);
     if(main.length>=2) words.push(main);
     for(const t of placed){ const cw=wordAt(t.i, horiz?N:1); if(cw.length>=2) words.push(cw); }
@@ -214,13 +227,16 @@
     init(){ // nytt spel från menyn: menyns val; annars (start online, returmatch) samma språk och listor som förut
       const base = !ofFresh && G && G.kind==='ordfajt' && LANGS[G.lang] ? G : null; ofFresh=false;
       const lang = base ? base.lang : ofLang; useLang(lang);
-      return {lang, board:new Array(N*N).fill(''), racks:[[],[]], bag:[], bagN:0, scores:[0,0], zeros:0, log:[], extra: base && base.extra ? clone(base.extra) : pendingExtra()}; },
-    start(g){ if(!LANGS[g.lang]) g.lang='sv'; useLang(g.lang); const n=g.names.length; g.board=new Array(N*N).fill(''); g.bag=bagNew(); g.racks=g.names.map(()=>[]); g.scores=g.names.map(()=>0); g.zeros=0; g.log=[]; g.last=null;
+      const btype = base ? (base.btype||'std') : ofBoardT;
+      return {lang, btype, prem:STD_PREM, board:new Array(N*N).fill(''), racks:[[],[]], bag:[], bagN:0, scores:[0,0], zeros:0, log:[], extra: base && base.extra ? clone(base.extra) : pendingExtra()}; },
+    start(g){ if(!LANGS[g.lang]) g.lang='sv'; g.prem = g.btype==='rand' ? randomPrem() : STD_PREM; setExtra(g); const n=g.names.length; g.board=new Array(N*N).fill(''); g.bag=bagNew(); g.racks=g.names.map(()=>[]); g.scores=g.names.map(()=>0); g.zeros=0; g.log=[]; g.last=null;
       if(!g.extra || !g.extra.words) g.extra=pendingExtra();
       for(let s=0;s<n;s++) draw(g,s); g.cur=g.starter%n; setExtra(g); },
     redact(g,seat){ g.racks=g.racks.map((r,s)=> s===seat ? r : r.map(()=>'')); g.bagN=g.bag.length; g.bag=[]; },
     valid(g){ const n=g.names.length; const waiting=g.started===false;
       if(!LANGS[g.lang]) return false; useLang(g.lang);
+      if(g.prem!==undefined && !(typeof g.prem==='string' && g.prem.length===N*N && /^[.WwLl*]+$/.test(g.prem) && g.prem[C]==='*')) return false;
+      if(g.btype!==undefined && g.btype!=='std' && g.btype!=='rand') return false;
       return n>=1 && n<=2 && (waiting||n===2) && Array.isArray(g.board) && g.board.length===N*N && g.board.every(x=>x==='' || isL(x))
         && Array.isArray(g.racks) && g.racks.every(r=>Array.isArray(r) && r.length<=7 && r.every(l=>l===''||l==='?'||(isL(l)&&l===l.toLowerCase())))
         && Array.isArray(g.bag) && g.bag.length<=110 && g.bag.every(l=>l==='?'||isL(l)) && Array.isArray(g.scores) && g.scores.every(x=>Number.isInteger(x)&&Math.abs(x)<10000)
@@ -262,7 +278,7 @@
     html(){ return ofHTML(); },
     mounted(){ ofMounted(); }
   };
-  function setExtra(g){ useLang(g.lang); EXTRA=new Set((g.extra&&g.extra.words)||[]); }
+  function setExtra(g){ useLang(g.lang); PB = typeof g.prem==='string' && g.prem.length===N*N ? g.prem : PREM; EXTRA=new Set((g.extra&&g.extra.words)||[]); }
 
   /* ---------- tilläggsordlistor ---------- */
   const listsLoad = () => { try{ const v=JSON.parse(lsGet('of_lists')); return Array.isArray(v)?v:[]; }catch(e){ return []; } };
@@ -285,6 +301,7 @@
 
   /* ---------- meny ---------- */
   let ofFresh=false;
+  let ofBoardT = lsGet('of_board')==='rand' ? 'rand' : 'std';
   let ofLevel='medium', ofLang=LANGS[lsGet('of_lang')]?lsGet('of_lang'):'sv';
   window.showOrdfajtMenu=function(){
     useLang(ofLang); loadDict(ofLang).catch(()=>{});
@@ -293,6 +310,7 @@
       <label>Ditt namn</label><input id="nm" maxlength="14" value="${esc(lsGet('ry_name')||'')}" placeholder="Ditt namn">
       <label>Språk</label><div class="seg of-lang" id="ofLang">${langHTML()}</div>
       ${LANGS[ofLang].jam?`<div class="setnote">🫎 Jamska spelas med den svenska ordlistan plus dina jamska ordlistor – välj dem nedan. (Orlboka får inte läggas in utan tillstånd från Bo Oscarsson.)</div>`:''}
+      <label>Bräde</label><div class="seg" id="ofBT">${btHTML()}</div>
       <label>Tilläggsordlistor i spelet</label>
       ${L.length?`<div class="of-chips">${L.map(l=>`<button data-of="pick" data-id="${l.id}" class="${chosenLists.has(l.id)?'sel':''}">${chosenLists.has(l.id)?'✅':'⬜'} ${esc(l.name)} <small>${l.words.length}</small></button>`).join('')}</div>`:'<div class="setnote">Inga egna listor – bara den vanliga ordlistan används.</div>'}
       <button class="of-link" data-of="lists">📚 Mina ordlistor</button>
@@ -303,6 +321,7 @@
       <div class="setnote" style="margin-top:10px">Ordlistor med alla böjningsformer: svenska från Den Stora Svenska Ordlistan (DSSO, följer svensk rättstavning), norska från spell-norwegian. Långtryck på ett ord för betydelse och synonymer.</div>`,'ofmenu');
   };
   const langHTML = () => Object.entries(LANGS).map(([k,L])=>`<button data-of="lang" data-l="${k}" class="${ofLang===k?'sel':''}">${L.flag} ${L.name}</button>`).join('');
+  const btHTML = () => [['std','🎯 Standard'],['rand','🎲 Slumpat']].map(([k,l])=>`<button data-of="bt" data-l="${k}" class="${ofBoardT===k?'sel':''}">${l}</button>`).join('');
   const lvlHTML = () => [['easy','🐣 Lätt'],['medium','🙂 Medel'],['hard','🧠 Svår']].map(([k,l])=>`<button data-of="lvl" data-l="${k}" class="${ofLevel===k?'sel':''}">${l}</button>`).join('');
 
   /* ---------- utseende ---------- */
@@ -324,7 +343,7 @@
     const lastSet=new Set(g.last&&g.last.type==='play'?g.last.tiles:[]);
     let cells='';
     for(let i=0;i<N*N;i++){
-      const t=g.board[i], p=P.get(i), pr=PREM[i];
+      const t=g.board[i], p=P.get(i), pr=PB[i];
       if(t){ cells+=`<div class="of-c of-t ${lastSet.has(i)?'last':''}" data-cell="${i}" data-on="1"><b>${low(t).toUpperCase()}</b><i>${tileVal(t)||''}</i></div>`; }
       else if(p){ cells+=`<div class="of-c of-t pend" data-cell="${i}" data-pend="1"><b>${p.l.toUpperCase()}</b><i>${p.b?'':VAL[p.l]}</i></div>`; }
       else cells+=`<div class="of-c ${pr!=='.'?'p'+(pr==='*'?'s':pr):''}" data-cell="${i}">${pr!=='.'?`<span>${PLABEL[pr]}</span>`:''}</div>`;
@@ -341,7 +360,7 @@
     if(g.over) sub='';
     else if(myTurn) sub = preview || 'Din tur – tryck på en bricka och sedan på en ruta (eller dra)';
     else sub=`${isAI(g.cur)?'🤖 ':''}<b>${esc(pname(g.cur))}</b> funderar…`;
-    const extra = `<div class="of-extra">${LANG.flag} ${LANG.name}${g.extra && g.extra.names && g.extra.names.length ? ` · 📚 ${esc(g.extra.names.join(', '))}`:''}</div>`;
+    const extra = `<div class="of-extra">${LANG.flag} ${LANG.name} · ${g.btype==='rand'?'🎲 slumpat bräde':'🎯 standardbräde'}${g.extra && g.extra.names && g.extra.names.length ? ` · 📚 ${esc(g.extra.names.join(', '))}`:''}</div>`;
     const lastLog=(g.log||[]).slice(-6).reverse().map(e=>`<div class="of-lg"><b>${esc(bare(g.names[e.s]))}</b> ${e.t==='play'?`${e.w.map(w=>`<button data-of="look" data-w="${esc(w)}">${esc(w.toUpperCase())}</button>`).join(' ')} <span>${e.p} p</span>`:e.t==='swap'?'bytte brickor':e.t==='pass'?'stod över':'gav upp'}</div>`).join('');
     return head + `<div class="gsub of-sub">${sub}</div>
       <div class="of-wrap"><div class="of-board" id="ofBoard">${cells}</div></div>
@@ -398,6 +417,7 @@
     if(a){
       switch(a){
         case 'lang': ofLang=b.dataset.l; lsSet('of_lang',ofLang); sfx.bubble(); showOrdfajtMenu(); return;
+        case 'bt': ofBoardT=b.dataset.l; lsSet('of_board',ofBoardT); document.getElementById('ofBT').innerHTML=btHTML(); sfx.bubble(); return;
         case 'lvl': ofLevel=b.dataset.l; document.getElementById('ofLvl').innerHTML=lvlHTML(); sfx.bubble(); return;
         case 'pick': { const id=b.dataset.id; chosenLists.has(id)?chosenLists.delete(id):chosenLists.add(id); showOrdfajtMenu(); return; }
         case 'lists': openModal(listsHTML(),'oflists'); return;
@@ -546,5 +566,5 @@
 body.desk .of-wrap{max-width:min(640px,100%,calc(100vh - 360px))}
 `; document.head.appendChild(st);
 
-  window.__ofTest = (typeof DEV!=='undefined' && DEV) ? {crude, useLang, loadDict, inDawg, isWord, evaluate, genMoves, aiMove, PREM, C} : undefined;
+  window.__ofTest = (typeof DEV!=='undefined' && DEV) ? {randomPrem, crude, useLang, loadDict, inDawg, isWord, evaluate, genMoves, aiMove, PREM, C} : undefined;
 })();
