@@ -74,6 +74,7 @@ input{font-family:inherit}
 .tag{text-align:center;color:var(--dim);margin:6px 0 4px}
 .getwell{text-align:center;margin:10px auto 18px;padding:8px 16px;border-radius:999px;width:max-content;max-width:100%;
   background:rgba(249,168,212,.14);border:1px solid rgba(249,168,212,.35);color:#ffd6ec;font-weight:500}
+.chatbtn{position:relative;background:linear-gradient(135deg,#00a884,#0e7490 70%)!important}.chatbtn small{font-size:12px;opacity:.85;margin-left:6px}.chatbtn .badge{position:absolute;right:14px;top:50%;transform:translateY(-50%);min-width:24px;height:24px;border-radius:999px;background:#ef4444;display:grid;place-items:center;font-size:13px;padding:0 7px}
 .bigbtn{display:block;width:100%;padding:16px 18px;border-radius:22px;font-size:19px;font-weight:600;margin:10px 0;
   background:linear-gradient(135deg,#22d3ee,#6366f1 60%,#a855f7);box-shadow:0 8px 24px rgba(99,102,241,.45),inset 0 1px 0 rgba(255,255,255,.35)}
 .bigbtn.alt{background:var(--glass2);border:1px solid var(--line);box-shadow:none}
@@ -1135,6 +1136,7 @@ function onHostMsg(m,c){
     for(const o of hostConns) if(o!==c && o._seat===seat){ try{ o.close() }catch(e){} hostConns.delete(o); }
     c._seat=seat;
     if(validState(m.state) && (m.state.seq||0)>(G.seq||0) && m.state.names.length===G.names.length) onGameData(JSON.parse(JSON.stringify(m.state)));
+    if(typeof CHAT!=='undefined'){ if(m.card){ c._card=m.card; CHAT.seenCards([m.card],'ett spel'); } const cards=[CHAT.card(), ...[...hostConns].map(o=>o._card)].filter(Boolean); if(cards.length) hostBroadcast({t:'cards', cards}); }
     sendTo(c,{t:'welcome', seat, name:G.names[seat]});
     hostBroadcast({t:'state', state:G});
     updateHostNet(); render();
@@ -1188,7 +1190,7 @@ function connectGuest(){
 function attachGuest(c){
   if(conn && conn!==c){ try{ conn.close() }catch(e){} }
   conn=c;
-  c.on('open',()=>{ if(conn!==c) return; lastHeard=Date.now(); setNet('connected'); sendTo(c,{t:'hello', seat:mySeat, name:myName, state:G}); });
+  c.on('open',()=>{ if(conn!==c) return; lastHeard=Date.now(); setNet('connected'); sendTo(c,{t:'hello', seat:mySeat, name:myName, state:G, card:(typeof CHAT!=='undefined'?CHAT.card():null)}); });
   c.on('data',d=>{ if(conn!==c) return; const m=parseMsg(d); if(m) onGuestMsg(m); });
   c.on('close',()=>{ if(conn!==c) return; conn=null; setNet('lost'); retry(connectGuest,2000); });
   c.on('error',()=>{});
@@ -1202,6 +1204,7 @@ function onGuestMsg(m){
     lsSet('ry_net',''); stopNet(); setTimeout(goLobby,1200); return;
   }
   if(m.t==='state'){ if(validState(m.state) && (!G || (m.state.seq||0)>(G.seq||0))) onGameData(JSON.parse(JSON.stringify(m.state))); return; }
+  if(m.t==='cards'){ if(typeof CHAT!=='undefined') CHAT.seenCards(m.cards,'ett spel'); return; }
   if(m.t==='emoji' || m.t==='poke') onSocial(m);
 }
 function validState(s){
@@ -2404,6 +2407,7 @@ function render(){
   document.body.classList.toggle('ingame', view!=='lobby');
   if(view==='lobby'){ app.innerHTML=lobbyHTML(); dock.innerHTML=''; fitDock(); return; }
   if(view==='stats'){ app.innerHTML=statsHTML(); dock.innerHTML=''; fitDock(); return; }
+  if(view==='chat'){ dock.innerHTML=''; if(!document.getElementById('chatRoot')){ app.innerHTML=CHAT.html(); CHAT.mount(); } else CHAT.refresh(); app.style.paddingBottom='0px'; return; }
   if(view==='inv'){ dock.innerHTML=''; if(!document.getElementById('invRoot')){ app.innerHTML=INV.html(); INV.mount(); } app.style.paddingBottom='0px'; return; }
   if(view==='sol'){ dock.innerHTML=''; if(!document.getElementById('solRoot')){ app.innerHTML=solHTML(); solMount(); } else { solRefreshChrome(); } app.style.paddingBottom='0px'; return; }
   if(!G){ app.innerHTML=topbar()+`<div class="loading">${DOLPHIN('ld')}<p>Simmar till spelet <b>${esc(gameId||'')}</b>…</p><p style="font-size:14px">${netText()}</p><button class="bigbtn alt" data-act="lobby" style="max-width:260px;margin:20px auto">Avbryt</button></div>`; dock.innerHTML=''; return; }
@@ -2463,6 +2467,7 @@ function lobbyHTML(){
       <button class="tile" style="--tg:linear-gradient(135deg,#f59e0b,#ef4444)" data-act="gmenu" data-k="hang"><span class="ti">🪢</span><b>Hänga gubbe</b><small>Gissa ordet innan gubben hängs</small></button>
       <button class="tile" style="--tg:linear-gradient(135deg,#16a34a,#0f172a 75%)" data-act="openinv"><span class="ti">👾</span><b>Space Invaders</b><small>Ensam · 100+ nivåer</small>${invS.best?`<span class="badge">🏆 ${invS.best}</span>`:''}</button>
     </div>
+    <div class="chipsrow"><button class="bigbtn chatbtn" data-act="openchat">💬 Chatt <small>🔒 krypterad</small>${(typeof CHAT!=='undefined'&&CHAT.unread())?`<span class="badge">${CHAT.unread()}</span>`:''}</button></div>
     <div class="chipsrow"><button class="bigbtn" data-act="joinonline" style="background:linear-gradient(135deg,#2dd4bf,#3b82f6 60%,#6366f1)">🔗 Gå med i spel med kod</button></div>
     <div class="chipsrow"><button class="bigbtn alt" data-act="stats">📊 Statistik & rekord</button></div>`;
   const bf=bestList('free')[0], bd=bestList('down')[0];
@@ -2594,6 +2599,7 @@ document.addEventListener('click', e=>{
     case 'yatzymenu': showYatzyMenu(); break;
     case 'gmenu': showGameMenu(b.dataset.k); break;
     case 'openinv': openInv(); break;
+    case 'openchat': CHAT.open(); break;
     case 'opensol': openSol(); break;
     case 'solnew': showSolNew(false); break;
     case 'solstart': case 'solnewsame': solStartNew(); break;
@@ -2711,5 +2717,6 @@ document.addEventListener('visibilitychange',()=>{ if(document.visibilityState==
 </script>
 <script src="games.js"></script>
 <script src="invaders.js"></script>
+<script src="chat.js"></script>
 </body>
 </html>
