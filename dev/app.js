@@ -551,6 +551,7 @@ function onHostMsg(m,c){
     if(!isKind() && (m.state?.seq||0)>(G.seq||0) && guestMayUpdate(G, m.state, seat)) onGameData(JSON.parse(JSON.stringify(m.state)));
     if(typeof CHAT!=='undefined'){ if(m.card && typeof m.card==='object' && typeof m.card.id==='string' && /^[0-9a-f]{16}$/.test(m.card.id)){ c._card=m.card; CHAT.seenCards([m.card],'ett spel'); } const cards=[CHAT.card(), ...[...hostConns].map(o=>o._card)].filter(Boolean); if(cards.length) hostBroadcast({t:'cards', cards}); }
     sendTo(c,{t:'welcome', seat, name:G.names[seat]});
+    if(typeof FR!=='undefined') FR.onConnect(x=>sendTo(c,x));
     sendTo(c,{t:'state', state:G, force:true});          // värdens version gäller alltid efter återanslutning
     hostBroadcast({t:'state', state:G}, c);
     updateHostNet(); render();
@@ -563,6 +564,7 @@ function onHostMsg(m,c){
     return;
   }
   if(m.t==='act'){ if(isKind()) applyAndPublish(m.a, c._seat); return; }
+  if(typeof m.t==='string' && m.t.startsWith('fr') && typeof FR!=='undefined'){ FR.onMsg(m, x=>sendTo(c,x)); return; }   // önskelistan
   if(m.t==='chat'){                                   // krypterat chattmeddelande via spelet: till mig eller vidare till en annan spelare
     if(typeof m.to!=='string' || !/^[0-9a-f]{16}$/.test(m.to) || !m.env || typeof m.env!=='object') return;
     const now=Date.now(); c._chatN=(now-(c._chatT||0)>10000)?1:(c._chatN||0)+1; if(c._chatN===1) c._chatT=now; if(c._chatN>60) return;   // ingen spam
@@ -633,6 +635,7 @@ function onGuestMsg(m){
   if(m.t==='state'){ if(validState(m.state) && (!G || (m.state.seq||0)>(G.seq||0) || (m.force && JSON.stringify(m.state)!==JSON.stringify(G)))) onGameData(JSON.parse(JSON.stringify(m.state))); return; }
   if(m.t==='cards'){ if(Array.isArray(m.cards)){ gameCardIds=m.cards.slice(0,8).map(c=>c&&c.id).filter(id=>typeof id==='string'&&/^[0-9a-f]{16}$/.test(id)); if(typeof CHAT!=='undefined') CHAT.seenCards(m.cards,'ett spel'); } return; }
   if(m.t==='chat'){ if(typeof CHAT!=='undefined' && m.env && typeof m.env==='object') CHAT.bridgeIn(m.env); return; }
+  if(typeof m.t==='string' && m.t.startsWith('fr') && typeof FR!=='undefined'){ FR.onMsg(m, x=>sendTo(conn,x)); return; }
   if(m.t==='emoji' || m.t==='poke') onSocial(m);
 }
 /* ---------- Validering av speldata från andra enheter ----------
@@ -688,6 +691,8 @@ document.addEventListener('visibilitychange',()=>{
   if(mode!=='online'){ autoResume(); return; }
   netCheck();
 });
+// Önskelistan sprids också genom spelet
+function gameFrBroadcast(m){ if(mode!=='online') return; if(role==='host') hostBroadcast(m); else if(conn && conn.open) sendTo(conn,m); }
 // Chattens reservväg genom spelanslutningen
 let gameCardIds=[];
 function gameBridgeHas(id){
@@ -1933,6 +1938,7 @@ function render(){
   document.body.classList.toggle('ingame', view!=='lobby');
   if(view==='lobby'){ app.innerHTML=lobbyHTML(); dock.innerHTML=''; fitDock(); return; }
   if(view==='stats'){ app.innerHTML=statsHTML(); dock.innerHTML=''; fitDock(); return; }
+  if(view==='fr'){ dock.innerHTML=''; app.innerHTML=(typeof FR!=='undefined')?FR.html():''; app.style.paddingBottom='40px'; return; }
   if(view==='chat'){ view='lobby'; if(typeof CHAT!=='undefined') setTimeout(()=>CHAT.open(),0); }   // chatten bor i sidopanelen
   if(view==='inv'){ dock.innerHTML=''; if(!document.getElementById('invRoot')){ app.innerHTML=INV.html(); INV.mount(); } app.style.paddingBottom='0px'; return; }
   if(view==='sol'){ dock.innerHTML=''; if(!document.getElementById('solRoot')){ app.innerHTML=solHTML(); solMount(); } else { solRefreshChrome(); } app.style.paddingBottom='0px'; return; }
@@ -1998,8 +2004,11 @@ function lobbyHTML(){
     <div class="chipsrow"><button class="bigbtn alt" data-act="stats">📊 Statistik & rekord</button></div>`;
   const bf=bestList('free')[0], bd=bestList('down')[0];
   if(false) h += `<div class="note" style="margin-top:6px">🏆 Rekord ensam: ${bf?`<b>${bf.s}</b> valfritt (${esc(bf.n)})`:''}${bf&&bd?' · ':''}${bd?`<b>${bd.s}</b> i ordning (${esc(bd.n)})`:''}</div>`;
+  const fu=(typeof FR!=='undefined')?FR.unread():0;
+  h += `<div class="lob-foot"><button data-act="frnew">💡 Önska något</button><button data-act="frlist">📋 Önskelistan<i class="frb ${fu?'on':''}" data-frbadge>${fu||''}</i></button></div>`;
   return h + '</div></div>';
 }
+function updateFrBadge(){ const n=(typeof FR!=='undefined')?FR.unread():0; document.querySelectorAll('[data-frbadge]').forEach(el=>{ el.textContent=n||''; el.classList.toggle('on',n>0); }); }
 function topbarLobby(){
   return `<div class="topbar"><div class="popc" id="popc" title="Poppade bubblor">🫧 ${popCount}</div><div class="tb-title" style="font-size:12px">Poppa bubblorna! 🫧</div>
     <button class="iconbtn" data-act="settings" aria-label="Inställningar">⚙️</button></div>`;
@@ -2125,6 +2134,8 @@ document.addEventListener('click', e=>{
     case 'yatzymenu': showYatzyMenu(); break;
     case 'gmenu': showGameMenu(b.dataset.k); break;
     case 'openinv': openInv(); break;
+    case 'frlist': FR.open(); break;
+    case 'frnew': FR.open(); setTimeout(()=>document.querySelector('[data-fr="new"]')?.click(),0); break;
     case 'openchat': CHAT.open(); break;
     case 'opensol': openSol(); break;
     case 'solnew': showSolNew(false); break;
