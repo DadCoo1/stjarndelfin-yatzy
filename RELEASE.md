@@ -8,7 +8,7 @@
 ## Arbetsgång
 1. Nya funktioner byggs och publiceras **bara i `dev/`**.
 2. Testa och utvärdera på `/dev/` (gärna installerad som egen app – ikonen har en gul DEV-banderoll).
-3. När allt är godkänt *släpps* versionen: `dev/index.html`, `dev/games.js`, `dev/invaders.js` och `dev/sw.js` kopieras till roten,
+3. När allt är godkänt *släpps* versionen: `dev/index.html`, `dev/app.js`, `dev/peerjs.min.js`, `dev/games.js`, `dev/invaders.js`, `dev/chat.js`, `dev/qr.js` och `dev/sw.js` kopieras till roten,
    `APP_VERSION` och cache-versionen i `sw.js` räknas upp, och ändringen committas som "Release <version>".
 4. `dev/manifest.webmanifest` och `dev/icon-*.png` är testversionens egna och kopieras **inte**.
 
@@ -20,3 +20,10 @@
 
 ## Spotify i testversionen
 Lägg till `https://dadcoo1.github.io/stjarndelfin-yatzy/dev/` som extra *Redirect URI* i Spotify-utvecklarappen.
+
+## Säkerhet
+
+- `index.html` har en Content-Security-Policy: bara skript från egna filer (och Spotify) får köras. Lägg **aldrig** till inline-skript (`<script>…</script>` eller `onclick=`) – de blockeras. All kod ligger i `.js`-filer.
+- Tredjepartskod (`peerjs.min.js`, `qr.js`) är oförändrade kopior av npm-paketen PeerJS 1.5.5, qrcode-generator 2.0.4 och jsQR 1.4.0. Kontrollera nya versioner med `npm audit` innan de byts ut.
+- Allt som kommer från andra enheter (spel och chatt) valideras strikt och skrivs alltid ut via `esc()`.
+- Testkroken `CHAT.__test` finns bara när `DEV` är sann.
