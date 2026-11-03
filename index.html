@@ -517,7 +517,7 @@ body.desk .sol-board{max-width:980px}
 .solmodes button,.themes button{padding:10px 6px;border-radius:14px;background:rgba(0,0,0,.25);border:1.5px solid var(--line);font-size:14px;line-height:1.2}
 .solmodes button small{display:block;font-size:11px;color:var(--dim);margin-top:3px}
 .solmodes button.sel,.themes button.sel{border-color:var(--aqua);background:rgba(62,230,255,.16);box-shadow:0 0 14px rgba(62,230,255,.35)}
-.themes{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+.themes{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
 .themes button{display:flex;flex-direction:column;align-items:center;gap:6px;font-size:12px}
 .mini-back{width:44px;height:62px;border-radius:6px;background-size:100% 100%;box-shadow:0 3px 8px rgba(0,0,0,.45);border:1px solid rgba(255,255,255,.35)}
 /* bordsytor per tema */
@@ -525,6 +525,8 @@ body.desk .sol-board{max-width:980px}
 .sol.theme-ocean::before{background:radial-gradient(120% 70% at 50% 110%,rgba(20,184,166,.35),transparent 60%),radial-gradient(80% 50% at 10% 0%,rgba(34,211,238,.18),transparent 60%)}
 .sol.theme-space::before{background:radial-gradient(90% 60% at 80% 0%,rgba(139,92,246,.35),transparent 60%),radial-gradient(80% 60% at 0% 100%,rgba(236,72,153,.15),transparent 60%)}
 .sol.theme-cool::before{background:linear-gradient(160deg,rgba(29,78,216,.35),rgba(14,165,233,.12) 50%,rgba(30,27,75,.4))}
+.sol.theme-pink::before{background:radial-gradient(90% 60% at 50% 0%,rgba(244,114,182,.35),transparent 60%),radial-gradient(70% 50% at 100% 100%,rgba(190,24,93,.3),transparent 60%)}
+.sol.theme-leopard::before{background:radial-gradient(90% 60% at 50% 110%,rgba(227,176,100,.32),transparent 60%),radial-gradient(70% 50% at 0% 0%,rgba(244,114,182,.22),transparent 60%)}
 .sol.theme-alpine::before{background:radial-gradient(100% 50% at 50% 0%,rgba(191,219,254,.22),transparent 60%),
   url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 400 120' preserveAspectRatio='none'%3E%3Cpath d='M0 120 L0 70 L60 30 L95 60 L150 10 L210 65 L260 35 L320 75 L360 50 L400 80 L400 120Z' fill='%23e0f2fe' fill-opacity='.18'/%3E%3Cpath d='M0 120 L0 95 L80 70 L140 90 L230 60 L300 92 L400 85 L400 120Z' fill='%23ffffff' fill-opacity='.14'/%3E%3C/svg%3E") bottom/100% 32% no-repeat}
 
@@ -547,6 +549,34 @@ body.desk .sol-board{max-width:980px}
 .bgcard button{padding:10px 14px;border-radius:14px;font-weight:600;background:linear-gradient(135deg,#22d3ee,#6366f1)}
 .bgcard .lv{background:rgba(255,255,255,.1);font-weight:500;font-size:13px;padding:8px 10px}
 
+
+/* ================= FRÖKNARNA LEINS – lobby med leopard ================= */
+:root{--leo:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='90' height='90' viewBox='0 0 90 90'%3E%3Crect width='90' height='90' fill='%23e3b064'/%3E%3Cg fill='%23c4873a'%3E%3Ccircle cx='16' cy='16' r='6'/%3E%3Ccircle cx='60' cy='12' r='5'/%3E%3Ccircle cx='76' cy='52' r='6'/%3E%3Ccircle cx='34' cy='50' r='6'/%3E%3Ccircle cx='62' cy='80' r='5'/%3E%3Ccircle cx='12' cy='76' r='5'/%3E%3C/g%3E%3Cg fill='%233a2312'%3E%3Cpath d='M8 12q2-6 7-6M22 10q4 2 3 8M20 24q-6 2-10-2M6 20q-2-3 0-6'/%3E%3Cpath d='M8 12c1-5 4-7 8-7 1 0 1 2 0 2-3 0-5 2-6 5zM22 9c3 2 4 5 3 9-1 1-2 0-2-1 1-3 0-5-2-7zM21 23c-3 3-7 4-11 1 0-1 1-2 2-1 3 2 5 1 8-1zM6 21c-2-3-2-6 0-9 1 0 2 1 1 2-1 2-1 4 0 6z'/%3E%3Cpath d='M53 8c1-4 5-5 8-5 1 1 0 2-1 2-2 0-5 1-5 4zM66 8c2 2 3 5 1 8-1 0-2-1-1-1 1-2 0-5-1-6zM64 18c-3 2-7 2-10 0 0-1 1-2 2-1 2 1 5 1 7 0z'/%3E%3Cpath d='M69 48c1-5 5-7 9-6 1 1 0 2-1 2-3 0-6 1-7 5zM84 48c1 3 1 7-2 9-1 0-1-1 0-2 1-2 2-4 1-6 0-1 1-2 1-1zM80 60c-3 2-7 3-11 0 0-1 1-1 2-1 3 2 5 1 8 0z'/%3E%3Cpath d='M27 46c1-5 4-7 9-7 1 1 0 2-1 2-3 0-5 2-7 5zM41 45c2 2 3 6 1 9h-2c1-3 1-5 0-8zM39 58c-3 2-8 2-11-1 0-1 1-1 2-1 2 2 6 2 8 1zM27 55c-2-2-2-5-1-7 1 0 1 1 1 2 0 1 0 3 1 4z'/%3E%3Cpath d='M56 76c1-4 4-6 8-5 1 1 0 2-1 2-3 0-5 1-6 4zM68 78c1 3 0 6-3 8-1-1-1-1 0-2 2-1 2-3 2-5zM60 86c-2 1-5 0-6-2'/%3E%3Cpath d='M6 72c1-4 4-5 7-5 1 1 0 2-1 2-2 0-4 1-5 4zM18 74c1 3 0 6-3 7-1 0-1-1 0-1 2-1 2-3 2-5zM12 84c-3 1-5 0-7-2 0-1 1-1 1-1 2 1 4 2 6 1z'/%3E%3Ccircle cx='40' cy='26' r='2.6'/%3E%3Ccircle cx='84' cy='22' r='2.2'/%3E%3Ccircle cx='30' cy='84' r='2.4'/%3E%3Ccircle cx='86' cy='84' r='1.8'/%3E%3Ccircle cx='48' cy='66' r='1.8'/%3E%3C/g%3E%3C/svg%3E")}
+.brand h1{margin:6px 0 0;font-size:clamp(34px,10vw,44px);line-height:1.02;font-weight:700;background:linear-gradient(90deg,#f9a8d4,#c084fc 45%,#7df9ff);-webkit-background-clip:text;background-clip:text;color:transparent;filter:drop-shadow(0 2px 14px rgba(249,168,212,.35))}
+.brand .gb{display:inline-block;margin-top:6px;font-size:clamp(20px,6vw,26px);font-weight:700;letter-spacing:.35em;padding-left:.35em;background:var(--leo);background-size:70px;-webkit-background-clip:text;background-clip:text;color:transparent;-webkit-text-stroke:.6px rgba(58,35,18,.55);filter:drop-shadow(0 2px 6px rgba(0,0,0,.45))}
+.leoband{height:7px;width:min(260px,70%);margin:10px auto 0;border-radius:99px;background:var(--leo);background-size:60px;box-shadow:0 0 0 1.5px rgba(58,35,18,.5),0 4px 14px rgba(227,176,100,.35)}
+.leopill{display:inline-flex;align-items:center;gap:6px;padding:3px 14px 3px 3px;border-radius:999px;font-size:13px;font-weight:700;letter-spacing:1.5px;color:#fde7c2;
+  border:3px solid transparent;background:linear-gradient(#1d1240,#1d1240) padding-box,var(--leo) border-box;background-size:auto,46px;box-shadow:0 4px 14px rgba(227,176,100,.25)}
+.leopill i{font-style:normal;width:22px;height:22px;border-radius:50%;display:grid;place-items:center;background:#fdf2f8}
+.tiles{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:8px 0 12px}
+.tile{position:relative;display:flex;flex-direction:column;align-items:flex-start;gap:2px;padding:14px 14px 12px;border-radius:22px;text-align:left;min-height:118px;overflow:hidden;
+  background:var(--tg);box-shadow:0 10px 26px rgba(0,0,0,.35),inset 0 1px 0 rgba(255,255,255,.28)}
+.tile::after{content:'';position:absolute;inset:auto -20% -40% auto;width:110px;height:110px;border-radius:50%;background:rgba(255,255,255,.12)}
+.tile .ti{font-size:36px;line-height:1;filter:drop-shadow(0 3px 6px rgba(0,0,0,.35));margin-bottom:6px}
+.tile b{font-size:17px;line-height:1.15}
+.tile small{font-size:11.5px;opacity:.85;line-height:1.3}
+.tile .badge{position:absolute;top:10px;right:10px;font-size:10px;font-weight:700;padding:2px 7px;border-radius:999px;background:rgba(0,0,0,.28)}
+.tile.leo{background:var(--leo);background-size:84px;color:#2b1708;box-shadow:0 10px 26px rgba(0,0,0,.35),0 0 0 2px rgba(249,168,212,.9)}
+.tile.leo b,.tile.leo small{background:rgba(255,248,235,.82);padding:1px 7px;border-radius:7px;margin-left:-4px;box-decoration-break:clone;-webkit-box-decoration-break:clone}
+.tile.leo small{opacity:1;color:#4a2b12}
+.tile.leo .ti{background:rgba(255,248,235,.82);border-radius:12px;padding:3px 5px}
+.tile:active{transform:scale(.97)}
+@media (hover:hover) and (pointer:fine){ .tile{transition:transform .18s ease,box-shadow .2s} .tile:hover{transform:translateY(-4px) rotate(-.6deg);box-shadow:0 18px 36px rgba(0,0,0,.45),inset 0 1px 0 rgba(255,255,255,.3)} }
+body.desk .tiles{grid-template-columns:repeat(3,1fr);gap:12px}
+body.desk .tile{min-height:132px}
+body.desk .brand h1{font-size:64px} body.desk .brand .gb{font-size:32px}
+.lob-menu .chipsrow{display:flex;gap:8px;margin-top:4px}
+.lob-menu .chipsrow .bigbtn{margin:6px 0}
 </style>
 </head>
 <body>
@@ -956,7 +986,7 @@ function systemNotify(msg){
 }
 function notifyTurn(msg){
   if(!G || G.over) return;
-  if(view!=='game'){ if(mode==='online') notice({icon:'🎲', title:'Din tur i Yatzy!', text:msg, actions:[{label:'Till spelet', run:backToGame}]}); return; }
+  if(view!=='game'){ if(mode==='online') notice({icon:gIcon(), title:`Din tur i ${gName()}!`, text:msg, actions:[{label:'Till spelet', run:backToGame}]}); return; }
   sfx.turn(); buzz([180,90,180,90,300]); showTurnBanner(msg);
   if(document.hidden){ startBlink(msg); systemNotify(msg); }
 }
@@ -1043,9 +1073,11 @@ function noPeerLib(){ toast('Nätverket laddades inte – har mobilen internet? 
 function parseMsg(d){ try{ return typeof d==='string' ? JSON.parse(d) : d }catch(e){ return null } }
 
 /* ---------- Värd: den som skapar spelet ---------- */
-function hostGame(name, order){
+function hostGame(name, order, kind){
   stopNet(); mode='online'; role='host'; mySeat=0; myName=name; gameId=newCode();
-  G=newState([name],0,order); G.started=false; shown=G.dice.slice(); freshCell=null; view='game';
+  if(kind && kind!=='yatzy'){ G=gNewState(kind,[name],0,null); G.started=false; resetDrafts(); }
+  else { G=newState([name],0,order); G.started=false; shown=G.dice.slice(); }
+  freshCell=null; view='game';
   saveNet(); render(); startHost(); keepAwake();
 }
 function startHost(){
@@ -1079,9 +1111,9 @@ function onHostMsg(m,c){
     let seat=null;
     const nm=String(m.name||'').slice(0,14).trim();
     if(Number.isInteger(m.seat) && m.seat>0 && G.names[m.seat] && G.names[m.seat]===nm) seat=m.seat;      // återanslutning
-    else if(G.started===false && G.names.length<MAXP && nm){
+    else if(G.started===false && G.names.length<maxP() && nm){
       let n=nm, k=2; while(G.names.includes(n)) n=nm.slice(0,12)+' '+(k++);
-      G.names.push(n); G.scores.push({}); G.seq=(G.seq||0)+1; G.updatedAt=Date.now();
+      G.names.push(n); if(Array.isArray(G.scores)) G.scores.push({}); G.seq=(G.seq||0)+1; G.updatedAt=Date.now();
       seat=G.names.length-1; saveNet();
       if(view!=='game') notice({icon:'🚀', title:`${n} gick med i ditt spel`, text:`Yatzy ${gameId} · ${G.names.length} av ${MAXP} spelare`, actions:[{label:'Till spelet', run:backToGame}]});
       else { sfx.turn(); toast(`${n} är med! 🚀`); }
@@ -1102,6 +1134,7 @@ function onHostMsg(m,c){
     else sendTo(c,{t:'state', state:G});   // gästen låg efter
     return;
   }
+  if(m.t==='act'){ if(isKind()) applyAndPublish(m.a, c._seat); return; }
   if(m.t==='emoji' || m.t==='poke'){
     const out={t:m.t, e:m.e, from:c._seat, to:m.to};
     hostBroadcast(out,c); onSocial(out);
@@ -1159,7 +1192,11 @@ function onGuestMsg(m){
   if(m.t==='state'){ if(validState(m.state) && (!G || (m.state.seq||0)>(G.seq||0))) onGameData(JSON.parse(JSON.stringify(m.state))); return; }
   if(m.t==='emoji' || m.t==='poke') onSocial(m);
 }
-function validState(s){ return s && Array.isArray(s.dice) && s.dice.length===5 && Array.isArray(s.names) && s.names.length>=1 && s.names.length<=MAXP && Array.isArray(s.scores) && s.scores.length===s.names.length; }
+function validState(s){
+  if(!s || !Array.isArray(s.names) || s.names.length<1 || s.names.length>MAXP) return false;
+  if(s.kind && s.kind!=='yatzy') return typeof KIND!=='undefined' && !!KIND[s.kind] && s.names.length<=2;
+  return Array.isArray(s.dice) && s.dice.length===5 && Array.isArray(s.scores) && s.scores.length===s.names.length;
+}
 
 // Hjärtslag: märker när kontakten dör tyst (t.ex. skärmen släcktes)
 setInterval(()=>{
@@ -1178,11 +1215,13 @@ function startOnlineGame(){
   if(role!=='host' || !G || G.started!==false) return;
   if(G.names.length<2){ toast('Vänta tills minst en till har gått med 🔭'); return; }
   unlockAudio();
+  if(isKind()){ gStartOnline(); toast('Nu kör vi! 🚀'); sfx.turn(); return; }
   commit({started:true, cur:0, starter:0, rolls:0, held:F5(), scores:G.names.map(()=>({}))});
   toast(`Nu kör vi! Du börjar 🚀`); sfx.turn();
 }
 
 function onGameData(d){
+  if(d.kind && d.kind!=='yatzy'){ const prev=G; G=d; if(prev && prev.kind===d.kind) gOnChange(prev,d); saveNet(); render(); return; }
   const prev=G; G=d;
   if(!prev){ shown=d.dice.slice(); }
   else {
@@ -1275,7 +1314,7 @@ function trayHTML(){
 
 async function invite(){
   const url=location.origin+location.pathname+'#'+gameId;
-  const text=`Kom och spela Stjärndelfin Yatzy med mig! 🐬 Kod: ${gameId}`;
+  const text=`Kom och spela ${gName()} med mig! 🐬 Kod: ${gameId}`;
   try{ if(navigator.share){ await navigator.share({title:'Stjärndelfin Yatzy',text,url}); return; } }catch(e){ if(e&&e.name==='AbortError') return; }
   try{ await navigator.clipboard.writeText(text+' '+url); toast('Länken är kopierad – klistra in den i Messenger 📋',3500); }
   catch(e){ toast('Länk: '+url,6000); }
@@ -1366,7 +1405,7 @@ function statsHTML(){
   const subs=subjects();
   if(!statsWho || !subs.includes(statsWho)) statsWho = subs.includes(lsGet('ry_name')) ? lsGet('ry_name') : subs[0];
   let h=`<div class="topbar"><button class="iconbtn" data-act="lobby" aria-label="Tillbaka">‹</button><div class="tb-title">📊 <b>Statistik</b></div><button class="iconbtn" data-act="sptoggle" aria-label="Musik">🎵</button><button class="iconbtn" data-act="settings" aria-label="Inställningar">⚙️</button></div><div class="stats">`;
-  if(!subs.length) return h+`<div class="note" style="margin-top:20px">Ingen statistik än – spela en match så dyker den upp här! 🐬</div></div>`;
+  if(!subs.length){ const o=typeof otherStatsHTML==='function'?otherStatsHTML():''; return h+(o?`<div class="stat-cols">${o}</div>`:`<div class="note" style="margin-top:20px">Ingen statistik än – spela en match så dyker den upp här! 🐬</div>`)+`<button class="bigbtn alt" data-act="resetstats" style="margin-top:22px;font-size:15px">${armedReset?'Tryck igen för att radera all statistik':'🗑️ Rensa statistik'}</button></div>`; }
   if(subs.length>1) h+=`<div class="chips" style="margin:4px 0 6px">${subs.map(n=>`<button data-act="statswho" data-n="${esc(n)}" class="${n===statsWho?'sel':''}">${esc(n)}</button>`).join('')}</div>`;
   const mine=statsFor(statsWho);
   const duels=mine.filter(x=>x.opps.length);
@@ -1404,7 +1443,7 @@ function statsHTML(){
     const place = x.opps.length ? 1+x.opps.filter(o=>o.s>x.me.s).length : 0;
     h+=`<div class="tr"><div class="l">${em} ${x.opps.length?'mot '+esc(x.opps.map(oppLabel).join(', ')):'Ensam'} <span class="m">· ${ds}${x.opps.length>1?' · plats '+place:''}</span></div><div class="r m">${x.opps.length?Math.max(...x.opps.map(o=>o.s)):''}</div><div class="r">${x.me.s}</div></div>`;
   });
-  h+=`</div></section></div><button class="bigbtn alt" data-act="resetstats" style="margin-top:22px;font-size:15px">${armedReset?'Tryck igen för att radera all statistik':'🗑️ Rensa statistik'}</button></div>`;
+  h+=`</div></section>${typeof otherStatsHTML==='function'?otherStatsHTML():''}</div><button class="bigbtn alt" data-act="resetstats" style="margin-top:22px;font-size:15px">${armedReset?'Tryck igen för att radera all statistik':'🗑️ Rensa statistik'}</button></div>`;
   return h;
 }
 function openStats(){ closeModal(); clearTimeout(aiTimer); if(mode!=='online'){ stopNet(); } view='stats'; render(); try{ window.scrollTo(0,0) }catch(e){} }
@@ -1733,7 +1772,9 @@ const SOL_THEMES={
   space:{label:'🚀 Rymd', court:['👨‍🚀','👩‍🚀','🪐'], accent:'#a78bfa'},
   ocean:{label:'🐬 Delfin & hav', court:['🐠','🐬','🐳'], accent:'#2dd4bf'},
   cool:{label:'💎 Blått & coolt', court:['🧊','💎','👑'], accent:'#60a5fa'},
-  alpine:{label:'⛷️ Alpint race', court:['⛷️','🏂','🏆'], accent:'#f87171'}
+  alpine:{label:'⛷️ Alpint race', court:['⛷️','🏂','🏆'], accent:'#f87171'},
+  pink:{label:'💖 Rosa', court:['🦄','👸','💖'], accent:'#f472b6'},
+  leopard:{label:'🐆 Leopard', court:['🐾','🐆','👑'], accent:'#e3b064'}
 };
 let S=null, solHist=[], solTheme=lsGet('ry_soltheme')||'ocean', solMode=lsGet('ry_solmode')||'1', solDrag=null, solHintT=null, solAutoT=null, solSaveN=0;
 function rint(n){ const c=window.crypto; if(!c||!c.getRandomValues) return Math.floor(Math.random()*n); const lim=Math.floor(4294967296/n)*n, b=new Uint32Array(1); for(;;){ c.getRandomValues(b); if(b[0]<lim) return b[0]%n; } }
@@ -1928,6 +1969,17 @@ function backSVG(theme){
       <rect width="100" height="140" rx="10" fill="url(#g)"/><g clip-path="url(#k)" stroke="#fff" stroke-width=".7" opacity=".22">${lat}</g>
       <g transform="translate(50 70)"><rect x="-17" y="-17" width="34" height="34" transform="rotate(45)" fill="#0b1e4a" opacity=".55" stroke="#bfdbfe" stroke-width="1.6"/>
       <g stroke="#e0f2fe" stroke-width="2.2" stroke-linecap="round"><line x1="0" y1="-12" x2="0" y2="12"/><line x1="-10.4" y1="-6" x2="10.4" y2="6"/><line x1="-10.4" y1="6" x2="10.4" y2="-6"/></g><circle r="2.4" fill="#fff"/></g>${frame('#bfdbfe')}`;
+  } else if(theme==='pink'){
+    let hearts=''; [[20,22,1],[78,30,.8],[30,112,.9],[80,108,1.1],[50,70,2.2],[16,74,.7],[86,72,.7]].forEach(([x,y,k])=>{ hearts+=`<path transform="translate(${x} ${y}) scale(${k})" d="M0 4 C-6 -3 -12 2 -6 8 L0 13 L6 8 C12 2 6 -3 0 4Z" fill="#fff" opacity="${k>2?.95:.55}"/>`; });
+    inner=`<defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#fbcfe8"/><stop offset=".45" stop-color="#f472b6"/><stop offset="1" stop-color="#be185d"/></linearGradient></defs>
+      <rect width="100" height="140" rx="10" fill="url(#g)"/>${hearts}
+      <g fill="#fff"><path d="M50 20 l2 5 l5 2 l-5 2 l-2 5 l-2 -5 l-5 -2 l5 -2z"/><path d="M22 46 l1.4 3.4 l3.4 1.4 l-3.4 1.4 l-1.4 3.4 l-1.4 -3.4 l-3.4 -1.4 l3.4 -1.4z" opacity=".8"/><path d="M78 92 l1.4 3.4 l3.4 1.4 l-3.4 1.4 l-1.4 3.4 l-1.4 -3.4 l-3.4 -1.4 l3.4 -1.4z" opacity=".8"/></g>${frame('#fff')}`;
+  } else if(theme==='leopard'){
+    let ros=''; const P=[[18,18],[56,12],[84,34],[34,44],[70,62],[16,78],[50,92],[84,104],[26,120],[64,128],[42,68]];
+    P.forEach(([x,y],k)=>{ const rot=(k*47)%360; ros+=`<g transform="translate(${x} ${y}) rotate(${rot})"><ellipse rx="6.5" ry="5.2" fill="#c4873a"/>`+[0,72,144,216,288].map(a=>`<ellipse cx="${(7.2*Math.cos(a*Math.PI/180)).toFixed(1)}" cy="${(5.8*Math.sin(a*Math.PI/180)).toFixed(1)}" rx="2.6" ry="1.5" transform="rotate(${a+90} ${(7.2*Math.cos(a*Math.PI/180)).toFixed(1)} ${(5.8*Math.sin(a*Math.PI/180)).toFixed(1)})" fill="#3a2312"/>`).join('')+`</g>`; });
+    [[40,28],[90,80],[8,100],[60,40],[30,94]].forEach(([x,y])=>{ ros+=`<circle cx="${x}" cy="${y}" r="2.2" fill="#3a2312"/>`; });
+    inner=`<defs><clipPath id="k"><rect width="100" height="140" rx="10"/></clipPath></defs><rect width="100" height="140" rx="10" fill="#e3b064"/><g clip-path="url(#k)">${ros}</g>
+      <rect x="5" y="5" width="90" height="130" rx="9" fill="none" stroke="#f9a8d4" stroke-width="2.4"/><rect x="9" y="9" width="82" height="122" rx="6" fill="none" stroke="#3a2312" stroke-width=".8" opacity=".5"/>`;
   } else {  // alpint race
     let gates=''; [[28,72,'#ef4444'],[60,84,'#2563eb'],[36,100,'#ef4444'],[66,114,'#2563eb']].forEach(([x,y,c])=>{ gates+=`<line x1="${x}" y1="${y}" x2="${x}" y2="${y-11}" stroke="${c}" stroke-width="1.6"/><path d="M${x} ${y-11} l7 2.5 l-7 2.5z" fill="${c}"/>`; });
     let chk=''; for(let i=0;i<10;i++) chk+=`<rect x="${i*10}" y="0" width="5" height="5" fill="#0f172a"/><rect x="${i*10+5}" y="5" width="5" height="5" fill="#0f172a"/>`;
@@ -1971,9 +2023,10 @@ function solActionsHTML(){
 }
 function solYatzyPill(){
   if(mode!=='online' || !G) return '';
-  if(G.over) return `<button class="yzpill" data-act="backtogame">🎲 Yatzy: matchen är klar</button>`;
-  if(G.started===false) return `<button class="yzpill" data-act="backtogame">🎲 Yatzy ${esc(gameId)}: väntar på start</button>`;
-  return G.cur===mySeat ? `<button class="yzpill hot" data-act="backtogame">🎲 Din tur i Yatzy! ›</button>` : `<button class="yzpill" data-act="backtogame">🎲 Yatzy: ${esc(pname(G.cur))}s tur</button>`;
+  const ic=gIcon(), nm=gName();
+  if(G.over) return `<button class="yzpill" data-act="backtogame">${ic} ${nm}: matchen är klar</button>`;
+  if(G.started===false) return `<button class="yzpill" data-act="backtogame">${ic} ${nm} ${esc(gameId)}: väntar på start</button>`;
+  return G.cur===mySeat ? `<button class="yzpill hot" data-act="backtogame">${ic} Din tur i ${nm}! ›</button>` : `<button class="yzpill" data-act="backtogame">${ic} ${nm}: ${esc(pname(G.cur))}s tur</button>`;
 }
 function solRefreshChrome(){
   const a=document.getElementById('solActions'); if(a) a.innerHTML=solActionsHTML();
@@ -2204,6 +2257,7 @@ function resumeLocal(){
     stopNet(); mode='local'; G=g; shown=g.dice.slice(); view='game'; aiPlan=null; render(); maybeAI(1200); }catch(e){}
 }
 function goLobby(){
+  if(typeof INV!=='undefined') INV.stop();
   clearTimeout(aiTimer); clearTimeout(solAutoT); stopBlink(); trayOpen=false; closeModal();
   if(mode==='online' && G && !G.over){ view='lobby'; render(); return; }   // Yatzy fortsätter i bakgrunden
   stopNet(); releaseWake(); view='lobby'; mode=null; G=null; gameId=null; render();
@@ -2221,6 +2275,19 @@ function openModal(html, kind){
   const inp=M().querySelector('input:not([value]), input[value=""]')||M().querySelector('input'); if(inp) setTimeout(()=>inp.focus(),80);
 }
 const FINE_PTR_M = window.matchMedia ? window.matchMedia('(hover: hover) and (pointer: fine)').matches : true;
+function showYatzyMenu(){
+  let resume='';
+  try{ const g=JSON.parse(lsGet('ry_local')); if(g && !g.over && (!g.kind||g.kind==='yatzy')) resume=`<button class="pri" data-act="resumelocal">↩︎ Fortsätt ${g.names.length===1?'ensamspelet ('+esc(g.names[0])+')':esc(g.names.join(' vs '))}</button>`; }catch(e){}
+  const bf=bestList('free')[0], bd=bestList('down')[0];
+  openModal(`<h3>🎲 Yatzy</h3><p>Svensk Yatzy med 15 rader. Välj hur ni vill spela.</p>
+    <div class="btns" style="flex-direction:column">${resume}
+      <button class="pri" data-act="newonline">🚀 Skapa onlinespel (2–4, varsin enhet)</button>
+      <button data-act="newai">🤖 Spela mot Blixt (datorn)</button>
+      <button data-act="newsolo">🧑‍🚀 Spela ensam</button>
+      <button data-act="newlocal">📱 Flera på samma ${isDesk()?'skärm':'mobil'} (2–4)</button>
+      <button data-act="close">Avbryt</button></div>
+    ${bf||bd?`<div class="setnote" style="text-align:center;margin-top:8px">🏆 Rekord ensam: ${bf?`<b>${bf.s}</b> valfritt`:''}${bf&&bd?' · ':''}${bd?`<b>${bd.s}</b> i ordning`:''}</div>`:''}`,'ymenu');
+}
 function showCreate(){
   openModal(`<h3>🚀 Skapa spel</h3><p>Du får en kod med fyra tecken. Den andra mobilen trycker <b>Gå med</b> och skriver in koden.</p>
     <label>Ditt namn</label><input id="nm" maxlength="14" value="${esc(lsGet('ry_name')||'')}" placeholder="t.ex. Pappa">
@@ -2325,8 +2392,15 @@ function render(){
   document.body.classList.toggle('ingame', view!=='lobby');
   if(view==='lobby'){ app.innerHTML=lobbyHTML(); dock.innerHTML=''; fitDock(); return; }
   if(view==='stats'){ app.innerHTML=statsHTML(); dock.innerHTML=''; fitDock(); return; }
+  if(view==='inv'){ dock.innerHTML=''; if(!document.getElementById('invRoot')){ app.innerHTML=INV.html(); INV.mount(); } app.style.paddingBottom='0px'; return; }
   if(view==='sol'){ dock.innerHTML=''; if(!document.getElementById('solRoot')){ app.innerHTML=solHTML(); solMount(); } else { solRefreshChrome(); } app.style.paddingBottom='0px'; return; }
   if(!G){ app.innerHTML=topbar()+`<div class="loading">${DOLPHIN('ld')}<p>Simmar till spelet <b>${esc(gameId||'')}</b>…</p><p style="font-size:14px">${netText()}</p><button class="bigbtn alt" data-act="lobby" style="max-width:260px;margin:20px auto">Avbryt</button></div>`; dock.innerHTML=''; return; }
+  if(isKind()){
+    app.innerHTML = topbar() + (ready() ? KIND[G.kind].html() : waitingHTML());
+    dock.innerHTML = ready() ? reactDockHTML() : '';
+    if(ready() && KIND[G.kind].mounted) KIND[G.kind].mounted();
+    freshCell=null; fitDock(); return;
+  }
   if(desk){
     app.innerHTML = topbar() + `<div class="desk-grid"><div class="desk-left">${sheetHTML()}</div>
       <aside class="desk-right">${playersHTML()}${G.over?overHTML():''}${!ready()?waitingHTML():''}${G.over?reactDockHTML():dockHTML()}${kbHintHTML()}</aside></div>`;
@@ -2348,17 +2422,17 @@ let lastDesk=null;
 window.addEventListener('resize', ()=>{ const d=isDesk(); if(d!==lastDesk){ lastDesk=d; render(); } else fitDock(); });
 function topbar(){
   return `<div class="topbar"><button class="iconbtn" data-act="lobby" aria-label="Tillbaka">‹</button>
-    <div class="tb-title">Stjärndelfin <b>Yatzy</b>${mode==='online'&&gameId?` · ${esc(gameId)}`:''}${mode==='online'?`<div class="net ns-${net}">${netText()}</div>`:''}</div>
+    <div class="tb-title">${isKind()?`${gIcon()} <b>${gName()}</b>`:'🎲 <b>Yatzy</b>'}${mode==='online'&&gameId?` · ${esc(gameId)}`:''}${mode==='online'?`<div class="net ns-${net}">${netText()}</div>`:''}</div>
     <button class="iconbtn ${spPlaying?'sp-on':''}" data-act="sptoggle" aria-label="Musik" style="margin-right:-2px">🎵</button><button class="iconbtn" data-act="settings" aria-label="Inställningar">⚙️</button></div>`;
 }
 function lobbyHTML(){
-  let h = topbarLobby() + `<div class="lobby"><div class="lob-hero"><div class="logo">${DOLPHIN('lg','#a5f3ff','#7c6cff').replace('<svg','<svg class="big"')}
-    <h1>Stjärndelfin<small>YATZY</small></h1></div>
-    <div class="tag">Rymden · Havet · Fem tärningar</div>
+  let h = topbarLobby() + `<div class="lobby"><div class="lob-hero"><div class="logo brand">${DOLPHIN('lg','#a5f3ff','#7c6cff').replace('<svg','<svg class="big"')}
+    <h1>Fröknarna Leins</h1><div class="gb">GAME BOARD</div><div class="leoband"></div></div>
+    <div class="tag">Rymden · Havet · Leopard · Spel för stjärnor</div>
     <div class="getwell">Krya på dig! 💙🐬</div></div><div class="lob-menu">`;
   if(mode==='online' && G){
     const st = G.started===false ? `${G.names.length} spelare · väntar på start` : G.cur===mySeat ? '<b style="color:var(--gold)">Din tur!</b>' : `${esc(pname(G.cur))}s tur`;
-    h += `<div class="bgcard"><div style="font-size:26px">🎲</div><div class="t"><b>Yatzy ${esc(gameId)} pågår</b><span>${st}</span></div><button data-act="backtogame">Tillbaka</button><button class="lv" data-act="leavegame">Lämna</button></div>`;
+    h += `<div class="bgcard"><div style="font-size:26px">${gIcon()}</div><div class="t"><b>${gName()} ${esc(gameId)} pågår</b><span>${st}</span></div><button data-act="backtogame">Tillbaka</button><button class="lv" data-act="leavegame">Lämna</button></div>`;
   } else try{
     const n=JSON.parse(lsGet('ry_net')), s=JSON.parse(lsGet('ry_net_state'));
     if(n && n.code && !(s && s.over)){
@@ -2366,22 +2440,20 @@ function lobbyHTML(){
       h += `<button class="bigbtn" data-act="resumenet">↩︎ Fortsätt spelet ${esc(n.code)} mot ${esc(other)}</button>`;
     }
   }catch(e){}
-  h += `<h2 class="sec">Varsin enhet</h2>
-    <div class="duo"><button class="bigbtn" data-act="newonline">🚀 Skapa spel</button>
-    <button class="bigbtn" data-act="joinonline" style="background:linear-gradient(135deg,#2dd4bf,#3b82f6 60%,#6366f1)">🔗 Gå med i spel</button></div>
-    <div class="note">Den ena skapar spelet och får en kod. Den andra trycker <b>Gå med</b> och skriver in koden. Mobilerna pratar direkt med varandra – båda behöver internet, ingen inloggning.</div>
-    <h2 class="sec">På den här ${isDesk()?'datorn':'mobilen'}</h2>`;
-  if(lsGet('ry_local')){ try{ const g=JSON.parse(lsGet('ry_local'));
-    if(g && !g.over) h+=`<button class="bigbtn" data-act="resumelocal">↩︎ Fortsätt ${g.names.length===1?'ensamspelet ('+esc(g.names[0])+')':esc(g.names.join(' vs '))}</button>`; }catch(e){} }
-  h += `<button class="bigbtn alt" data-act="newai">🤖 Spela mot Blixt (datorn)</button>
-    <button class="bigbtn alt" data-act="newsolo">🧑‍🚀 Spela ensam</button>
-    <button class="bigbtn alt" data-act="newlocal">📱 Flera på samma ${isDesk()?'skärm':'mobil'} (2–4)</button>
-    <h2 class="sec">Patiens · ensam & offline</h2>
-    <button class="bigbtn alt" data-act="opensol">🃏 ${(()=>{ const sv=S||solLoad(); return sv && !sv.won && sv.started ? 'Fortsätt patiensen' : 'Spela patiens'; })()}</button>
-    <h2 class="sec">Statistik</h2>
-    <button class="bigbtn alt" data-act="stats">📊 Statistik & rekord</button>`;
+  const svSol=S||solLoad(), invS=(typeof INV!=='undefined')?INV.stats():{best:0};
+  h += `<h2 class="sec"><span class="leopill"><i>🐆</i>Välj spel</span></h2>
+    <div class="tiles">
+      <button class="tile" style="--tg:linear-gradient(135deg,#22d3ee,#6366f1 60%,#a855f7)" data-act="yatzymenu"><span class="ti">🎲</span><b>Yatzy</b><small>1–4 spelare · online, datorn eller samma mobil</small></button>
+      <button class="tile leo" data-act="opensol"><span class="ti">🃏</span><b>Patiens</b><small>Ensam · offline</small>${svSol && !svSol.won && svSol.started?'<span class="badge">↩︎ fortsätt</span>':''}</button>
+      <button class="tile" style="--tg:linear-gradient(135deg,#0ea5e9,#1e3a8a)" data-act="gmenu" data-k="ships"><span class="ti">🚢</span><b>Sänka skepp</b><small>Mot datorn eller en kompis</small></button>
+      <button class="tile" style="--tg:linear-gradient(135deg,#c026d3,#ec4899)" data-act="gmenu" data-k="mm"><span class="ti">🔮</span><b>Mastermind</b><small>Knäck den hemliga färgkoden</small></button>
+      <button class="tile" style="--tg:linear-gradient(135deg,#f59e0b,#ef4444)" data-act="gmenu" data-k="hang"><span class="ti">🪢</span><b>Hänga gubbe</b><small>Gissa ordet innan gubben hängs</small></button>
+      <button class="tile" style="--tg:linear-gradient(135deg,#16a34a,#0f172a 75%)" data-act="openinv"><span class="ti">👾</span><b>Space Invaders</b><small>Ensam · 100+ nivåer</small>${invS.best?`<span class="badge">🏆 ${invS.best}</span>`:''}</button>
+    </div>
+    <div class="chipsrow"><button class="bigbtn" data-act="joinonline" style="background:linear-gradient(135deg,#2dd4bf,#3b82f6 60%,#6366f1)">🔗 Gå med i spel med kod</button></div>
+    <div class="chipsrow"><button class="bigbtn alt" data-act="stats">📊 Statistik & rekord</button></div>`;
   const bf=bestList('free')[0], bd=bestList('down')[0];
-  if(bf||bd) h += `<div class="note" style="margin-top:6px">🏆 Rekord ensam: ${bf?`<b>${bf.s}</b> valfritt (${esc(bf.n)})`:''}${bf&&bd?' · ':''}${bd?`<b>${bd.s}</b> i ordning (${esc(bd.n)})`:''}</div>`;
+  if(false) h += `<div class="note" style="margin-top:6px">🏆 Rekord ensam: ${bf?`<b>${bf.s}</b> valfritt (${esc(bf.n)})`:''}${bf&&bd?' · ':''}${bd?`<b>${bd.s}</b> i ordning (${esc(bd.n)})`:''}</div>`;
   return h + '</div></div>';
 }
 function topbarLobby(){
@@ -2407,12 +2479,12 @@ function playersHTML(){
 function waitingHTML(){
   if(mode!=='online') return '';
   const isHost=role==='host', n=G.names.length;
-  const inviteBtn = /^https?:$/.test(location.protocol) && n<MAXP ? `<button class="bigbtn alt" data-act="invite" style="margin-top:10px">📤 Skicka inbjudningslänk</button>` : '';
+  const inviteBtn = /^https?:$/.test(location.protocol) && n<maxP() ? `<button class="bigbtn alt" data-act="invite" style="margin-top:10px">📤 Skicka inbjudningslänk</button>` : '';
   return `<div class="waiting"><div style="font-size:34px">🔭</div>
     <div>Spelkod</div><div class="code">${esc(gameId||'')}</div>
-    <div class="lobbyp">${G.names.map((nm,i)=>`<span class="${i===mySeat?'me':''}">${i===0?'👑 ':'🐬 '}${esc(nm)}</span>`).join('')}${Array.from({length:MAXP-n},()=>'<span class="empty">ledig plats</span>').join('')}</div>
+    <div class="lobbyp">${G.names.map((nm,i)=>`<span class="${i===mySeat?'me':''}">${i===0?'👑 ':'🐬 '}${esc(nm)}</span>`).join('')}${Array.from({length:Math.max(0,maxP()-n)},()=>'<span class="empty">ledig plats</span>').join('')}</div>
     ${isHost ? `<button class="bigbtn" data-act="startgame" ${n<2?'disabled':''} style="margin-top:12px">▶️ Starta spelet${n>=2?` med ${n} spelare`:''}</button>${inviteBtn}
-       <div style="color:var(--dim);font-size:13px;margin-top:8px">${n<2?'Vänta på att någon går med. ':''}Upp till ${MAXP} spelare. De andra trycker <b>🔗 Gå med i spel</b> och skriver koden.</div>`
+       <div style="color:var(--dim);font-size:13px;margin-top:8px">${n<2?'Vänta på att någon går med. ':''}${maxP()===2?'Två spelare.':'Upp till 4 spelare.'} De andra trycker <b>🔗 Gå med i spel</b> och skriver koden.</div>`
      : `<div style="margin-top:10px">${mySeat===null?'Ansluter…':`Väntar på att <b>${esc(pname(0))}</b> startar spelet… 🐬`}</div>`}
     <div style="font-size:13px;margin-top:8px">${netText()}</div></div>`;
 }
@@ -2506,6 +2578,9 @@ document.addEventListener('click', e=>{
     case 'pick': pick(b.dataset.k); break;
     case 'help': toast(b.dataset.k==='bonus' ? `Bonus: får du ${bonusLimit(G&&G.order)} eller mer i övre delen blir det +50!${G&&G.order==='down'?' (42 när man spelar i ordning)':''}` : HELP[b.dataset.k],3500); break;
     case 'settings': showSettings(); break;
+    case 'yatzymenu': showYatzyMenu(); break;
+    case 'gmenu': showGameMenu(b.dataset.k); break;
+    case 'openinv': openInv(); break;
     case 'opensol': openSol(); break;
     case 'solnew': showSolNew(false); break;
     case 'solstart': case 'solnewsame': solStartNew(); break;
@@ -2559,7 +2634,7 @@ document.addEventListener('click', e=>{
     case 'stats': armedReset=false; if(view==='game' && mode==='online'){ goLobby(); } openStats(); break;
     case 'statswho': statsWho=b.dataset.n; render(); break;
     case 'showresult': if(G && G.over) openModal(resultHTML()); break;
-    case 'resetstats': if(!armedReset){ armedReset=true; render(); setTimeout(()=>{ armedReset=false; if(view==='stats') render(); },3500); } else { armedReset=false; saveStats({games:[]}); toast('Statistiken är rensad'); render(); } break;
+    case 'resetstats': if(!armedReset){ armedReset=true; render(); setTimeout(()=>{ armedReset=false; if(view==='stats') render(); },3500); } else { armedReset=false; saveStats({games:[]}); lsSet('ry_stats2',''); toast('Statistiken är rensad'); render(); } break;
     case 'create': { const n=val('nm'); if(!n){ toast('Skriv ditt namn 🐬'); return; } lsSet('ry_name',n); closeModal(); hostGame(n, chosenOrder); break; }
     case 'join': { const c=val('cd').toUpperCase(), n=val('nm'); if(c.length!==4){ toast('Koden har fyra tecken 🔭'); return; } if(!n){ toast('Skriv ditt namn 🐬'); return; } lsSet('ry_name',n); closeModal(); joinGame(c,n); break; }
     case 'local': { const a0=val('n0')||'Spelare 1', a1=val('n1')||'Spelare 2'; lsSet('ry_name',a0); closeModal(); startLocal([a0,a1],chosenOrder,null); break; }
@@ -2590,6 +2665,7 @@ document.addEventListener('keydown',e=>{
   }
   if(view!=='game' || !G) return;
   if(e.key==='e' || e.key==='E'){ trayOpen=!trayOpen; render(); return; }
+  if(G.kind && G.kind!=='yatzy') return;
   if(e.key===' ' || e.code==='Space'){
     e.preventDefault(); if(document.activeElement && document.activeElement!==document.body) document.activeElement.blur();
     unlockAudio(); doRoll(); return;
@@ -2619,5 +2695,7 @@ window.addEventListener('storage',e=>{ if(e.key==='ry_spauth'){ spUser=null; spL
 document.addEventListener('visibilitychange',()=>{ if(document.visibilityState==='visible' && spAuth() && spOpen && !spUser) spInit(); });
 (function(){ const h=(location.hash||'').replace('#','').toUpperCase(); if(/^[A-Z0-9]{4}$/.test(h)) showJoin(h); })();
 </script>
+<script src="games.js"></script>
+<script src="invaders.js"></script>
 </body>
 </html>
