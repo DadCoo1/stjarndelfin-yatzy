@@ -14,8 +14,11 @@ const CHAT = (()=>{
   /* ---------- lagring ---------- */
   const NS='chat:';
   const BOTMODE = typeof BOT!=='undefined' && BOT;     // den här sidan ÄR testkompisen (osynlig ram)
+  const CHATWIN = !BOTMODE && /[?&]chat=1/.test(location.search);   // chatten i eget fönster/flik
+  let panelOpen=false, owner=true;
+  const vis = () => (CHATWIN || panelOpen);
   const ld=(k,d)=>{ try{ const v=JSON.parse(lsGet(NS+k)); return v===null||v===undefined?d:v; }catch(e){ return d; } };
-  const sv=(k,v)=>lsSet(NS+k, JSON.stringify(v));
+  const sv=(k,v)=>{ if(owner) lsSet(NS+k, JSON.stringify(v)); };   // bara fliken som äger chatten skriver
   const te=new TextEncoder(), td=new TextDecoder();
   const b64=u=>{ u=new Uint8Array(u); let s=''; for(let i=0;i<u.length;i++) s+=String.fromCharCode(u[i]); return btoa(s); };
   const ub64=s=>Uint8Array.from(atob(s),c=>c.charCodeAt(0));
@@ -70,7 +73,7 @@ const CHAT = (()=>{
   async function remember(card){ if(!(await okCard(card)) || card.id===ME?.id) return false; card=normCard(card);
     const ks=Object.keys(known); if(!known[card.id] && ks.length>800){ const drop=ks.find(k=>!contacts[k] && !friends[k]); if(drop) delete known[drop]; }
     known[card.id]={...card, bot:known[card.id]?.bot}; if(contacts[card.id]){ contacts[card.id]={...contacts[card.id], name:card.name, emoji:card.emoji}; } saveC(); return true; }
-  async function seenCards(cards, where){ if(!ME || !Array.isArray(cards)) return; let added=0; for(const c of cards.slice(0,8)){ if(c && c.id!==ME.id && await remember(c) && !contacts[c.id]){ friends[c.id]={card:normCard(c), where:where||'spel', seen:Date.now()}; added++; } } saveC(); if(added && view==='chat') refresh(); }
+  async function seenCards(cards, where){ if(!ME || !Array.isArray(cards)) return; let added=0; for(const c of cards.slice(0,8)){ if(c && c.id!==ME.id && await remember(c) && !contacts[c.id]){ friends[c.id]={card:normCard(c), where:where||'spel', seen:Date.now()}; added++; } } saveC(); if(added && vis()) refresh(); }
   function addContact(id, vl){ const c=cardOf(id); if(!c) return; const was=contacts[id]; contacts[id]={...normCard(c), added:was?.added||Date.now(), vl:Math.max(was?.vl||0, vl || (friends[id]?2:1)), vAt:was?.vAt, bot:was?.bot}; delete friends[id]; blocked=blocked.filter(x=>x!==id); const cv=convs['d:'+id]; if(cv) cv.request=false; saveC(); saveConvs(); refresh(); connectTo(id); }
   function block(id){ if(!blocked.includes(id)) blocked.push(id); delete contacts[id]; delete convs['d:'+id]; saveC(); saveConvs(); refresh(); }
   async function safetyNumber(id){ const c=cardOf(id); if(!c) return '–'; const ks=[ME.ik.pub,c.ik].sort();
@@ -186,7 +189,7 @@ const CHAT = (()=>{
     if(k!=='queued' && !T[k]) T[k]=t;
     if((k==='delivered'||k==='read') && !T.sent) T.sent=t;
     if(k==='read' && !T.delivered) T.delivered=t;
-    saveConvs(); if(view==='chat') refreshMsgs(cid); infoLive(cid,mid);
+    saveConvs(); if(vis()) refreshMsgs(cid); infoLive(cid,mid);
   }
   function aggStatus(m, cid){ const r=recipients(cid); if(!r.length) return 'read'; const vals=r.map(id=>(m.st||{})[id]||'queued'); const rank={queued:0,sent:1,relayed:1,delivered:2,read:3};
     const min=Math.min(...vals.map(v=>rank[v])); return ['queued','sent','delivered','read'][min]; }
@@ -218,7 +221,7 @@ const CHAT = (()=>{
   const CPREFIX='fl-chat-v1-'+(DEV?'dev-':'');
   let cpeer=null; const conns=new Map(), connecting=new Map(), lastSeen=ld('lastseen',{}), typing={};
   function startTransport(){
-    if(BOTMODE || cpeer || !ME || typeof Peer==='undefined') return;
+    if(!owner || BOTMODE || cpeer || !ME || typeof Peer==='undefined') return;
     const p=cpeer=new Peer(CPREFIX+ME.id, peerOpts());
     p.on('open',()=>{ flushAll(); presenceSweep(); });
     p.on('connection',c=>attach(c,null));
@@ -240,7 +243,7 @@ const CHAT = (()=>{
   function attach(c, id){
     c.on('open',()=>{ c._n=uid()+uid(); sendRaw(c,{t:'hi', card:myCard(), n:c._n}); });
     c.on('data',d=>{ if(typeof d!=='string' || d.length>300000) return; let m; try{ m=JSON.parse(d); }catch(e){ return; } if(!m || typeof m!=='object' || Array.isArray(m)) return; onData(c,m).catch(()=>{}); });
-    c.on('close',()=>{ if(c._id && conns.get(c._id)===c){ conns.delete(c._id); lastSeen[c._id]=Date.now(); sv('lastseen',lastSeen); if(view==='chat') refreshHead(); } });
+    c.on('close',()=>{ if(c._id && conns.get(c._id)===c){ conns.delete(c._id); lastSeen[c._id]=Date.now(); sv('lastseen',lastSeen); if(vis()) refreshHead(); } });
     c.on('error',()=>{});
   }
   // Bevis på att motparten äger sin identitetsnyckel: HMAC med den gemensamma DH-hemligheten över vår slumpade utmaning.
@@ -282,7 +285,7 @@ const CHAT = (()=>{
       conns.set(c._id,c); connecting.delete(c._id); lastSeen[c._id]=Date.now(); outbox.forEach(o=>{ if(o.to===c._id && !o.acked) o.lastSend=0; });
       flushTo(c._id);
       relayQ.filter(r=>r.to===c._id).forEach(r=>sendRaw(c,r.env)); relayQ=relayQ.filter(r=>r.to!==c._id); saveConvs();
-      if(view==='chat') refresh();
+      if(vis()) refresh();
       return;
     }
   }
@@ -295,7 +298,7 @@ const CHAT = (()=>{
       sendRaw(c,{t:'rack', mid:m.env.mid, to:m.to}); connectTo(m.to); return; }
     if(m.t==='rack'){ if(!isH(m.mid) || !isH(m.to)) return; const o=outbox.find(x=>x.mid===m.mid && x.to===m.to); if(o && o.status==='queued'){ o.status='relayed'; if(!o.ctl) markStatus(o.cid||'',o.mid,o.to,'relayed'); saveConvs(); } return; }
     if(m.t==='typing'){ if(!(m.conv==='dm' || (typeof m.conv==='string' && /^g:[0-9a-f]{16}$/.test(m.conv) && GROUPS[m.conv.slice(2)]?.members.includes(c._id)))) return;
-      typing[m.conv==='dm'?'d:'+c._id:m.conv]={who:c._id, until:Date.now()+4000}; if(view==='chat') refreshHead(); setTimeout(()=>{ if(view==='chat') refreshHead(); },4100); return; }
+      typing[m.conv==='dm'?'d:'+c._id:m.conv]={who:c._id, until:Date.now()+4000}; if(vis()) refreshHead(); setTimeout(()=>{ if(vis()) refreshHead(); },4100); return; }
   }
   async function receiveEnv(env, c){
     if(!env || typeof env!=='object' || !isH(env.mid) || !isH(env.from) || env.from===ME.id || blocked.includes(env.from) || typeof env.ct!=='string' || env.ct.length>250000) return;
@@ -342,12 +345,12 @@ const CHAT = (()=>{
         if(typing[cid] && typing[cid].who===from) delete typing[cid];
         if(addMsg(cid,m)){
           const orph=orphans[m.mid]; if(orph && orph.from===from){ delete orphans[m.mid]; sv('orph',orphans); applyChange(cid,m,orph.p,true); }
-          const open = !BOTMODE && view==='chat' && openCid===cid && !document.hidden;
+          const open = !BOTMODE && vis() && openCid===cid && !document.hidden;
           if(!open){ c.unread=(c.unread||0)+1; if(!BOTMODE) notifyMsg(cid, from, m); }
           else { m.readAt=Date.now(); m.readSent=true; sendReceipt(from,[m.mid],'read', env.gid); }
           if(BOTMODE) botOnMsg(cid, from, m, env.gid);
           if(!open) sendReceipt(from,[m.mid],'delivered', env.gid);
-          saveConvs(); if(view==='chat') refresh(); else if(view==='lobby') render();
+          saveConvs(); if(vis()) refresh(); else if(view==='lobby') render();
         }
         break; }
       case 'receipt': {
@@ -355,15 +358,15 @@ const CHAT = (()=>{
         if(!Array.isArray(p.mids)) return;
         p.mids.slice(0,500).filter(isH).forEach(mid=>{ markStatus(cid, mid, from, p.kind==='read'?'read':'delivered', +p.at||0); outbox=outbox.filter(o=>!(o.mid===mid && o.to===from)); });
         saveConvs(); break; }
-      case 'react': { if(!isH(p.target) || !(p.emoji===null || REACTS.includes(p.emoji))) return; const cid = p.gid ? 'g:'+p.gid : 'd:'+from; const m=convs[cid]?.msgs.find(x=>x.mid===p.target); if(m){ m.reactions=m.reactions||{}; if(p.emoji) m.reactions[from]=p.emoji; else delete m.reactions[from]; saveConvs(); if(view==='chat') refreshMsgs(cid); } break; }
+      case 'react': { if(!isH(p.target) || !(p.emoji===null || REACTS.includes(p.emoji))) return; const cid = p.gid ? 'g:'+p.gid : 'd:'+from; const m=convs[cid]?.msgs.find(x=>x.mid===p.target); if(m){ m.reactions=m.reactions||{}; if(p.emoji) m.reactions[from]=p.emoji; else delete m.reactions[from]; saveConvs(); if(vis()) refreshMsgs(cid); } break; }
       case 'edit': case 'revoke': {
         if(!isH(p.target)) return; if(p.type==='edit'){ p.text=cleanText(p.text,4000); if(!p.text) return; }
         const cid = p.gid ? 'g:'+p.gid : 'd:'+from; const m=convs[cid]?.msgs.find(x=>x.mid===p.target);
         if(!m){ orphans[p.target]={from,p:{type:p.type, text:p.text, at:p.at, gid:p.gid}}; const ks=Object.keys(orphans); if(ks.length>200) delete orphans[ks[0]]; sv('orph',orphans); break; }
         if(m.from!==from || m.out) break;
         applyChange(cid,m,p,false); break; }
-      case 'timer': { if(!TIMERS.some(t=>t[0]===p.secs)) return; const cid = p.gid ? 'g:'+p.gid : 'd:'+from; if(p.gid && !GROUPS[p.gid]?.members.includes(from)) return; const c=conv(cid); c.timer=p.secs; sysMsg(cid, `${nameOf(from)} ändrade försvinnande meddelanden till: ${timerName(c.timer)}`); if(view==='chat') refresh(); break; }
-      case 'profile': { if(known[from]){ known[from].name=cleanName(p.name,20)||known[from].name; known[from].emoji=cleanEmoji(p.emoji, known[from].emoji); } if(contacts[from]){ contacts[from].name=known[from].name; contacts[from].emoji=known[from].emoji; } saveC(); if(view==='chat') refresh(); break; }
+      case 'timer': { if(!TIMERS.some(t=>t[0]===p.secs)) return; const cid = p.gid ? 'g:'+p.gid : 'd:'+from; if(p.gid && !GROUPS[p.gid]?.members.includes(from)) return; const c=conv(cid); c.timer=p.secs; sysMsg(cid, `${nameOf(from)} ändrade försvinnande meddelanden till: ${timerName(c.timer)}`); if(vis()) refresh(); break; }
+      case 'profile': { if(known[from]){ known[from].name=cleanName(p.name,20)||known[from].name; known[from].emoji=cleanEmoji(p.emoji, known[from].emoji); } if(contacts[from]){ contacts[from].name=known[from].name; contacts[from].emoji=known[from].emoji; } saveC(); if(vis()) refresh(); break; }
       case 'ginfo': {
         const g=p.group; if(!g || typeof g!=='object' || !isH(g.id) || !Array.isArray(g.members) || g.members.length>64 || !g.members.every(isH)) return;
         const prev=GROUPS[g.id];
@@ -378,7 +381,7 @@ const CHAT = (()=>{
         if(!prev){ sysMsg('g:'+g.id, `${nameOf(from)} lade till dig i gruppen ”${GROUPS[g.id].name}”`); notifyMsg('g:'+g.id, from, {text:'Du lades till i gruppen'}); }
         else sysMsg('g:'+g.id, `${nameOf(from)} uppdaterade gruppen`);
         rotateMySK(g.id);
-        if(view==='chat') refresh();
+        if(vis()) refresh();
         break; }
       case 'skd': {
         if(!isH(p.gid) || !GROUPS[p.gid] || !GROUPS[p.gid].members.includes(from) || !isB64(p.ck,60) || !isN(p.iter,1e7) || !isB64(p.spub,120)) return;
@@ -393,7 +396,7 @@ const CHAT = (()=>{
   function applyChange(cid,m,p,quiet){
     if(p.type==='edit'){ if(m.revoked) return; m.text=String(p.text||'').slice(0,4000); m.edited=Math.min(+p.at||Date.now(),Date.now()); }
     else { m.revoked=true; m.revokedAt=Date.now(); m.text=''; m.invite=null; m.reactions={}; m.edited=0; }
-    saveConvs(); if(view==='chat') refresh(); infoLive(cid,m.mid);
+    saveConvs(); if(vis()) refresh(); infoLive(cid,m.mid);
     if(BOTMODE && !quiet) botOnChange(cid,m,p);
   }
 
@@ -448,12 +451,12 @@ const CHAT = (()=>{
     delete GROUPS[gid]; delete SKEYS[gid]; delete convs['g:'+gid]; saveG(); saveConvs(); openCid=null; refresh(); }
 
   /* ---------- försvinnande meddelanden ---------- */
-  setInterval(()=>{ const now=Date.now(); let ch=false; Object.values(convs).forEach(c=>{ const n=c.msgs.length; c.msgs=c.msgs.filter(m=>!m.expireAt || m.expireAt>now); if(c.msgs.length!==n) ch=true; }); if(ch){ saveConvs(); if(view==='chat') refresh(); } },15000);
+  setInterval(()=>{ if(!owner) return; const now=Date.now(); let ch=false; Object.values(convs).forEach(c=>{ const n=c.msgs.length; c.msgs=c.msgs.filter(m=>!m.expireAt || m.expireAt>now); if(c.msgs.length!==n) ch=true; }); if(ch){ saveConvs(); if(vis()) refresh(); } },15000);
   // närvaro: koppla upp mot kontakter med jämna mellanrum
   function presenceSweep(){ if(!ME) return; Object.keys(contacts).slice(0,25).forEach(connectTo); Object.values(GROUPS).forEach(g=>g.members.forEach(connectTo)); }
-  setInterval(()=>{ if(cpeer && cpeer.open && !document.hidden){ flushAll(); } },20000);
+  setInterval(()=>{ if(owner && cpeer && cpeer.open && !document.hidden){ flushAll(); } },20000);
   setInterval(()=>{ if(cpeer && cpeer.open && !document.hidden) presenceSweep(); },60000);
-  document.addEventListener('visibilitychange',()=>{ if(!document.hidden && ME){ startTransport(); if(cpeer && cpeer.disconnected){ try{ cpeer.reconnect() }catch(e){} } setTimeout(()=>{ flushAll(); presenceSweep(); },800); if(view==='chat' && openCid) markRead(openCid); } });
+  document.addEventListener('visibilitychange',()=>{ if(!document.hidden && ME && owner){ startTransport(); if(cpeer && cpeer.disconnected){ try{ cpeer.reconnect() }catch(e){} } setTimeout(()=>{ flushAll(); presenceSweep(); },800); if(vis() && openCid) markRead(openCid); } });
 
   /* ---------- aviseringar ---------- */
   function notifyMsg(cid, from, m){
@@ -505,8 +508,12 @@ const CHAT = (()=>{
   function tickHTML(st){ return st==='queued' ? '<i class="tk q">🕓</i>' : st==='sent' ? '<i class="tk">✓</i>' : st==='delivered' ? '<i class="tk">✓✓</i>' : '<i class="tk rd">✓✓</i>'; }
 
   function html(){
+    if(!owner) return `<div id="chatRoot" class="wa t-${theme}"><div class="wa-setup"><div class="wa-card"><div style="font-size:54px">💬↗️</div><h2>Chatten är öppen på annat håll</h2>
+      <p>Chatten används just nu i ett annat fönster eller en annan flik. Bara en i taget kan vara aktiv – annars kan krypteringsnycklarna komma i otakt.</p>
+      ${popupWin && !popupWin.closed ? '<button class="wa-btn" data-c="focuspop">Visa chattfönstret</button>':''}
+      <button class="wa-btn" data-c="steal" style="background:#475569">Använd chatten här i stället</button>${CHATWIN?'':'<button class="wa-link" data-c="hide">Tillbaka</button>'}</div></div></div>`;
     if(!ME) return `<div id="chatRoot" class="wa t-${theme}"><div class="wa-setup">${setupHTML()}</div></div>`;
-    return `<div id="chatRoot" class="wa t-${theme} ${openCid?'has-open':''}"><aside class="wa-side" id="waSide">${sideHTML()}</aside><main class="wa-main" id="waMain">${mainHTML()}</main></div>`;
+    return `<div id="chatRoot" class="wa t-${theme} ${openCid?'has-open':''} ${wide()?'wide':''}"><aside class="wa-side" id="waSide">${sideHTML()}</aside><main class="wa-main" id="waMain">${mainHTML()}</main></div>`;
   }
   function setupHTML(){
     return `<div class="wa-card"><div style="font-size:54px">💬🔒</div><h2>Fröknarnas chatt</h2>
@@ -514,7 +521,7 @@ const CHAT = (()=>{
       <label>Ditt namn i chatten</label><input id="waName" maxlength="20" value="${esc(lsGet('ry_name')||'')}" placeholder="Ditt namn">
       <label>Välj en profilbild</label><div class="wa-emos">${EMO.map((e,i)=>`<button data-c="emo" data-e="${e}" class="${i===0?'sel':''}">${e}</button>`).join('')}</div>
       <button class="wa-btn" data-c="create">Skapa mina krypteringsnycklar ✨</button>
-      <button class="wa-link" data-act="lobby">Tillbaka till lobbyn</button></div>`;
+      ${CHATWIN?'':'<button class="wa-link" data-c="hide">Tillbaka</button>'}</div>`;
   }
   function sideHTML(){
     const list = Object.values(convs).filter(c=>c.type==='dm' ? !blocked.includes(peerOfConv(c.id)) : !!GROUPS[c.id.slice(2)]).sort((a,b)=>(b.lastTs||0)-(a.lastTs||0));
@@ -535,7 +542,8 @@ const CHAT = (()=>{
         <div class="wa-sec">Kontakter${cs.length?` (${cs.length})`:''}</div>
         ${cs.length?cs.map(c=>`<button class="wa-row" data-c="opendm" data-id="${c.id}">${avatar(c.emoji,c.id,'',conns.has(c.id))}<span class="wa-rt"><b>${esc(nameOf(c.id))}${vdots(c.id)}</b><small class="wa-sub">${c.bot?'🤖 testkompis · ':''}${conns.has(c.id)?'online':'🔒 krypterad'}</small></span></button>`).join(''):'<div class="wa-empty">Spela ett onlinespel med någon – då dyker de upp här som spelkompisar.</div>'}`;
     }
-    return `<div class="wa-head"><button class="wa-ib" data-act="lobby" aria-label="Lobby">‹</button><b class="wa-title">Chattar</b>
+    return `<div class="wa-head">${CHATWIN?'':`<button class="wa-back" data-c="hide" aria-label="Tillbaka till ${view==='lobby'?'lobbyn':'spelet'}">‹ <span>${view==='lobby'?'Lobby':'Spelet'}</span></button>`}<b class="wa-title">Chattar</b>
+        ${!CHATWIN && navigator.locks ? '<button class="wa-ib" data-c="popout" aria-label="Öppna i eget fönster" title="Öppna chatten i eget fönster">⧉</button>':''}
         <button class="wa-ib" data-c="theme" aria-label="Tema">🎨</button><button class="wa-ib" data-c="profile" aria-label="Profil">${esc(ME.emoji)}</button></div>
       <div class="wa-tabs"><button class="${tab==='chats'?'on':''}" data-c="tab" data-t="chats">Chattar${totalUnread()?` <i class="wa-badge">${totalUnread()}</i>`:''}</button><button class="${tab==='contacts'?'on':''}" data-c="tab" data-t="contacts">Kontakter</button></div>
       <div class="wa-list">${body}</div>
@@ -553,7 +561,7 @@ const CHAT = (()=>{
     return `<div class="wa-convwrap t-${th}">
       <div class="wa-head conv"><button class="wa-ib back" data-c="close" aria-label="Tillbaka">‹</button>${convAvatar(openCid,'sm')}
         <button class="wa-ht" data-c="info"><b>${esc(convTitle(openCid))}${openCid.startsWith('d:')?vdots(peerOfConv(openCid)):''}</b><small id="waStatus">${headStatus(openCid)}</small></button>
-        <button class="wa-ib" data-c="invite" aria-label="Bjud in till spel">🎮</button><button class="wa-ib" data-c="info" aria-label="Meny">⋮</button></div>
+        <button class="wa-ib" data-c="invite" aria-label="Bjud in till spel">🎮</button>${!CHATWIN && navigator.locks && window.innerWidth>=700 ? '<button class="wa-ib" data-c="popout" aria-label="Öppna i eget fönster" title="Öppna chatten i eget fönster">⧉</button>':''}<button class="wa-ib" data-c="info" aria-label="Meny">⋮</button></div>
       ${c.request?`<div class="wa-req">${esc(nameOf(peerOfConv(openCid)))} finns inte bland dina kontakter. <button data-c="addc" data-id="${peerOfConv(openCid)}">Lägg till</button><button data-c="block" data-id="${peerOfConv(openCid)}">Blockera</button></div>`:''}
       <div class="wa-msgs" id="waMsgs">${msgsHTML(openCid)}</div>
       ${pickerOpen?emojiPickerHTML():''}
@@ -593,10 +601,14 @@ const CHAT = (()=>{
 
   /* ---------- uppdatering utan att tappa det man skriver ---------- */
   function refresh(){
-    const root=document.getElementById('chatRoot'); if(!root || view!=='chat') return;
+    updateBadges();
+    if(!vis()) return;
+    const root=document.getElementById('chatRoot');
+    if(!root){ const pn=document.getElementById('chatPanel'); if(pn){ pn.innerHTML=html(); mount(); } return; }
+    if(!owner || (root.querySelector('.wa-setup') && ME)){ root.outerHTML=html(); mount(); return; }
     if(!ME){ root.innerHTML=`<div class="wa-setup">${setupHTML()}</div>`; return; }
     if(!document.getElementById('waSide')){ root.outerHTML=html(); mount(); return; }
-    root.className=`wa t-${theme} ${openCid?'has-open':''}`;
+    root.className=`wa t-${theme} ${openCid?'has-open':''} ${wide()?'wide':''}`;
     const side=document.getElementById('waSide'), st=side.querySelector('.wa-list')?.scrollTop||0; side.innerHTML=sideHTML(); const nl=side.querySelector('.wa-list'); if(nl) nl.scrollTop=st;
     const main=document.getElementById('waMain'), ta=document.getElementById('waText');
     const sameConv = main.dataset.cid===String(openCid) && ta && !!pickerOpen===!!main.querySelector('.wa-picker') && !!convs[openCid]?.request===!!main.querySelector('.wa-req') && !!(editing&&editing.cid===openCid)===!!main.querySelector('.wa-edit');
@@ -608,8 +620,8 @@ const CHAT = (()=>{
   function scrollBottom(instant){ const box=document.getElementById('waMsgs'); if(box) requestAnimationFrame(()=>{ box.scrollTop=box.scrollHeight; }); }
   function autoGrow(){ const ta=document.getElementById('waText'); if(!ta) return; ta.style.height='auto'; ta.style.height=Math.min(140,ta.scrollHeight)+'px'; }
   function mount(){ const main=document.getElementById('waMain'); if(main) main.dataset.cid=openCid||''; scrollBottom(true); autoGrow(); if(openCid) markRead(openCid); }
-  function openConv(cid){ openCid=cid; pickerOpen=false; menuFor=null; editing=null; const c=conv(cid); c.unread=0; saveConvs(); if(view==='chat'){ refresh(); markRead(cid); } }
-  function openChat(cid){ closeModal(); if(typeof INV!=='undefined') INV.stop(); view='chat'; if(cid){ openCid=cid; conv(cid); pickerOpen=false; menuFor=null; } const r=document.getElementById('chatRoot'); if(r) r.remove(); render(); if(cid){ conv(cid).unread=0; markRead(cid); } }
+  function openConv(cid){ openCid=cid; pickerOpen=false; menuFor=null; editing=null; const c=conv(cid); c.unread=0; saveConvs(); if(vis()){ refresh(); markRead(cid); } }
+  function openChat(cid){ closeModal(); openPanel(cid); }
 
   /* ---------- QR-verifiering (som i Threema: tre prickar) ---------- */
   const VL={1:{t:'Okänd nyckel',d:'Lades till via länk eller meddelande. Ingen har kontrollerat att nyckeln verkligen tillhör personen.'},
@@ -739,7 +751,7 @@ const CHAT = (()=>{
       await onData(botLink,{t:'hi',card});
       if(botFirst){ botFirst=false; openChat('d:'+card.id); }
     } else if(e.data.fl==='link'){ try{ onData(botLink, JSON.parse(e.data.d)); }catch(_){} }
-    else if(e.data.fl==='down'){ botLink.open=false; const id=botLink._id; if(id && conns.get(id)===botLink){ conns.delete(id); lastSeen[id]=Date.now(); sv('lastseen',lastSeen); if(view==='chat') refresh(); } }
+    else if(e.data.fl==='down'){ botLink.open=false; const id=botLink._id; if(id && conns.get(id)===botLink){ conns.delete(id); lastSeen[id]=Date.now(); sv('lastseen',lastSeen); if(vis()) refresh(); } }
   });
   // ---- testkompisens eget beteende (körs inne i ramen) ----
   let botDown=false, botQuiet=ld('botquiet',false);
@@ -797,6 +809,96 @@ const CHAT = (()=>{
     if(p.type==='edit') botSay(cid,`✏️ Jag såg att du ändrade till: ”${m.text.slice(0,80)}”`,900);
     else botSay(cid,'👀 Där försvann ett meddelande!',900);
   }
+
+  /* =====================================================================
+     SIDOPANEL + EGET FÖNSTER
+     ===================================================================== */
+  const wide = () => CHATWIN && window.innerWidth>=820;
+  const dockable = () => !CHATWIN && window.innerWidth>=1100 && window.innerHeight>=520;
+  let popupWin=null, chatHist=false;
+  function buildChrome(){
+    if(BOTMODE || document.getElementById('chatPanel')) return;
+    const tab=document.createElement('button'); tab.id='chatTab'; tab.className='chat-tab'; tab.dataset.c='toggle'; tab.setAttribute('aria-label','Chatt');
+    tab.innerHTML='💬<i class="cbadge" data-cbadge></i>';
+    const pn=document.createElement('aside'); pn.id='chatPanel'; pn.className='chat-panel'; pn.setAttribute('aria-label','Chatt');
+    document.body.append(tab,pn);
+    if(CHATWIN){ document.body.classList.add('chatwin'); document.title='💬 Chatt · Fröknarna Leins'; panelOpen=true; pn.classList.add('open'); pn.innerHTML=html(); mount(); }
+    updateBadges();
+  }
+  function setDock(){
+    const was=document.body.classList.contains('chatdock'), now=panelOpen && dockable();
+    document.body.classList.toggle('chatdock', now); document.body.classList.toggle('chatopen', panelOpen && !CHATWIN);
+    if(was!==now) window.dispatchEvent(new Event('resize'));          // spelet räknar om sin layout
+  }
+  function openPanel(cid){
+    buildChrome();
+    if(cid){ openCid=cid; conv(cid); pickerOpen=false; menuFor=null; editing=null; }
+    const pn=document.getElementById('chatPanel');
+    if(!panelOpen){
+      panelOpen=true;
+      if(typeof spOpen!=='undefined' && spOpen && typeof spToggle==='function') spToggle(false);
+      if(!dockable() && !CHATWIN){ try{ history.pushState({flchat:1},''); chatHist=true; }catch(e){} }   // mobilens bakåtknapp stänger chatten
+    }
+    pn.classList.add('open'); setDock();
+    pn.innerHTML=html(); mount();
+    if(openCid && convs[openCid]){ convs[openCid].unread=0; markRead(openCid); }
+    updateBadges();
+  }
+  function closePanel(fromPop){
+    if(CHATWIN || !panelOpen) return;
+    panelOpen=false; stopScan(); if(document.getElementById('modal')?.classList.contains('show')) closeModal();
+    const pn=document.getElementById('chatPanel'); if(pn){ pn.classList.remove('open'); setTimeout(()=>{ if(!panelOpen) pn.innerHTML=''; },380); }
+    setDock();
+    if(chatHist && !fromPop){ chatHist=false; try{ if(history.state && history.state.flchat) history.back(); }catch(e){} } else chatHist=false;
+    if(typeof render==='function' && view==='lobby') render();
+  }
+  window.addEventListener('popstate',()=>{ if(panelOpen && !CHATWIN){ chatHist=false; closePanel(true); } });
+  window.addEventListener('resize',()=>{ if(BOTMODE) return; if(panelOpen) setDock(); const r=document.getElementById('chatRoot'); if(r && CHATWIN) r.classList.toggle('wide', wide()); });
+  function updateBadges(){ if(BOTMODE) return; const n=totalUnread(); document.querySelectorAll('[data-cbadge]').forEach(el=>{ el.textContent=n?String(n>99?'99+':n):''; el.classList.toggle('on',n>0); }); }
+  setInterval(updateBadges,1500);
+  function popout(){
+    const w=window.open(location.pathname+'?chat=1','flchat','popup=yes,width=460,height=820');
+    if(!w){ toast('Webbläsaren stoppade fönstret – tillåt popup-fönster för sidan 🙏',4000); return; }
+    popupWin=w; closePanel(); toast('Chatten öppnas i ett eget fönster 💬',2500);
+  }
+
+  // ---- bara EN flik i taget driver chatten (Web Locks) ----
+  const LOCK='fl-chat-engine:'+(typeof LSP!=='undefined'?LSP:'');
+  let waiting=false;
+  function setOwner(o){
+    if(o===owner) return;
+    owner=o;
+    if(!o){
+      try{ if(cpeer) cpeer.destroy(); }catch(e){} cpeer=null; conns.clear(); connecting.clear();
+      if(botFrame){ botFrame.remove(); botFrame=null; }
+    } else {
+      reloadAll(); if(ME){ startTransport(); if(DEV && ld('bot',false)) spawnBot(false); }
+    }
+    if(vis()){ const pn=document.getElementById('chatPanel'); if(pn){ pn.innerHTML=html(); mount(); } }
+    updateBadges();
+  }
+  function reloadAll(){
+    ME=ld('me',null); contacts=ld('contacts',{}); known=ld('known',{}); friends=ld('friends',{}); blocked=ld('blocked',[]);
+    SESS=ld('sess',{}); GROUPS=ld('groups',{}); SKEYS=ld('skeys',{}); convs=ld('convs',{}); outbox=ld('outbox',[]); relayQ=ld('relay',[]);
+    seen=new Set(ld('seen',[])); orphans=ld('orph',{}); kc.clear(); locks.clear(); skLock.clear();
+  }
+  const hold = () => new Promise(()=>{});                       // låset hålls tills fliken stängs eller någon tar över
+  function waitTurn(){ if(waiting) return; waiting=true;
+    navigator.locks.request(LOCK, ()=>{ waiting=false; setOwner(true); return hold(); }).catch(()=>{ waiting=false; setOwner(false); waitTurn(); }); }
+  function claim(steal){
+    if(BOTMODE || !navigator.locks){ owner=true; return; }
+    navigator.locks.request(LOCK, steal?{steal:true}:{ifAvailable:true}, lock=>{
+      if(!lock){ setOwner(false); waitTurn(); return; }
+      setOwner(true); return hold();
+    }).catch(()=>{ setOwner(false); waitTurn(); });      // någon annan tog över (AbortError)
+  }
+  // passiv flik: håll olästa-märket aktuellt och säg till om nya meddelanden
+  window.addEventListener('storage',e=>{
+    if(owner || BOTMODE || e.key!==LSP+NS+'convs') return;
+    const before=totalUnread(); try{ convs=JSON.parse(e.newValue)||{}; }catch(_){ return; }
+    const after=totalUnread(); updateBadges();
+    if(after>before) notice({icon:'💬', title:'Nytt chattmeddelande', text:'Det finns i chattfönstret', actions:[{label:'Visa', run:()=>{ if(popupWin && !popupWin.closed) popupWin.focus(); else openPanel(); }}], ms:7000});
+  });
 
   /* ---------- modaler ---------- */
   function showProfile(){
@@ -869,7 +971,8 @@ const CHAT = (()=>{
   });
   document.addEventListener('keydown',e=>{
     if(e.target.id==='waText' && e.key==='Enter' && !e.shiftKey && FINE_PTR){ e.preventDefault(); doSend(); }
-    if(view==='chat' && e.key==='Escape'){ if(editing){ cancelEdit(); } else if(menuFor){ menuFor=null; refreshMsgs(openCid); } else if(pickerOpen){ pickerOpen=false; refresh(); } }
+    if(vis() && e.key==='Escape' && !document.getElementById('modal')?.classList.contains('show') && !editing && !menuFor && !pickerOpen && !CHATWIN && !(e.target.closest && e.target.closest('input,textarea'))){ closePanel(); return; }
+    if(vis() && e.key==='Escape'){ if(editing){ cancelEdit(); } else if(menuFor){ menuFor=null; refreshMsgs(openCid); } else if(pickerOpen){ pickerOpen=false; refresh(); } }
   });
   function doSend(){ const ta=document.getElementById('waText'); if(!ta || !openCid) return; const t=ta.value; if(!t.trim()) return;
     ta.value=''; draft[openCid]=''; autoGrow();
@@ -882,16 +985,16 @@ const CHAT = (()=>{
   function cancelEdit(){ if(!editing) return; draft[editing.cid]=''; editing=null; const main=document.getElementById('waMain'); if(main) main.dataset.cid='x'; refresh(); }
   // långt tryck på en bubbla öppnar reaktioner
   let pressT=0, pressMid=null;
-  document.addEventListener('pointerdown',e=>{ const b=e.target.closest('.wa-msg .wa-bub'); if(!b || view!=='chat') return; pressMid=b.parentElement.dataset.mid; clearTimeout(pressT); pressT=setTimeout(()=>{ menuFor=pressMid; buzz(15); refreshMsgs(openCid); },450); });
+  document.addEventListener('pointerdown',e=>{ const b=e.target.closest('.wa-msg .wa-bub'); if(!b || !vis()) return; pressMid=b.parentElement.dataset.mid; clearTimeout(pressT); pressT=setTimeout(()=>{ menuFor=pressMid; buzz(15); refreshMsgs(openCid); },450); });
   ['pointerup','pointercancel','pointermove'].forEach(t=>document.addEventListener(t,e=>{ if(t==='pointermove' && Math.abs(e.movementY)<4) return; clearTimeout(pressT); }));
   document.addEventListener('contextmenu',e=>{ const b=e.target.closest('.wa-msg .wa-bub'); if(!b) return; e.preventDefault(); menuFor=b.parentElement.dataset.mid; refreshMsgs(openCid); });
   document.addEventListener('click',async e=>{
     const b=e.target.closest('[data-c]');
-    if(view==='chat' && menuFor && !e.target.closest('.wa-menu')){ menuFor=null; refreshMsgs(openCid); if(!b) return; }
+    if(vis() && menuFor && !e.target.closest('.wa-menu')){ menuFor=null; refreshMsgs(openCid); if(!b) return; }
     if(!b) return; const a=b.dataset.c; unlockAudio();
     switch(a){
       case 'emo': case 'pfemo': case 'gemo': b.parentElement.querySelectorAll('button').forEach(x=>x.classList.remove('sel')); b.classList.add('sel'); break;
-      case 'create': { const n=(document.getElementById('waName')?.value||'').trim(); if(!n){ toast('Skriv ditt namn 💬'); return; } const em=document.querySelector('.wa-emos .sel')?.dataset.e;
+      case 'create': { if(!owner){ toast('Chatten är aktiv i ett annat fönster'); break; } const n=(document.getElementById('waName')?.value||'').trim(); if(!n){ toast('Skriv ditt namn 💬'); return; } const em=document.querySelector('.wa-emos .sel')?.dataset.e;
         b.disabled=true; b.textContent='Skapar nycklar…'; try{ await createIdentity(n,em); lsSet('ry_name',n); startTransport(); refresh(); toast('Klart! Dina nycklar finns bara på den här enheten 🔐',3500); }catch(err){ toast('Kunde inte skapa nycklar: '+err.message,5000); b.disabled=false; } break; }
       case 'tab': tab=b.dataset.t; refresh(); break;
       case 'open': openConv(b.dataset.id); break;
@@ -903,6 +1006,11 @@ const CHAT = (()=>{
       case 'pick': { const ta=document.getElementById('waText'); if(ta){ const s=ta.selectionStart??ta.value.length; ta.value=ta.value.slice(0,s)+b.dataset.e+ta.value.slice(ta.selectionEnd??s); draft[openCid]=ta.value; autoGrow(); } break; }
       case 'react': react(openCid, b.dataset.mid, b.dataset.e); menuFor=null; refreshMsgs(openCid); break;
       case 'copy': { const m=convs[openCid]?.msgs.find(x=>x.mid===b.dataset.mid); try{ await navigator.clipboard.writeText(m?.text||''); toast('Kopierat 📋'); }catch(_){} menuFor=null; refreshMsgs(openCid); break; }
+      case 'toggle': panelOpen ? closePanel() : openPanel(); break;
+      case 'hide': closePanel(); break;
+      case 'popout': popout(); break;
+      case 'steal': claim(true); break;
+      case 'focuspop': if(popupWin && !popupWin.closed) popupWin.focus(); break;
       case 'myqr': stopScan(); showMyQR(); break;
       case 'scanqr': showScanner(); break;
       case 'scanstop': stopScan(); closeModal(); break;
@@ -941,10 +1049,16 @@ const CHAT = (()=>{
   });
 
   /* ---------- start ---------- */
-  function boot(){ if(BOTMODE){ botBoot(); return; } if(ME){ startTransport(); if(DEV && ld('bot',false)) spawnBot(false); } handleHash(); }
+  function boot(){
+    if(BOTMODE){ botBoot(); return; }
+    buildChrome();
+    if(navigator.locks){ owner=false; claim(CHATWIN); }          // låset avgör vem som startar nätverket
+    else if(ME){ startTransport(); if(DEV && ld('bot',false)) spawnBot(false); }
+    handleHash();
+  }
   setTimeout(boot, 300);
   return {
-    html, mount, refresh, open:()=>openChat(null), openChat, seenCards, card:()=>myCard(), unread:totalUnread,
+    html, mount, refresh, open:()=>openPanel(), openChat, close:()=>closePanel(), isOpen:()=>panelOpen, docked:()=>panelOpen && dockable(), seenCards, card:()=>myCard(), unread:totalUnread,
     hasIdentity:()=>!!ME,
     // bara i testversionen: krokar för automatiska säkerhetstester
     __test: DEV ? {queueDirect, conns:()=>[...conns.keys()], typing:()=>({...typing}), groups:()=>GROUPS, convs:()=>convs, contacts:()=>contacts, scan:t=>onScanText(t)} : undefined
@@ -965,12 +1079,12 @@ function openChatView(){ CHAT.open(); }
 .wa-side{width:100%;max-width:420px;display:flex;flex-direction:column;background:var(--cside);border-right:1px solid var(--cline);position:relative;min-width:0}
 .wa-main{flex:1;display:none;min-width:0}
 .wa.has-open .wa-side{display:none}.wa.has-open .wa-main{display:flex}
-body.desk .wa .wa-side{display:flex;width:400px}body.desk .wa .wa-main{display:flex}
+.wa.wide .wa-side{display:flex;width:400px}.wa.wide .wa-main{display:flex}
 .wa-head{display:flex;align-items:center;gap:8px;padding:10px 10px calc(10px);background:var(--chead);min-height:58px;padding-top:max(10px,env(safe-area-inset-top))}
 .wa-title{flex:1;font-size:21px}
 .wa-ib{width:40px;height:40px;border-radius:50%;font-size:20px;display:grid;place-items:center;color:var(--ct);flex:none}
 .wa-ib:hover{background:rgba(127,127,127,.15)}
-body.desk .wa-ib.back{display:none}
+.wa.wide .wa-ib.back{display:none}
 .wa-tabs{display:flex;background:var(--chead);border-bottom:1px solid var(--cline)}
 .wa-tabs button{flex:1;padding:11px 0 9px;font-size:15px;font-weight:600;color:var(--cs);border-bottom:3px solid transparent}
 .wa-tabs button.on{color:var(--ca);border-bottom-color:var(--ca)}
@@ -1056,6 +1170,29 @@ body.desk .wa-ib.back{display:none}
 .wa-chk{display:flex!important;align-items:center;gap:10px;padding:8px 10px;border-radius:12px;background:rgba(0,0,0,.2);margin:0!important;color:var(--txt)!important;font-size:15px!important}
 .wa-chk input{width:20px;height:20px;accent-color:#00a884}
 .wa-rev{font-style:italic;color:var(--cs)}
+/* --- sidopanel, flik, eget fönster --- */
+.chat-tab{position:fixed;right:0;top:calc(42% + 70px);z-index:24;width:42px;height:58px;border-radius:18px 0 0 18px;font-size:22px;display:grid;place-items:center;color:#fff;
+  background:linear-gradient(135deg,#00a884,#0e7490);box-shadow:0 6px 20px rgba(0,0,0,.4),0 0 18px rgba(0,168,132,.35)}
+.chat-tab:hover{width:48px}
+.ingame .chat-tab{display:none} body.desk.ingame .chat-tab{display:grid}
+body.chatopen .chat-tab, body.chatwin .chat-tab{display:none}
+.cbadge{position:absolute;top:-7px;left:-7px;min-width:20px;height:20px;padding:0 5px;border-radius:999px;background:#ef4444;color:#fff;font:700 11px/20px system-ui,sans-serif;font-style:normal;text-align:center;display:none;box-shadow:0 0 0 2px rgba(0,0,0,.35)}
+.cbadge.on{display:block}
+.iconbtn.chatic{position:relative}.iconbtn.chatic .cbadge{top:-5px;left:auto;right:-5px}
+.chat-panel{position:fixed;top:0;right:0;bottom:0;z-index:27;width:100vw;background:#0b141a;box-shadow:-14px 0 40px rgba(0,0,0,.5);
+  transform:translateX(102%);visibility:hidden;transition:transform .32s cubic-bezier(.2,.8,.2,1),visibility 0s .32s}
+.chat-panel.open{transform:none;visibility:visible;transition:transform .32s cubic-bezier(.2,.8,.2,1),visibility 0s}
+@media (min-width:700px){ .chat-panel{width:420px;border-left:1px solid rgba(255,255,255,.08)} }
+.chat-panel .wa{position:absolute;inset:0}
+body.chatwin .chat-panel{width:100vw;transition:none}
+body.chatwin #app, body.chatwin #dockRoot, body.chatwin .sp-tab, body.chatwin #sky, body.chatwin #bubbles, body.chatwin .devribbon{display:none!important}
+body.chatdock{padding-right:420px}
+body.chatdock .dock, body.chatdock .sol-actions, body.chatdock #toasts, body.chatdock #notices{right:420px}
+body.chatdock .sp-tab{display:none}
+body.chatopen .devribbon{z-index:20}
+.wa-back{display:flex;align-items:center;gap:2px;flex:none;padding:7px 12px 7px 8px;border-radius:999px;font-size:22px;line-height:1;color:var(--ct);background:rgba(127,127,127,.14)}
+.wa-back span{font-size:14px;font-weight:600}
+.wa-back:hover{background:rgba(127,127,127,.25)}
 .vdots{display:inline-flex;gap:3px;vertical-align:middle;margin-left:7px;flex:none}
 .vdots i{width:7px;height:7px;border-radius:50%;background:rgba(140,150,160,.35)}
 .vdots.v1 i:nth-child(1){background:#ef4444}.vdots.v2 i:nth-child(-n+2){background:#f59e0b}.vdots.v3 i{background:#22c55e}

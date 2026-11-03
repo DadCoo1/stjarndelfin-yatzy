@@ -996,8 +996,10 @@ function spRefreshChrome(){
   const e=keep && keep.querySelector('.sp-empty'); if(e && spLoadedUri) e.remove();
   const inp=document.getElementById('splink'); if(inp) inp.value=val;
 }
+const chatUnread = () => (typeof CHAT!=='undefined' && CHAT.unread) ? CHAT.unread() : 0;
 function spToggle(force){
   spBuild(); spOpen = force===undefined ? !spOpen : force;
+  if(spOpen && typeof CHAT!=='undefined' && CHAT.isOpen && CHAT.isOpen()) CHAT.close();
   document.getElementById('spPanel').classList.toggle('open',spOpen);
   document.getElementById('spTab').classList.toggle('open',spOpen);
   document.body.classList.toggle('sp-wide',spOpen);
@@ -1461,7 +1463,7 @@ function solHTML(){
   return `<div id="solRoot" class="sol theme-${solTheme}">
     <div class="topbar"><button class="iconbtn" data-act="lobby" aria-label="Till lobbyn">‹</button>
       <div class="tb-title">🃏 <b>Patiens</b><div class="net" id="solYz">${solYatzyPill()}</div></div>
-      <button class="iconbtn" data-act="soltheme" aria-label="Korttema">🎨</button><button class="iconbtn" data-act="sptoggle" aria-label="Musik">🎵</button></div>
+      <button class="iconbtn chatic" data-c="toggle" aria-label="Chatt">💬<i class="cbadge ${chatUnread()?'on':''}" data-cbadge>${chatUnread()||''}</i></button><button class="iconbtn" data-act="soltheme" aria-label="Korttema">🎨</button><button class="iconbtn" data-act="sptoggle" aria-label="Musik">🎵</button></div>
     <div class="sol-info"><span class="chip">${SOL_MODES[S.mode].label}</span><span>⏱ <b id="solTime">${fmtTime(S.time)}</b></span><span>🔁 <b id="solMoves">${S.moves}</b> drag</span><span class="dim">🏆 ${st.won}/${st.played}</span></div>
     <div class="sol-board" id="solBoard">
       <div class="slot stock" id="slotStock" data-pile="s"><span>↻</span></div>
@@ -1836,7 +1838,8 @@ document.addEventListener('input',e=>{
 
 /* ================= Rendering ================= */
 const DESK_MQ = window.matchMedia ? window.matchMedia('(min-width: 1000px) and (min-height: 560px)') : null;
-const isDesk = () => !!(DESK_MQ && DESK_MQ.matches);
+// skrivbordslayout bara om spelet får minst 1000 px bredd (chatten kan vara dockad till höger)
+const isDesk = () => !!(DESK_MQ && DESK_MQ.matches) && (window.innerWidth - (document.body.classList.contains('chatdock')?420:0)) >= 1000;
 const FINE_PTR = window.matchMedia ? window.matchMedia('(hover: hover) and (pointer: fine)').matches : false;
 function kbHintHTML(){
   if(!FINE_PTR || !G || G.over) return '';
@@ -1849,7 +1852,7 @@ function render(){
   document.body.classList.toggle('ingame', view!=='lobby');
   if(view==='lobby'){ app.innerHTML=lobbyHTML(); dock.innerHTML=''; fitDock(); return; }
   if(view==='stats'){ app.innerHTML=statsHTML(); dock.innerHTML=''; fitDock(); return; }
-  if(view==='chat'){ dock.innerHTML=''; if(!document.getElementById('chatRoot')){ app.innerHTML=CHAT.html(); CHAT.mount(); } else CHAT.refresh(); app.style.paddingBottom='0px'; return; }
+  if(view==='chat'){ view='lobby'; if(typeof CHAT!=='undefined') setTimeout(()=>CHAT.open(),0); }   // chatten bor i sidopanelen
   if(view==='inv'){ dock.innerHTML=''; if(!document.getElementById('invRoot')){ app.innerHTML=INV.html(); INV.mount(); } app.style.paddingBottom='0px'; return; }
   if(view==='sol'){ dock.innerHTML=''; if(!document.getElementById('solRoot')){ app.innerHTML=solHTML(); solMount(); } else { solRefreshChrome(); } app.style.paddingBottom='0px'; return; }
   if(!G){ app.innerHTML=topbar()+`<div class="loading">${DOLPHIN('ld')}<p>Simmar till spelet <b>${esc(gameId||'')}</b>…</p><p style="font-size:14px">${netText()}</p><button class="bigbtn alt" data-act="lobby" style="max-width:260px;margin:20px auto">Avbryt</button></div>`; dock.innerHTML=''; return; }
@@ -1881,7 +1884,7 @@ window.addEventListener('resize', ()=>{ const d=isDesk(); if(d!==lastDesk){ last
 function topbar(){
   return `<div class="topbar"><button class="iconbtn" data-act="lobby" aria-label="Tillbaka">‹</button>
     <div class="tb-title">${isKind()?`${gIcon()} <b>${gName()}</b>`:'🎲 <b>Yatzy</b>'}${mode==='online'&&gameId?` · ${esc(gameId)}`:''}${mode==='online'?`<div class="net ns-${net}">${netText()}</div>`:''}</div>
-    <button class="iconbtn ${spPlaying?'sp-on':''}" data-act="sptoggle" aria-label="Musik" style="margin-right:-2px">🎵</button><button class="iconbtn" data-act="settings" aria-label="Inställningar">⚙️</button></div>`;
+    <button class="iconbtn chatic" data-c="toggle" aria-label="Chatt">💬<i class="cbadge ${chatUnread()?'on':''}" data-cbadge>${chatUnread()||''}</i></button><button class="iconbtn ${spPlaying?'sp-on':''}" data-act="sptoggle" aria-label="Musik" style="margin-right:-2px">🎵</button><button class="iconbtn" data-act="settings" aria-label="Inställningar">⚙️</button></div>`;
 }
 function lobbyHTML(){
   const devbar = DEV ? `<div class="devbar">🧪 <b>Testversion</b> · egen data och egna spelkoder · <a href="../">Öppna releaseversionen ›</a></div>` : '';
