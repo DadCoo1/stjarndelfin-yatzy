@@ -577,6 +577,13 @@ body.desk .tile{min-height:132px}
 body.desk .brand h1{font-size:64px} body.desk .brand .gb{font-size:32px}
 .lob-menu .chipsrow{display:flex;gap:8px;margin-top:4px}
 .lob-menu .chipsrow .bigbtn{margin:6px 0}
+
+.devribbon{position:fixed;z-index:60;top:10px;left:-34px;transform:rotate(-38deg);width:130px;text-align:center;padding:3px 0;font:700 12px/1.2 'Fredoka',system-ui,sans-serif;letter-spacing:3px;
+  color:#1a0f00;background:repeating-linear-gradient(45deg,#fbbf24 0 10px,#f59e0b 10px 20px);box-shadow:0 3px 10px rgba(0,0,0,.4);pointer-events:none}
+.devbar{display:flex;align-items:center;justify-content:center;gap:10px;flex-wrap:wrap;margin:0 0 10px;padding:8px 12px;border-radius:14px;font-size:13px;
+  background:rgba(251,191,36,.14);border:1px dashed rgba(251,191,36,.7);color:#fde68a}
+.devbar a{color:#fff;font-weight:600}
+.appver{text-align:center;font-size:11px;color:var(--dim);margin-top:10px}
 </style>
 </head>
 <body>
@@ -601,6 +608,11 @@ body.desk .brand h1{font-size:64px} body.desk .brand .gb{font-size:32px}
 <div id="modal"></div>
 
 <script>
+/* ================= Version & utvecklingsläge ================= */
+const APP_VERSION='2026.11.03';
+const DEV = /\/dev(\/|$)/.test(location.pathname);      // testversionen ligger i mappen /dev/
+const LSP = DEV ? 'dev:' : '';                           // egen sparad data i testversionen
+if(DEV) document.title='DEV · '+document.title;
 /* ================= Grafik ================= */
 const DOLPHIN = (id='d', c1='#7df9ff', c2='#4f7cff') => `
 <svg viewBox="0 0 200 100" xmlns="http://www.w3.org/2000/svg">
@@ -683,7 +695,7 @@ const isYatzy = d => d.every(v=>v===d[0]);
 
 /* ================= Ljud ================= */
 let AC=null, muted=false, musicOn=true, diceSound='klassisk', NB=null, spSfx=true;
-try{ spSfx = localStorage.getItem('ry_spsfx')!=='0'; muted = localStorage.getItem('ry_mute')==='1'; musicOn = localStorage.getItem('ry_music')!=='0'; diceSound = localStorage.getItem('ry_dsnd')||'klassisk'; }catch(e){}
+try{ spSfx = localStorage.getItem(LSP+'ry_spsfx')!=='0'; muted = localStorage.getItem(LSP+'ry_mute')==='1'; musicOn = localStorage.getItem(LSP+'ry_music')!=='0'; diceSound = localStorage.getItem(LSP+'ry_dsnd')||'klassisk'; }catch(e){}
 function unlockAudio(){
   try{ if(!AC) AC=new (window.AudioContext||window.webkitAudioContext)(); if(AC.state==='suspended') AC.resume(); }catch(e){}
   if(musicOn) startMusic();
@@ -800,8 +812,8 @@ const rnd = (()=>{
   };
 })();
 const F5 = () => [false,false,false,false,false];
-function lsGet(k){ try{ return localStorage.getItem(k) }catch(e){ return null } }
-function lsSet(k,v){ try{ localStorage.setItem(k,v) }catch(e){} }
+function lsGet(k){ try{ return localStorage.getItem(LSP+k) }catch(e){ return null } }
+function lsSet(k,v){ try{ localStorage.setItem(LSP+k,v) }catch(e){} }
 function toast(msg,ms=2300){
   const t=document.createElement('div'); t.className='toast'; t.textContent=msg;
   const box=document.getElementById('toasts'); box.appendChild(t);
@@ -1035,7 +1047,7 @@ function celebrate(text='YATZY!'){
 }
 
 /* ================= Nätverk – direkt mellan mobilerna (värden är nav för upp till 4 spelare) ================= */
-const PREFIX='stjarndelfin-yatzy-v1-';
+const PREFIX='stjarndelfin-yatzy-v1-'+(DEV?'dev-':'');   // testversionen kan aldrig koppla upp mot riktiga spel
 const MAXP=4;
 let peer=null, conn=null, net='off', role=null, retryT=null, myName='', lastHeard=0;
 const hostConns=new Set();
@@ -2340,7 +2352,7 @@ function showSettings(){
       <div class="setnote">Status: ${permTxt}. Ljud, vibration och en stor "Din tur!"-skylt kommer alltid. Systemaviseringar fungerar bara om webbläsaren tillåter det.</div></div>
     <div class="setrow"><div class="lbl">☀️ Håll skärmen tänd under onlinespel</div>${onoff('setwake',wakeOn)}
       <div class="setnote">Rekommenderas – då tappar mobilerna inte kontakten och du märker direkt när det är din tur.</div></div>
-    <div class="btns"><button class="pri" data-act="close">Klar</button></div>`,'settings');
+    <div class="btns"><button class="pri" data-act="close">Klar</button></div><div class="appver">Version ${APP_VERSION}${DEV?' · DEV':''}</div>`,'settings');
 }
 const BOT_NAMES=['Blixt 🤖','Bubbla 🤖','Kosmo 🤖','Nova 🤖'];
 let slots=[];
@@ -2426,7 +2438,8 @@ function topbar(){
     <button class="iconbtn ${spPlaying?'sp-on':''}" data-act="sptoggle" aria-label="Musik" style="margin-right:-2px">🎵</button><button class="iconbtn" data-act="settings" aria-label="Inställningar">⚙️</button></div>`;
 }
 function lobbyHTML(){
-  let h = topbarLobby() + `<div class="lobby"><div class="lob-hero"><div class="logo brand">${DOLPHIN('lg','#a5f3ff','#7c6cff').replace('<svg','<svg class="big"')}
+  const devbar = DEV ? `<div class="devbar">🧪 <b>Testversion</b> · egen data och egna spelkoder · <a href="../">Öppna releaseversionen ›</a></div>` : '';
+  let h = topbarLobby() + devbar + `<div class="lobby"><div class="lob-hero"><div class="logo brand">${DOLPHIN('lg','#a5f3ff','#7c6cff').replace('<svg','<svg class="big"')}
     <h1>Fröknarna Leins</h1><div class="gb">GAME BOARD</div><div class="leoband"></div></div>
     <div class="tag">Rymden · Havet · Leopard · Spel för stjärnor</div>
     <div class="getwell">Krya på dig! 💙🐬</div></div><div class="lob-menu">`;
@@ -2688,6 +2701,7 @@ document.addEventListener('keydown',e=>{
 });
 
 /* ================= Start ================= */
+if(DEV){ const d=document.createElement('div'); d.className='devribbon'; d.textContent='DEV'; document.body.appendChild(d); }
 spBuild();
 render();
 spHandleRedirect();
