@@ -307,7 +307,7 @@ const CHAT = (()=>{
         setTimeout(()=>{ try{ drop.close() }catch(_){} },1500);
         if(keep===old){ return; }
       }
-      conns.set(c._id,c); connecting.delete(c._id); lastSeen[c._id]=Date.now(); outbox.forEach(o=>{ if(o.to===c._id && !o.acked) o.lastSend=0; });
+      conns.set(c._id,c); connecting.delete(c._id); if(typeof FR!=='undefined' && !BOTMODE) FR.onConnect(x=>sendRaw(c,x)); lastSeen[c._id]=Date.now(); outbox.forEach(o=>{ if(o.to===c._id && !o.acked) o.lastSend=0; });
       flushTo(c._id);
       relayQ.filter(r=>r.to===c._id).forEach(r=>sendRaw(c,r.env)); relayQ=relayQ.filter(r=>r.to!==c._id); saveConvs();
       if(vis()) refresh();
@@ -317,6 +317,7 @@ const CHAT = (()=>{
   async function onData2(c,m){
     if(!c._id) return;                                       // inget annat än hi/proof före verifiering
     if(m.t==='ping'){ sendRaw(c,{t:'pong'}); return; }
+    if(m.t.startsWith('fr') && typeof FR!=='undefined'){ FR.onMsg(m, x=>sendRaw(c,x)); return; }   // önskelistan
     if(m.t==='pong'){ c._pong=true; c._pongAt=Date.now(); return; }
     if(m.t==='resync'){                                      // motparten kunde inte läsa oss och har börjat om: gör samma sak
       const now=Date.now(); if(now-(resetAt[c._id]||0)<30000) return; resetAt[c._id]=now;
@@ -1143,6 +1144,7 @@ const CHAT = (()=>{
   }
   setTimeout(boot, 300);
   return {
+    frBroadcast:m=>{ if(!owner) return; for(const c of conns.values()) if(!c._local) sendRaw(c,m); },
     bridgeIn:env=>{ if(owner && ME && env && typeof env==='object' && env.to===ME.id) receiveEnv(env,null); },
     myId:()=>ME && ME.id,
     html, mount, refresh, open:()=>openPanel(), openChat, close:()=>closePanel(), isOpen:()=>panelOpen, docked:()=>panelOpen && dockable(), seenCards, card:()=>myCard(), unread:totalUnread,
