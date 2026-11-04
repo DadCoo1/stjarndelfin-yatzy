@@ -6,7 +6,7 @@
   if(!same || !/[?&]bot=1/.test(location.search)){ document.documentElement.innerHTML=''; throw new Error('Inramning blockerad'); }
 })();
 /* ================= Version & utvecklingsläge ================= */
-const APP_VERSION='2026.11.04.19-dev';
+const APP_VERSION='2026.11.04.20-dev';
 const DEV = /\/dev(\/|$)/.test(location.pathname);      // testversionen ligger i mappen /dev/
 const BOT = DEV && /[?&]bot=1/.test(location.search) && window.parent!==window;   // osynlig testkompis i en ram (bara dev)
 const LSP = DEV ? (BOT ? 'dev:bot:' : 'dev:') : '';    // egen sparad data i testversionen
@@ -572,6 +572,7 @@ function onHostMsg(m,c){
   }
   if(m.t==='act'){ if(isKind()) applyAndPublish(m.a, c._seat); return; }
   if(m.t==='pg'){ if(typeof PONG!=='undefined') PONG.net(m, c._seat); return; }   // Pong: gästens racket
+  if(m.t==='sl'){ if(typeof SLALOM!=='undefined') SLALOM.net(m, c._seat); return; }   // Slalom: gästens åkare
   if(typeof m.t==='string' && m.t.startsWith('fr') && typeof FR!=='undefined'){ FR.onMsg(m, x=>sendTo(c,x)); return; }   // önskelistan
   if(m.t==='chat'){                                   // krypterat chattmeddelande via spelet: till mig eller vidare till en annan spelare
     if(typeof m.to!=='string' || !/^[0-9a-f]{16}$/.test(m.to) || !m.env || typeof m.env!=='object') return;
@@ -643,6 +644,7 @@ function onGuestMsg(m){
   if(m.t==='state'){ if(validState(m.state) && (!G || (m.state.seq||0)>(G.seq||0) || (m.force && JSON.stringify(m.state)!==JSON.stringify(G)))) onGameData(JSON.parse(JSON.stringify(m.state))); return; }
   if(m.t==='cards'){ if(Array.isArray(m.cards)){ gameCardIds=m.cards.slice(0,8).map(c=>c&&c.id).filter(id=>typeof id==='string'&&/^[0-9a-f]{16}$/.test(id)); if(typeof CHAT!=='undefined') CHAT.seenCards(m.cards,'ett spel'); } return; }
   if(m.t==='pg'){ if(typeof PONG!=='undefined') PONG.net(m, 0); return; }   // Pong: bollen från värden
+  if(m.t==='sl'){ if(typeof SLALOM!=='undefined') SLALOM.net(m, 0); return; }   // Slalom: värdens åkare
   if(m.t==='chat'){ if(typeof CHAT!=='undefined' && m.env && typeof m.env==='object') CHAT.bridgeIn(m.env); return; }
   if(typeof m.t==='string' && m.t.startsWith('fr') && typeof FR!=='undefined'){ FR.onMsg(m, x=>sendTo(conn,x)); return; }
   if(m.t==='emoji' || m.t==='poke') onSocial(m);
@@ -1982,7 +1984,7 @@ function render(){
   if(!G){ app.innerHTML=topbar()+`<div class="loading">${DOLPHIN('ld')}<p>Simmar till spelet <b>${esc(gameId||'')}</b>…</p><p style="font-size:14px">${netText()}</p><button class="bigbtn alt" data-act="lobby" style="max-width:260px;margin:20px auto">Avbryt</button></div>`; dock.innerHTML=''; return; }
   if(isKind()){
     app.innerHTML = topbar() + (ready() ? KIND[G.kind].html() : waitingHTML());
-    dock.innerHTML = ready() && G.kind!=='pong' && G.names.length>1 ? reactDockHTML() : '';
+    dock.innerHTML = ready() && G.kind!=='pong' && G.kind!=='slalom' && G.names.length>1 ? reactDockHTML() : '';
     if(ready() && KIND[G.kind].mounted) KIND[G.kind].mounted();
     freshCell=null; fitDock(); return;
   }
@@ -2017,7 +2019,7 @@ const LOBBY_CATS=[
   ['♟️','Strategi & brädspel',['kina','othello','c4','gomoku','ships','mm']],
   ['🔤','Ordspel',['ordfajt','wordle','hang']],
   ['🧩','Pussel & minne',['sudoku','memory']],
-  ['🕹️','Arkad',['inv','pong']]
+  ['⛷️','Sport & arkad',['slalom','pong','inv']]
 ];
 const TILE_DESC={ships:'Mot datorn eller en kompis', mm:'Knäck den hemliga färgkoden', hang:'Gissa ordet innan gubben hängs', kina:'2–6 spelare · online eller mot datorn',
   ordfajt:'Ordspel · svenska, norska, jamska', pong:'Mot datorn, två på en skärm eller online'};
