@@ -6,7 +6,7 @@
   if(!same || !/[?&]bot=1/.test(location.search)){ document.documentElement.innerHTML=''; throw new Error('Inramning blockerad'); }
 })();
 /* ================= Version & utvecklingsläge ================= */
-const APP_VERSION='2026.11.04.18-dev';
+const APP_VERSION='2026.11.04.19-dev';
 const DEV = /\/dev(\/|$)/.test(location.pathname);      // testversionen ligger i mappen /dev/
 const BOT = DEV && /[?&]bot=1/.test(location.search) && window.parent!==window;   // osynlig testkompis i en ram (bara dev)
 const LSP = DEV ? (BOT ? 'dev:bot:' : 'dev:') : '';    // egen sparad data i testversionen
@@ -994,17 +994,19 @@ function startBubbles(){
 function stopBubbles(){ clearInterval(bubT); bubT=null; const l=BL(); if(l) l.innerHTML=''; }
 function spawnBubble(){
   const L=BL(); if(!L || document.hidden || L.children.length>16) return;
-  const r=Math.random(), kind = r<.012 ? 'heart' : r<.06 ? 'gold' : r<.11 ? 'pink' : '';   // hjärtbubbla: ungefär var 80:e
-  const b=document.createElement('div'), sz = kind==='heart' ? 72+Math.random()*6 : 30+Math.random()*46;
+  const r=Math.random(), kind = r<1/30 ? 'heart' : r<.08 ? 'gold' : r<.13 ? 'pink' : '';   // hjärtbubbla: i snitt var 30:e
+  const b=document.createElement('div'), sz = kind==='heart' ? 76 : 30+Math.random()*46;
   b.className='pbub '+kind; b.style.width=b.style.height=sz+'px';
   b.style.left=(Math.random()*92)+'%';
   const dur=7+Math.random()*7; b.style.animationDuration=dur+'s';
   b.style.setProperty('--sway',(Math.random()*70-35)+'px');
   if(kind==='gold') b.innerHTML='<i>⭐</i>'; else if(kind==='pink') b.innerHTML='<i>🐬</i>';
-  else if(kind==='heart'){ const id='hg'+Math.random().toString(36).slice(2,8);   // genomskinligt hjärta, lika bubbligt som de andra
-    b.innerHTML=`<svg viewBox="0 0 100 92" aria-hidden="true"><defs><radialGradient id="${id}" cx="32%" cy="28%" r="80%"><stop offset="0" stop-color="#fff" stop-opacity=".8"/><stop offset=".35" stop-color="#ff5c7a" stop-opacity=".3"/><stop offset="1" stop-color="#e11d48" stop-opacity=".14"/></radialGradient></defs>
-      <path d="M50 88 C20 66 3 48 3 28 C3 13 15 3 28 3 C38 3 46 9 50 18 C54 9 62 3 72 3 C85 3 97 13 97 28 C97 48 80 66 50 88Z" fill="url(#${id})" stroke="rgba(255,90,120,.85)" stroke-width="3"/>
-      <ellipse cx="27" cy="24" rx="9" ry="6" fill="#fff" opacity=".55" transform="rotate(-30 27 24)"/></svg>`; }
+  else if(kind==='heart'){ const id='hg'+Math.random().toString(36).slice(2,8);   // rött, genomskinligt hjärta – lika bubbligt som de andra
+    b.innerHTML=`<svg viewBox="0 0 100 90" aria-hidden="true"><defs>
+      <radialGradient id="${id}" cx="35%" cy="30%" r="75%"><stop offset="0" stop-color="#ffd1da" stop-opacity=".75"/><stop offset=".3" stop-color="#ff4d6d" stop-opacity=".38"/><stop offset=".85" stop-color="#e11d48" stop-opacity=".26"/><stop offset="1" stop-color="#be123c" stop-opacity=".4"/></radialGradient></defs>
+      <path d="M50 86 C47 83 6 56 6 29 C6 14 17 5 30 5 C39 5 46 10 50 17 C54 10 61 5 70 5 C83 5 94 14 94 29 C94 56 53 83 50 86 Z" fill="url(#${id})" stroke="#ff5c7a" stroke-opacity=".9" stroke-width="2.6" stroke-linejoin="round"/>
+      <path d="M22 18 C27 13 35 13 39 18" fill="none" stroke="#fff" stroke-opacity=".75" stroke-width="4" stroke-linecap="round"/>
+      <circle cx="73" cy="22" r="3.2" fill="#fff" opacity=".5"/></svg>`; }
   b.addEventListener('pointerdown',e=>{ e.preventDefault(); e.stopPropagation(); popBubble(b,kind,sz); });
   L.appendChild(b); setTimeout(()=>b.remove(), dur*1000+200);
 }
