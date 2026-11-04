@@ -14,7 +14,7 @@ const isKind = () => !!(G && G.kind && G.kind!=='yatzy' && KIND[G.kind]);
 const gName = () => isKind() ? GINFO[G.kind].name : 'Yatzy';
 const gIcon = () => isKind() ? GINFO[G.kind].icon : '🎲';
 const meSeat = () => mode==='online' ? mySeat : 0;
-const maxP = () => isKind() ? 2 : 4;
+const maxP = () => isKind() ? (GINFO[G.kind].max||2) : 4;
 const canActG = seat => !!(G && !G.over && ready() && (mode==='online' ? seat===mySeat : !isAI(seat)));
 const clone = o => JSON.parse(JSON.stringify(o));
 const bare = n => String(n||'').replace(/\s*🤖$/,'');
@@ -30,15 +30,16 @@ function gRedact(g, seat){
   const c=clone(g); KIND[g.kind].redact(c, seat); return c;
 }
 const isArrI=(a,n,lo,hi)=>Array.isArray(a) && a.length<=n && a.every(x=>Number.isInteger(x)&&x>=lo&&x<=hi);
-function startGameLocal(kind, name, level){
+function startGameLocal(kind, name, level, bots=1){
   stopNet(); clearTimeout(aiTimer); closeModal();
   mode='local'; mySeat=0; gameId=null; role=null;
-  G=gNewState(kind,[name, GINFO[kind].ai],0,[false,level]); KIND[kind].start(G); lsSet('ry_local', JSON.stringify(G));
+  const bn=GINFO[kind].bots ? GINFO[kind].bots.slice(0,Math.max(1,Math.min(7,bots))) : [GINFO[kind].ai];
+  G=gNewState(kind,[name, ...bn],0,[false, ...bn.map(()=>level)]); KIND[kind].start(G); lsSet('ry_local', JSON.stringify(G));
   view='game'; resetDrafts(); render(); gMaybeAI();
 }
 function gStartOnline(){
   const prev=clone(G); G.started=true; G.cur=G.starter=0; Object.assign(G, KIND[G.kind].init()); KIND[G.kind].start(G);
-  G.seq=(G.seq||0)+1; saveNet(); hostBroadcast({t:'state',state:G}); gOnChange(prev,G); render();
+  G.seq=(G.seq||0)+1; saveNet(); hostBroadcast({t:'state',state:G}); gOnChange(prev,G); render(); gMaybeAI();
 }
 // ett drag från den här enheten
 function doAct(a){
@@ -54,7 +55,7 @@ function applyAndPublish(a, seat){
   const prev=clone(G);
   if(a.type==='rematch'){
     if(!G.over) return false;
-    const n=gNewState(G.kind, G.names.slice(), 1-(G.starter||0), G.ai, G.seq); KIND[G.kind].start(n); G=n;
+    const n=gNewState(G.kind, G.names.slice(), ((G.starter||0)+1)%G.names.length, G.ai, G.seq); KIND[G.kind].start(n); G=n;
   } else {
     let ok=false; try{ ok=KIND[G.kind].apply(G,a,seat); }catch(e){ ok=false; }
     if(!ok){ G=prev; return false; }                  // ogiltigt drag: inget ändras
@@ -76,18 +77,24 @@ function gOnChange(prev,d){
 }
 function gMaybeAI(){
   clearTimeout(aiTimer);
-  if(mode!=='local' || !isKind() || G.over) return;
+  // datorspelare: lokalt, eller hos värden när ett onlinespel fyllts ut med datorspelare (t.ex. Hjärter)
+  const hostBots = () => mode==='online' && role==='host' && G && G.started!==false && Array.isArray(G.ai) && G.ai.some(Boolean);
+  if((mode!=='local' && !hostBots()) || !isKind() || G.over) return;
   const k=KIND[G.kind], seat=k.aiSeat ? k.aiSeat(G) : (isAI(G.cur)?G.cur:null);
   if(seat===null || seat===undefined) return;
-  aiTimer=setTimeout(()=>{ if(!isKind()||G.over||mode!=='local') return; const a=k.ai(G,seat); if(a) applyAndPublish(a,seat); }, k.aiDelay ? k.aiDelay(G) : 1000);
+  aiTimer=setTimeout(()=>{ if(!isKind()||G.over||(mode!=='local' && !hostBots())) return; const a=k.ai(G,seat); if(a) applyAndPublish(a,seat); }, k.aiDelay ? k.aiDelay(G) : 1000);
 }
 /* ---------- resultat & statistik ---------- */
 function stats2(){ try{ return JSON.parse(lsGet('ry_stats2'))||{games:[]} }catch(e){ return {games:[]} } }
 function gFinish(d){
   const me=meSeat(), st=stats2();
   if(!st.games.some(g=>g.id===d.id) && me!==null && me!==undefined){
-    const opp=d.names[1-me], res = d.winner===-1 ? 'T' : d.winner===me ? 'W' : 'L';
-    st.games.push({id:d.id, kind:d.kind, d:Date.now(), me:d.names[me], opp: isAI(1-me) ? `${opp.replace(' 🤖','')} 🤖 ${d.ai[1-me]==='hard'?'svår':'lätt'}` : opp, res, mode});
+    const res = d.winner===-1 ? 'T' : d.winner===me ? 'W' : 'L';
+    const others=d.names.map((n,i)=>i).filter(i=>i!==me);
+    const lvl = x => ({hard:'svår',medium:'medel'})[x]||'lätt';
+    const oppName = i => isAI(i) ? `${bare(d.names[i])} 🤖 ${lvl(d.ai[i])}` : d.names[i];
+    const opp = !others.length ? 'ensam' : others.length===1 ? oppName(others[0]) : others.every(i=>isAI(i)) ? `${others.length} datorspelare (${lvl(d.ai[others[0]])})` : others.map(i=>bare(d.names[i])).join(', ');
+    st.games.push({id:d.id, kind:d.kind, d:Date.now(), me:d.names[me], opp, res, mode});
     if(st.games.length>500) st.games=st.games.slice(-500);
     lsSet('ry_stats2', JSON.stringify(st));
   }
@@ -115,8 +122,8 @@ function otherStatsHTML(){
 function gHeadHTML(sub){
   const me=meSeat();
   const pl=G.names.map((n,i)=>{ const on=!G.over && G.cur===i && (!KIND[G.kind].waitingFor || KIND[G.kind].waitingFor(G)===i); const isMe = mode==='online' ? i===mySeat : !isAI(i);
-    return `<div class="gp ${on?'on':''} ${G.over&&G.winner===i?'win':''}"><span>${G.over&&G.winner===i?'👑 ':''}${esc(n)}${isMe&&mode==='online'?' <em>du</em>':''}</span><b>${KIND[G.kind].scoreOf?KIND[G.kind].scoreOf(G,i):''}</b></div>`; }).join('<div class="gvs">vs</div>');
-  return `<div class="ghead">${pl}</div>${sub?`<div class="gsub">${sub}</div>`:''}`;
+    return `<div class="gp ${on?'on':''} ${G.over&&G.winner===i?'win':''}"><span>${G.over&&G.winner===i?'👑 ':''}${esc(n)}${isMe&&mode==='online'?' <em>du</em>':''}</span><b>${KIND[G.kind].scoreOf?KIND[G.kind].scoreOf(G,i):''}</b></div>`; }).join(G.names.length>2?'':'<div class="gvs">vs</div>');
+  return `<div class="ghead ${G.names.length>2?'multi':''}">${pl}</div>${sub?`<div class="gsub">${sub}</div>`:''}`;
 }
 function gOverHTML(text){
   const me=meSeat(), won=G.winner===me, tie=G.winner===-1;
@@ -554,6 +561,10 @@ document.addEventListener('keydown',e=>{
 /* ---------- meny för ett spel ---------- */
 let gLevel='easy';
 function showGameMenu(kind){
+  if(kind==='kina' && typeof showKinaMenu==='function') return showKinaMenu();
+  if(kind==='ordfajt' && typeof showOrdfajtMenu==='function') return showOrdfajtMenu();
+  if(kind==='pong' && typeof showPongMenu==='function') return showPongMenu();
+  if(GINFO[kind] && typeof GINFO[kind].menu==='function') return GINFO[kind].menu();
   const info=GINFO[kind];
   const rules={ships:'Placera fem skepp i hemlighet och turas om att skjuta. Träff = skjut igen. Den som först sänker hela flottan vinner.',
     mm:'Den ena hittar på en hemlig kod med fyra färger, den andra gissar rad för rad. Två rundor – den som knäcker koden på minst gissningar vinner.',
@@ -584,6 +595,7 @@ document.addEventListener('click',e=>{
 .gp b{font-size:13px;color:var(--dim);font-weight:500}
 .gp.on{background:linear-gradient(135deg,rgba(34,211,238,.28),rgba(168,85,247,.28));border-color:rgba(125,249,255,.7);box-shadow:0 0 18px rgba(62,230,255,.3)}
 .gp.win{border-color:var(--gold);box-shadow:0 0 18px rgba(255,211,110,.45)}
+.ghead.multi{display:grid;grid-template-columns:1fr 1fr;gap:6px}.ghead.multi .gp{padding:6px 10px;flex-direction:row;justify-content:space-between;align-items:center;gap:6px}.ghead.multi .gp b{white-space:nowrap}
 .gvs{align-self:center;font-size:12px;color:var(--dim);font-weight:700}
 .gsub{text-align:center;font-size:15px;margin:4px 0 12px;color:#dff6ff;min-height:22px}
 .gwait{text-align:center;padding:22px 12px;border-radius:20px;background:var(--glass);border:1px dashed var(--line);margin-bottom:12px}

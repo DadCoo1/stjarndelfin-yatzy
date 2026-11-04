@@ -6,7 +6,7 @@
   if(!same || !/[?&]bot=1/.test(location.search)){ document.documentElement.innerHTML=''; throw new Error('Inramning blockerad'); }
 })();
 /* ================= Version & utvecklingsläge ================= */
-const APP_VERSION='2026.11.04.2';
+const APP_VERSION='2026.11.04.3';
 const DEV = /\/dev(\/|$)/.test(location.pathname);      // testversionen ligger i mappen /dev/
 const BOT = DEV && /[?&]bot=1/.test(location.search) && window.parent!==window;   // osynlig testkompis i en ram (bara dev)
 const LSP = DEV ? (BOT ? 'dev:bot:' : 'dev:') : '';    // egen sparad data i testversionen
@@ -571,6 +571,7 @@ function onHostMsg(m,c){
     return;
   }
   if(m.t==='act'){ if(isKind()) applyAndPublish(m.a, c._seat); return; }
+  if(m.t==='pg'){ if(typeof PONG!=='undefined') PONG.net(m, c._seat); return; }   // Pong: gästens racket
   if(typeof m.t==='string' && m.t.startsWith('fr') && typeof FR!=='undefined'){ FR.onMsg(m, x=>sendTo(c,x)); return; }   // önskelistan
   if(m.t==='chat'){                                   // krypterat chattmeddelande via spelet: till mig eller vidare till en annan spelare
     if(typeof m.to!=='string' || !/^[0-9a-f]{16}$/.test(m.to) || !m.env || typeof m.env!=='object') return;
@@ -631,7 +632,7 @@ function onGuestMsg(m){
   lastHeard=Date.now();
   if(m.t==='ping'){ sendTo(conn,{t:'pong'}); return; }
   if(!m.t || m.t==='pong') return;
-  if(m.t==='welcome'){ if(!isI(m.seat,1,MAXP-1) || (m.name!=null && !okPName(m.name))) return; const first=mySeat===null; mySeat=m.seat; if(m.name) myName=String(m.name); saveNet(); render(); if(first) toast(`Du är med i spelet ${gameId}! 🐬`); return; }
+  if(m.t==='welcome'){ if(!isI(m.seat,1,7) || (m.name!=null && !okPName(m.name))) return; const first=mySeat===null; mySeat=m.seat; if(m.name) myName=String(m.name); saveNet(); render(); if(first) toast(`Du är med i spelet ${gameId}! 🐬`); return; }
   if(m.t==='full'){
     if(m.reason==='started' && G && G.started!==false && Array.isArray(G.names) && G.names.includes(myName)){
       setNet('lost'); retry(connectGuest,5000); return;                 // vi hör hemma i spelet – försök igen i stället för att lämna
@@ -641,6 +642,7 @@ function onGuestMsg(m){
   }
   if(m.t==='state'){ if(validState(m.state) && (!G || (m.state.seq||0)>(G.seq||0) || (m.force && JSON.stringify(m.state)!==JSON.stringify(G)))) onGameData(JSON.parse(JSON.stringify(m.state))); return; }
   if(m.t==='cards'){ if(Array.isArray(m.cards)){ gameCardIds=m.cards.slice(0,8).map(c=>c&&c.id).filter(id=>typeof id==='string'&&/^[0-9a-f]{16}$/.test(id)); if(typeof CHAT!=='undefined') CHAT.seenCards(m.cards,'ett spel'); } return; }
+  if(m.t==='pg'){ if(typeof PONG!=='undefined') PONG.net(m, 0); return; }   // Pong: bollen från värden
   if(m.t==='chat'){ if(typeof CHAT!=='undefined' && m.env && typeof m.env==='object') CHAT.bridgeIn(m.env); return; }
   if(typeof m.t==='string' && m.t.startsWith('fr') && typeof FR!=='undefined'){ FR.onMsg(m, x=>sendTo(conn,x)); return; }
   if(m.t==='emoji' || m.t==='poke') onSocial(m);
@@ -663,9 +665,10 @@ function validYatzy(s){
 }
 function validState(s){
   if(!s || typeof s!=='object' || Array.isArray(s)) return false;
-  if(!Array.isArray(s.names) || s.names.length<1 || s.names.length>MAXP || !s.names.every(okPName)) return false;
+  const maxN = s.kind && s.kind!=='yatzy' && typeof GINFO!=='undefined' && Object.prototype.hasOwnProperty.call(GINFO,s.kind) ? (GINFO[s.kind].max||2) : MAXP;
+  if(!Array.isArray(s.names) || s.names.length<1 || s.names.length>maxN || !s.names.every(okPName)) return false;
   if(typeof s.seq!=='number' || !isFinite(s.seq)) return false;
-  if(s.kind!==undefined && s.kind!=='yatzy') return typeof KIND!=='undefined' && Object.prototype.hasOwnProperty.call(KIND,s.kind) && s.names.length<=2 && (!KIND[s.kind].valid || KIND[s.kind].valid(s));
+  if(s.kind!==undefined && s.kind!=='yatzy') return typeof KIND!=='undefined' && Object.prototype.hasOwnProperty.call(KIND,s.kind) && (!KIND[s.kind].valid || KIND[s.kind].valid(s));
   return validYatzy(s);
 }
 // Får gästen på plats `seat` byta Yatzy-tillståndet från `prev` till `s`? (värden bestämmer)
@@ -1776,7 +1779,9 @@ function leaveOnline(){ stopNet(); releaseWake(); mode=null; G=null; gameId=null
 window.addEventListener('hashchange',()=>{
   const h=(location.hash||'').replace('#','').toUpperCase(); if(!/^[A-Z0-9]{4}$/.test(h)) return;
   if(mode==='online' && gameId===h) return;
-  notice({icon:'✉️', title:'Inbjudan till Yatzy', text:`Spelkod ${h}`, actions:[{label:'Gå med', run:()=>showJoin(h)}]});
+  try{ history.replaceState(null,'',location.pathname+location.search); }catch(e){}
+  if(mode==='online' && G && !G.over) notice({icon:'✉️', title:'Inbjudan till ett spel', text:`Spelkod ${h}`, actions:[{label:'Gå med', run:()=>showJoin(h)}]});
+  else showJoin(h);
 });
 
 /* ================= Lokalt ================= */
@@ -1956,7 +1961,7 @@ function render(){
   if(!G){ app.innerHTML=topbar()+`<div class="loading">${DOLPHIN('ld')}<p>Simmar till spelet <b>${esc(gameId||'')}</b>…</p><p style="font-size:14px">${netText()}</p><button class="bigbtn alt" data-act="lobby" style="max-width:260px;margin:20px auto">Avbryt</button></div>`; dock.innerHTML=''; return; }
   if(isKind()){
     app.innerHTML = topbar() + (ready() ? KIND[G.kind].html() : waitingHTML());
-    dock.innerHTML = ready() ? reactDockHTML() : '';
+    dock.innerHTML = ready() && G.kind!=='pong' && G.names.length>1 ? reactDockHTML() : '';
     if(ready() && KIND[G.kind].mounted) KIND[G.kind].mounted();
     freshCell=null; fitDock(); return;
   }
@@ -1984,6 +1989,28 @@ function topbar(){
     <div class="tb-title">${isKind()?`${gIcon()} <b>${gName()}</b>`:'🎲 <b>Yatzy</b>'}${mode==='online'&&gameId?` · ${esc(gameId)}`:''}${mode==='online'?`<div class="net ns-${net}">${netText()}</div>`:''}</div>
     <button class="iconbtn chatic" data-c="toggle" aria-label="Chatt">💬<i class="cbadge ${chatUnread()?'on':''}" data-cbadge>${chatUnread()||''}</i></button><button class="iconbtn ${spPlaying?'sp-on':''}" data-act="sptoggle" aria-label="Musik" style="margin-right:-2px">🎵</button><button class="iconbtn" data-act="settings" aria-label="Inställningar">⚙️</button></div>`;
 }
+/* ---------- lobbyn: spelen i kategorier ---------- */
+const LOBBY_CATS=[
+  ['🎲','Tärningsspel',['yatzy','fia']],
+  ['🃏','Kortspel',['sol','vandtia','fisk','hjarter']],
+  ['♟️','Strategi & brädspel',['kina','othello','c4','gomoku','ships','mm']],
+  ['🔤','Ordspel',['ordfajt','wordle','hang']],
+  ['🧩','Pussel & minne',['sudoku','memory']],
+  ['🕹️','Arkad',['inv','pong']]
+];
+const TILE_DESC={ships:'Mot datorn eller en kompis', mm:'Knäck den hemliga färgkoden', hang:'Gissa ordet innan gubben hängs', kina:'2–6 spelare · online eller mot datorn',
+  ordfajt:'Ordspel · svenska, norska, jamska', pong:'Mot datorn, två på en skärm eller online'};
+function lobbyTilesHTML(svSol, invS){
+  const tile=k=>{
+    if(k==='yatzy') return `<button class="tile" style="--tg:linear-gradient(135deg,#22d3ee,#6366f1 60%,#a855f7)" data-act="yatzymenu"><span class="ti">🎲</span><b>Yatzy</b><small>1–4 spelare · online, datorn eller samma mobil</small></button>`;
+    if(k==='sol') return `<button class="tile leo" data-act="opensol"><span class="ti">🃏</span><b>Patiens</b><small>Ensam · offline</small>${svSol && !svSol.won && svSol.started?'<span class="badge">↩︎ fortsätt</span>':''}</button>`;
+    if(k==='inv') return `<button class="tile" style="--tg:linear-gradient(135deg,#16a34a,#0f172a 75%)" data-act="openinv"><span class="ti">👾</span><b>Space Invaders</b><small>Ensam · 100+ nivåer</small>${invS.best?`<span class="badge">🏆 ${invS.best}</span>`:''}</button>`;
+    const gi=typeof GINFO!=='undefined' && GINFO[k]; if(!gi) return '';
+    const badge = gi.badge ? gi.badge() : '';
+    return `<button class="tile" style="--tg:${gi.grad}" data-act="gmenu" data-k="${k}"><span class="ti">${gi.icon}</span><b>${gi.name}</b><small>${esc(gi.desc||TILE_DESC[k]||'')}</small>${badge}</button>`;
+  };
+  return LOBBY_CATS.map(([ic,name,keys])=>{ const t=keys.map(tile).join(''); return t ? `<h3 class="cat"><span>${ic}</span>${name}</h3><div class="tiles">${t}</div>` : ''; }).join('');
+}
 function lobbyHTML(){
   const devbar = DEV ? `<div class="devbar">🧪 <b>Testversion</b> · egen data och egna spelkoder · <a href="../">Öppna releaseversionen ›</a></div>` : '';
   let h = topbarLobby() + devbar + `<div class="lobby"><div class="lob-hero"><div class="logo brand">${DOLPHIN('lg','#a5f3ff','#7c6cff').replace('<svg','<svg class="big"')}
@@ -2001,15 +2028,9 @@ function lobbyHTML(){
     }
   }catch(e){}
   const svSol=S||solLoad(), invS=(typeof INV!=='undefined')?INV.stats():{best:0};
-  h += `<h2 class="sec"><span class="leopill"><i>🐆</i>Välj spel</span></h2>
-    <div class="tiles">
-      <button class="tile" style="--tg:linear-gradient(135deg,#22d3ee,#6366f1 60%,#a855f7)" data-act="yatzymenu"><span class="ti">🎲</span><b>Yatzy</b><small>1–4 spelare · online, datorn eller samma mobil</small></button>
-      <button class="tile leo" data-act="opensol"><span class="ti">🃏</span><b>Patiens</b><small>Ensam · offline</small>${svSol && !svSol.won && svSol.started?'<span class="badge">↩︎ fortsätt</span>':''}</button>
-      <button class="tile" style="--tg:linear-gradient(135deg,#0ea5e9,#1e3a8a)" data-act="gmenu" data-k="ships"><span class="ti">🚢</span><b>Sänka skepp</b><small>Mot datorn eller en kompis</small></button>
-      <button class="tile" style="--tg:linear-gradient(135deg,#c026d3,#ec4899)" data-act="gmenu" data-k="mm"><span class="ti">🔮</span><b>Mastermind</b><small>Knäck den hemliga färgkoden</small></button>
-      <button class="tile" style="--tg:linear-gradient(135deg,#f59e0b,#ef4444)" data-act="gmenu" data-k="hang"><span class="ti">🪢</span><b>Hänga gubbe</b><small>Gissa ordet innan gubben hängs</small></button>
-      <button class="tile" style="--tg:linear-gradient(135deg,#16a34a,#0f172a 75%)" data-act="openinv"><span class="ti">👾</span><b>Space Invaders</b><small>Ensam · 100+ nivåer</small>${invS.best?`<span class="badge">🏆 ${invS.best}</span>`:''}</button>
-    </div>
+  h += `<h2 class="sec"><span class="leopill"><i>🐆</i>Välj spel</span></h2>${lobbyTilesHTML(svSol, invS)}
+    `;
+  h += `
     <div class="chipsrow"><button class="bigbtn chatbtn" data-act="openchat">💬 Chatt <small>🔒 krypterad</small>${(typeof CHAT!=='undefined'&&CHAT.unread())?`<span class="badge">${CHAT.unread()}</span>`:''}</button></div>
     <div class="chipsrow"><button class="bigbtn" data-act="joinonline" style="background:linear-gradient(135deg,#2dd4bf,#3b82f6 60%,#6366f1)">🔗 Gå med i spel med kod</button></div>
     <div class="chipsrow"><button class="bigbtn alt" data-act="stats">📊 Statistik & rekord</button></div>`;
@@ -2048,7 +2069,7 @@ function waitingHTML(){
     <div>Spelkod</div><div class="code">${esc(gameId||'')}</div>${G.hr4?'<div style="font-size:13px;margin:4px 0">🃏 Husregel: fyra lika räknas som två par</div>':''}
     <div class="lobbyp">${G.names.map((nm,i)=>`<span class="${i===mySeat?'me':''}">${i===0?'👑 ':'🐬 '}${esc(nm)}</span>`).join('')}${Array.from({length:Math.max(0,maxP()-n)},()=>'<span class="empty">ledig plats</span>').join('')}</div>
     ${isHost ? `<button class="bigbtn" data-act="startgame" ${n<2?'disabled':''} style="margin-top:12px">▶️ Starta spelet${n>=2?` med ${n} spelare`:''}</button>${inviteBtn}
-       <div style="color:var(--dim);font-size:13px;margin-top:8px">${n<2?'Vänta på att någon går med. ':''}${maxP()===2?'Två spelare.':'Upp till 4 spelare.'} De andra trycker <b>🔗 Gå med i spel</b> och skriver koden.</div>`
+       <div style="color:var(--dim);font-size:13px;margin-top:8px">${n<2?'Vänta på att någon går med. ':''}${maxP()===2?'Två spelare.':`Upp till ${maxP()} spelare.`} De andra trycker <b>🔗 Gå med i spel</b> och skriver koden.</div>`
      : `<div style="margin-top:10px">${mySeat===null?'Ansluter…':`Väntar på att <b>${esc(pname(0))}</b> startar spelet… 🐬`}</div>`}
     <div style="font-size:13px;margin-top:8px">${netText()}</div></div>`;
 }
@@ -2275,6 +2296,8 @@ document.addEventListener('DOMContentLoaded',()=>{
 });
 spHandleRedirect();
 }
+// spelen i egna filer (kit.js, strat.js …) laddas efter app.js – rita lobbyn igen när allt finns
+document.addEventListener('DOMContentLoaded',()=>{ if(view==='lobby') render(); });
 window.addEventListener('storage',e=>{ if(e.key==='ry_spauth'){ spUser=null; spLists=null; if(spOpen) spInit(); spRefreshChrome(); } });
 document.addEventListener('visibilitychange',()=>{ if(document.visibilityState==='visible' && spAuth() && spOpen && !spUser) spInit(); });
 (function(){ const h=(location.hash||'').replace('#','').toUpperCase(); if(/^[A-Z0-9]{4}$/.test(h)) showJoin(h); })();
