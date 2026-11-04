@@ -79,11 +79,11 @@
         v+=np*.5; return v + Math.random()*(lv==='hard'?2:10); };
       return {type:'move', p:L.sort((a,b)=>score(b)-score(a))[0]}; },
     effects(prev,d){ if(!d.last||(prev.last&&prev.last.t===d.last.t)) return;
-      if(d.last.type==='roll'){ sfx.roll(); if(d.last.pass) toast(`${pname(d.last.seat)} kunde inte flytta`,1400); }
+      if(d.last.type==='roll'){ startRoll(); if(d.last.pass) setTimeout(()=>toast(`${pname(d.last.seat)} kunde inte flytta`,1400),720); else if(d.last.die===6) setTimeout(()=>sparkles(10),720); }
       else { sfx.pop(); if(d.last.knocked!=null){ sfx.poke(); toast(`💥 ${pname(d.last.seat)} knuffade hem ${pname(d.last.knocked)}!`,2200); } if(d.last.to===44) sparkles(20); } },
     html(){
       const g=G, me=meSeat(), my=!g.over&&g.cur===me&&canActG(me), n=g.names.length;
-      const L = my&&g.phase==='move' ? legal(g,me,g.die) : [];
+      const rolling=rollingNow(); const L = my&&g.phase==='move'&&!rolling ? legal(g,me,g.die) : [];
       const at={};   // "r,c" -> [{s,p}]
       for(let s=0;s<n;s++) for(let p=0;p<4;p++){ const r=g.pos[s][p], sl=slotOf(g,s); let rc;
         if(r<0) rc=NEST[sl][p]; else if(r<40) rc=PATH[absOf(g,s,r)]; else if(r<44) rc=LANE[sl][r-40]; else rc=[5,5];
@@ -95,20 +95,30 @@
         const ps=at[k]||[]; const pcs = cl==='goal' ? `<div class="fgoal">${[...Array(n).keys()].map(s=>`<i style="color:${FCOL[slotOf(g,s)]}">${'●'.repeat(g.pos[s].filter(x=>x===44).length)}</i>`).join('')}</div>`
           : ps.map(({s,p})=>`<i class="fp ${s===me&&L.includes(p)?'can':''} ${g.last&&g.last.type==='move'&&g.last.seat===s&&g.last.p===p?'moved':''}" data-fia="${s===me?p:''}" style="--pc:${FCOL[slotOf(g,s)]}"></i>`).join('');
         cells+=`<div class="fc ${cl}">${pcs}</div>`; }
-      const die=g.die?'⚀⚁⚂⚃⚄⚅'[g.die-1]:'🎲';
-      let sub; if(g.over) sub=''; else if(my) sub = g.phase==='roll' ? `<b style="color:var(--gold)">Din tur</b> – slå tärningen${g.tries?` (försök ${g.tries+1} av 3)`:''}` : L.length>1 ? `Du slog ${g.die} – tryck på pjäsen som ska flytta` : `Du slog ${g.die}`;
+      let sub; if(g.over) sub=''; else if(rolling) sub=`🎲 ${g.cur===me?'Du':esc(bare(pname(g.cur)))} slår…`; else if(my) sub = g.phase==='roll' ? `<b style="color:var(--gold)">Din tur</b> – slå tärningen${g.tries?` (försök ${g.tries+1} av 3)`:''}` : L.length>1 ? `Du slog ${g.die} – tryck på pjäsen som ska flytta` : `Du slog ${g.die}`;
       else sub=`${isAI(g.cur)?'🤖 ':''}<b>${esc(pname(g.cur))}</b> (${FNAME[slotOf(g,g.cur)]}) ${g.phase==='roll'?'ska slå':`slog ${g.die}`}`;
       return gHeadHTML(sub) + `<div class="fb">${cells}</div>
-        ${g.over?gOverHTML('Alla fyra i mål!'):`<div class="fctl"><button class="fdie ${my&&g.phase==='roll'?'go':''}" data-fia="roll" ${my&&g.phase==='roll'?'':'disabled'} style="--pc:${FCOL[slotOf(g,g.cur)]}">${die}</button></div>
+        ${g.over?gOverHTML('Alla fyra i mål!'):`<div class="fctl"><button class="die fia-die ${my&&g.phase==='roll'&&!rolling?'go':''} ${!g.die&&!(my&&g.phase==='roll')?'idle':''} ${rolling?'roll':''}" data-fia="roll" ${my&&g.phase==='roll'&&!rolling?'':'disabled'} style="--pc:${FCOL[slotOf(g,g.cur)]}" aria-label="Tärning"><span class="face">${pips(rolling?1+Math.floor(Math.random()*6):(g.die||6))}</span></button>
+          <div class="fturn" style="--pc:${FCOL[slotOf(g,g.cur)]}">${my&&g.phase==='roll'&&!rolling?'Tryck på tärningen!':esc(bare(pname(g.cur)))}</div></div>
         <div class="ghint">Ut med 1 eller 6 · sexa ger ett slag till · landar du på någon åker den hem · exakt slag in i mål. ${KIT.resignHTML()}</div>`}`; },
     mounted(){ // bara ett möjligt drag: gör det åt spelaren
       const g=G, me=meSeat(); clearTimeout(fiaAuto);
+      if(rollingNow()) return;
       if(!g.over&&g.cur===me&&canActG(me)&&g.phase==='move'){ const L=legal(g,me,g.die); if(L.length===1){ const key=g.seq; fiaAuto=setTimeout(()=>{ if(G&&G.kind==='fia'&&G.seq===key) doAct({type:'move',p:L[0]}); },900); } } }
   };
+  // tärningen ser ut, rullar och låter precis som i Yatzy
+  const fiaRoll={until:0, iv:0};
+  const rollingNow=()=>performance.now()<fiaRoll.until;
+  const pips=v=>{ let p=''; for(let k=0;k<9;k++) p+=`<i class="${PIPS[v].includes(k)?'on':''}"></i>`; return p; };
+  function startRoll(){
+    clearInterval(fiaRoll.iv); fiaRoll.until=performance.now()+700; sfx.roll(); buzz([10,30,10]);
+    fiaRoll.iv=setInterval(()=>{ const d=document.querySelector('.fia-die'); if(d){ d.classList.add('roll'); d.querySelector('.face').innerHTML=pips(1+Math.floor(Math.random()*6)); } },75);
+    setTimeout(()=>{ clearInterval(fiaRoll.iv); fiaRoll.until=0; if(G&&G.kind==='fia'&&view==='game') render(); },710);
+  }
   function nextAlive(g,s){ let c=s; do{ c=nextSeat(g,c); }while((g.out||[]).includes(c) && c!==s); return c; }
   let fiaAuto=0;
   document.addEventListener('click',e=>{ const b=e.target.closest('[data-fia]'); if(!b||!G||G.kind!=='fia') return; const me=meSeat(); if(G.over||G.cur!==me||!canActG(me)) return;
-    const v=b.dataset.fia; if(v==='roll'){ if(G.phase==='roll') doAct({type:'roll'}); return; } if(v===''||G.phase!=='move') return; const p=+v; if(legal(G,me,G.die).includes(p)){ clearTimeout(fiaAuto); doAct({type:'move',p}); } });
+    const v=b.dataset.fia; if(rollingNow()) return; if(v==='roll'){ if(G.phase==='roll'){ unlockAudio(); doAct({type:'roll'}); } return; } if(v===''||G.phase!=='move') return; const p=+v; if(legal(G,me,G.die).includes(p)){ clearTimeout(fiaAuto); doAct({type:'move',p}); } });
   css(`.fb{display:grid;grid-template-columns:repeat(11,1fr);gap:3px;max-width:min(460px,100%,max(260px,calc(100dvh - 370px)));margin:8px auto;padding:8px;border-radius:18px;background:#f8f1dc;box-shadow:0 10px 30px rgba(0,0,0,.4)}
 .fc{aspect-ratio:1;border-radius:50%;background:#fff;border:2px solid #cbd5e1;display:grid;place-items:center;position:relative}
 .fc.start.s0,.fc.lane.s0,.fc.nest.s0{background:#fecaca;border-color:#ef4444}.fc.start.s1,.fc.lane.s1,.fc.nest.s1{background:#bfdbfe;border-color:#3b82f6}
@@ -117,11 +127,14 @@
 .fgoal{font-size:7px;line-height:1;text-align:center;display:flex;flex-direction:column;filter:drop-shadow(0 0 1px #fff)}
 .fp{position:absolute;inset:10%;border-radius:50%;background:radial-gradient(circle at 35% 30%,#fff9,transparent 50%),var(--pc);box-shadow:0 2px 4px rgba(0,0,0,.5);border:1.5px solid rgba(0,0,0,.35)}
 .fp.can{animation:fpc .7s ease-in-out infinite alternate;cursor:pointer;outline:3px solid #fff;outline-offset:1px}@keyframes fpc{to{transform:scale(1.18)}}
-@media (max-height:720px){.fdie{width:60px;height:60px;font-size:40px;border-radius:14px}.fctl{margin:2px 0}}
+@media (max-height:720px){.fctl{margin:2px 0}}
 .fp.moved{box-shadow:0 0 0 3px #facc15,0 2px 4px rgba(0,0,0,.5)}
-.fctl{display:flex;justify-content:center;margin:6px 0}
-.fdie{font-size:56px;line-height:1;width:84px;height:84px;border-radius:20px;background:#fff;color:var(--pc);border:4px solid var(--pc);display:grid;place-items:center}
-.fdie.go{animation:fpc .8s ease-in-out infinite alternate}.fdie:disabled{opacity:.85}
+.fctl{display:flex;flex-direction:column;align-items:center;gap:8px;margin:8px 0 4px}
+.fctl .fia-die{width:78px;border-radius:20px;outline:3px solid var(--pc);outline-offset:4px}
+.fctl .fia-die.go{animation:fiago 1s ease-in-out infinite}@keyframes fiago{50%{transform:translateY(-6px) rotate(-4deg)}}
+.fctl .fia-die.roll{animation:tumble .14s linear infinite}
+.fctl .fia-die:disabled{cursor:default}.fctl .fia-die:disabled:not(.roll):not(.idle){opacity:1}
+.fturn{font-size:13px;font-weight:700;color:var(--pc);text-shadow:0 1px 2px rgba(0,0,0,.6)}
 .fdot{display:inline-block;width:12px;height:12px;border-radius:50%;vertical-align:middle}`);
   GINFO.fia.menu=()=>KIT.menu('fia',{rules:'Slå tärningen och flytta dina fyra pjäser ett varv runt brädet och in i mål. Du kommer ut med en etta eller sexa, och sexa ger ett slag till. Landar du på någon annan åker den hem!', bots:[1,3]});
 
