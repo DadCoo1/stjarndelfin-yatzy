@@ -64,7 +64,7 @@
     html(){
       const g=G, me=meSeat(), my=!g.over&&g.cur===me&&canActG(me), W=new Set(g.win||[]);
       let cells=''; for(let r=0;r<C4H;r++) for(let c=0;c<C4W;c++){ const v=g.board[r*C4W+c], last=g.last&&g.last.r===r&&g.last.c===c;
-        cells+=`<div class="c4c" data-c4="${c}">${v>=0?`<i class="c4p ${last?'drop':''} ${W.has(r*C4W+c)?'win':''}" style="--pc:${COL[v]};--r:${r+1}"></i>`:''}</div>`; }
+        cells+=`<div class="c4c" data-c4="${c}">${v>=0?`<i class="c4p ${last?'c4drop':''} ${W.has(r*C4W+c)?'win':''}" style="--pc:${COL[v]};--r:${r+1}"></i>`:''}</div>`; }
       return gHeadHTML(KIT.turnText(g,'tryck på en kolumn')) + `<div class="c4b ${my?'my':''}" style="--hc:${COL[me]||COL[0]}">${cells}</div>`
         + (g.over? gOverHTML(g.winner===-1?'Brädet är fullt.':'Fyra i rad!') : `<div class="ghint">${KIT.resignHTML()}</div>`); }
   };
@@ -73,7 +73,7 @@
 .c4c{aspect-ratio:1;border-radius:50%;background:#0b1530;box-shadow:inset 0 3px 6px rgba(0,0,0,.6);position:relative;cursor:pointer}
 .c4b.my .c4c:hover{background:#14224a}
 .c4p{position:absolute;inset:3px;border-radius:50%;background:radial-gradient(circle at 35% 30%,#fff8,transparent 45%),var(--pc);box-shadow:inset 0 -3px 6px rgba(0,0,0,.35)}
-.c4p.drop{animation:c4d .45s cubic-bezier(.5,0,.75,1.3)}@keyframes c4d{from{transform:translateY(calc(var(--r)*-118%))}}
+.c4p.c4drop{animation:c4d .45s cubic-bezier(.5,0,.75,1.3)}@keyframes c4d{from{transform:translateY(calc(var(--r)*-118%))}}
 .c4p.win{animation:c4w 1s ease-in-out infinite alternate;box-shadow:0 0 0 3px #fff,0 0 18px var(--pc)}@keyframes c4w{to{transform:scale(.86)}}
 .c4dot{display:inline-block;width:16px;height:16px;border-radius:50%;vertical-align:middle;box-shadow:inset 0 -2px 3px rgba(0,0,0,.3)}`);
   GINFO.c4.menu=()=>KIT.menu('c4',{rules:'Släpp brickor i kolumnerna. Den som först får fyra i rad – vågrätt, lodrätt eller snett – vinner.'});
