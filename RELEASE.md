@@ -8,7 +8,7 @@
 ## Arbetsgång
 1. Nya funktioner byggs och publiceras **bara i `dev/`**.
 2. Testa och utvärdera på `/dev/` (gärna installerad som egen app – ikonen har en gul DEV-banderoll).
-3. När allt är godkänt *släpps* versionen: `dev/index.html`, `dev/app.js`, `dev/peerjs.min.js`, `dev/games.js`, `dev/invaders.js`, `dev/chat.js`, `dev/fr.js`, `dev/kina.js`, `dev/ordfajt.js`, `dev/pong.js`, `dev/kit.js`, `dev/strat.js`, `dev/family.js`, `dev/ordfajt-sv.bin`, `dev/ordfajt-nb.bin`, `dev/ordfajt-nn.bin`, `dev/ORDLISTA-LICENS.txt`, `dev/qr.js` och `dev/sw.js` kopieras till roten,
+3. När allt är godkänt *släpps* versionen: `dev/index.html`, `dev/app.js`, `dev/peerjs.min.js`, `dev/games.js`, `dev/invaders.js`, `dev/chat.js`, `dev/fr.js`, `dev/kina.js`, `dev/ordfajt.js`, `dev/pong.js`, `dev/kit.js`, `dev/strat.js`, `dev/family.js`, `dev/cards.js`, `dev/ordfajt-sv.bin`, `dev/ordfajt-nb.bin`, `dev/ordfajt-nn.bin`, `dev/ORDLISTA-LICENS.txt`, `dev/qr.js` och `dev/sw.js` kopieras till roten,
    `APP_VERSION` och cache-versionen i `sw.js` räknas upp, och ändringen committas som "Release <version>".
 4. `dev/manifest.webmanifest` och `dev/icon-*.png` är testversionens egna och kopieras **inte**.
 
