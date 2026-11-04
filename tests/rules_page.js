@@ -46,20 +46,32 @@ T('memory samma kort två gånger',()=>{ const g=mk('memory'); ap(g,{type:'flip'
 T('memory gömmer på nästa vändning',()=>{ const g=mk('memory'); const j=g.cards.findIndex(c=>c!==g.cards[0]); ap(g,{type:'flip',i:0},0); ap(g,{type:'flip',i:j},0); ap(g,{type:'flip',i:0},1); return g.open.length===1&&g.open[0]===0; });
 T('memory slut och vinnare',()=>{ const g=mk('memory'); const by={}; g.cards.forEach((c,i)=>(by[c]=by[c]||[]).push(i)); for(const k in by){ ap(g,{type:'flip',i:by[k][0]},g.cur); ap(g,{type:'flip',i:by[k][1]},g.cur); } return g.over&&g.winner===0&&g.scores[0]===8; });
 T('memory gäst ser inte korten',()=>{ const g=mk('memory'); const r=gRedact(g,1); return r.cards.every(c=>c===-1); });
-// ---------- Vändtia
+// ---------- Vändtia (Svenska Bridgeförbundets regler)
 const VT=__cardsTest.VT, rk=__cardsTest.rk;
 const C=(r,s=0)=>s*13+(r-2);
-T('vändtia lägre avvisas',()=>{ const g=mk('vandtia'); g.pile=[C(9)]; g.hands[0]=[C(5,1),C(3),C(4)]; g.cur=0; return ap(g,{type:'play',cards:[C(5,1)]},0)===false; });
-T('vändtia 2 går på allt',()=>{ const g=mk('vandtia'); g.pile=[C(13)]; g.hands[0]=[C(2,1),C(3),C(4)]; g.cur=0; return ap(g,{type:'play',cards:[C(2,1)]},0)===true&&g.cur===1; });
-T('vändtia 10 vänder och spelar igen',()=>{ const g=mk('vandtia'); g.pile=[C(13),C(14)]; g.hands[0]=[C(10,2),C(3),C(4)]; g.cur=0; ap(g,{type:'play',cards:[C(10,2)]},0); return g.pile.length===0&&g.cur===0; });
-T('vändtia fyra lika vänder',()=>{ const g=mk('vandtia'); g.pile=[C(7),C(7,1)]; g.hands[0]=[C(7,2),C(7,3),C(4)]; g.cur=0; ap(g,{type:'play',cards:[C(7,2),C(7,3)]},0); return g.pile.length===0&&g.cur===0; });
-T('vändtia olika valörer avvisas',()=>{ const g=mk('vandtia'); g.pile=[]; g.hands[0]=[C(5),C(6),C(4)]; g.cur=0; return ap(g,{type:'play',cards:[C(5),C(6)]},0)===false; });
-T('vändtia fyller på till tre',()=>{ const g=mk('vandtia'); g.pile=[]; g.cur=0; const c=g.hands[0][0]; const d=g.deck.length; ap(g,{type:'play',cards:[c]},0); return g.hands[0].length===3&&g.deck.length===d-1; });
-T('vändtia ta upp högen',()=>{ const g=mk('vandtia'); g.pile=[C(14)]; g.cur=0; const h=g.hands[0].length; ap(g,{type:'take'},0); return g.hands[0].length===h+1&&g.pile.length===0&&g.cur===1; });
-T('vändtia synliga först när handen är tom',()=>{ const g=mk('vandtia'); g.deck=[]; g.hands[0]=[]; g.pile=[]; g.cur=0; const u=g.up[0][0]; return ap(g,{type:'play',cards:[u]},0)===true; });
-T('vändtia dolt kort som inte passar',()=>{ const g=mk('vandtia'); g.deck=[]; g.hands[0]=[]; g.up[0]=[]; g.down[0]=[C(3),C(4),C(5)]; g.pile=[C(13)]; g.cur=0; ap(g,{type:'blind',i:0},0); return g.hands[0].length===2&&g.pile.length===0&&g.cur===1; });
-T('vändtia vinst när allt är slut',()=>{ const g=mk('vandtia'); g.deck=[]; g.hands[0]=[]; g.up[0]=[]; g.down[0]=[C(14)]; g.pile=[C(3)]; g.cur=0; ap(g,{type:'blind',i:0},0); return g.over&&g.winner===0; });
-T('vändtia gäst ser inte dolda/andras',()=>{ const g=mk('vandtia'); const r=gRedact(g,1); return r.hands[0].every(c=>c===-1)&&r.down.flat().every(c=>c===-1)&&r.hands[1].every(c=>c>=0)&&r.deck.length===0; });
+const vp=(n=3)=>{ const g=mk('vandtia',Array.from({length:n},(_,i)=>'P'+i)); g.phase='play'; g.ready=g.ready.map(()=>true); g.first=null; g.cur=0; return g; };
+T('vändtia börjar i förberedelse',()=>{ const g=mk('vandtia',['A','B','C']); return g.phase==='setup'&&g.up.every(u=>u.length===3&&u.every(st=>st.length===1))&&g.hands.every(h=>h.length===3)&&g.deck.length===52-27; });
+T('vändtia byta handkort mot uppvänt',()=>{ const g=mk('vandtia'); const h=g.hands[0][0], u=g.up[0][1][0]; ap(g,{type:'swap',c:h,u:1},0); return g.up[0][1][0]===h&&g.hands[0].includes(u); });
+T('vändtia lägga på annans uppvända (samma valör)',()=>{ const g=mk('vandtia'); g.hands[0]=[C(5),C(9),C(12)]; g.up[1][2]=[C(5,2)]; const d=g.deck.length; ap(g,{type:'stack',c:C(5),to:1,u:2},0); return g.up[1][2].length===2&&g.hands[0].length===3&&g.deck.length===d-1; });
+T('vändtia lägga på annan valör avvisas',()=>{ const g=mk('vandtia'); g.hands[0]=[C(5),C(9),C(12)]; g.up[1][2]=[C(6,2)]; return ap(g,{type:'stack',c:C(5),to:1,u:2},0)===false; });
+T('vändtia lägst kort börjar (trea, inte 2)',()=>{ const g=mk('vandtia',['A','B','C']); g.hands=[[C(2),C(9),C(14)],[C(4),C(8),C(13)],[C(3,1),C(10),C(11)]]; for(let s=0;s<3;s++) ap(g,{type:'ready'},s); return g.phase==='play'&&g.cur===2&&g.first===3; });
+T('vändtia första draget måste vara lägsta valören',()=>{ const g=mk('vandtia',['A','B']); g.hands=[[C(3),C(9),C(14)],[C(4),C(8),C(13)]]; ap(g,{type:'ready'},0); ap(g,{type:'ready'},1); return ap(g,{type:'play',cards:[C(9)]},0)===false && ap(g,{type:'play',cards:[C(3)]},0)===true; });
+T('vändtia lägre avvisas',()=>{ const g=vp(); g.pile=[C(9)]; g.hands[0]=[C(5,1),C(3),C(4)]; return ap(g,{type:'play',cards:[C(5,1)]},0)===false; });
+T('vändtia 2 går på allt',()=>{ const g=vp(); g.pile=[C(13)]; g.hands[0]=[C(2,1),C(3),C(4)]; return ap(g,{type:'play',cards:[C(2,1)]},0)===true&&g.cur===1; });
+T('vändtia efter 2 går trean',()=>{ const g=vp(); g.pile=[C(13),C(2)]; g.hands[0]=[C(3),C(4),C(5)]; return ap(g,{type:'play',cards:[C(3)]},0)===true; });
+T('vändtia 10 bränner och samma spelare igen',()=>{ const g=vp(); g.pile=[C(13),C(14)]; g.hands[0]=[C(10,2),C(3),C(4)]; ap(g,{type:'play',cards:[C(10,2)]},0); return g.pile.length===0&&g.cur===0&&g.burnt===3; });
+T('vändtia fyra lika över flera drag bränner',()=>{ const g=vp(); g.pile=[C(7),C(7,1)]; g.hands[0]=[C(7,2),C(7,3),C(4)]; ap(g,{type:'play',cards:[C(7,2),C(7,3)]},0); return g.pile.length===0&&g.cur===0; });
+T('vändtia fyra lika på en gång bränner',()=>{ const g=vp(); g.pile=[C(5)]; g.hands[0]=[C(8),C(8,1),C(8,2),C(8,3)]; ap(g,{type:'play',cards:[C(8),C(8,1),C(8,2),C(8,3)]},0); return g.pile.length===0&&g.cur===0; });
+T('vändtia fyll på till tre',()=>{ const g=vp(); g.pile=[]; const c=g.hands[0][0], d=g.deck.length; ap(g,{type:'play',cards:[c]},0); return g.hands[0].length===3&&g.deck.length===d-1; });
+T('vändtia chansa som passar',()=>{ const g=vp(); g.pile=[C(9)]; g.hands[0]=[C(3),C(4),C(5)]; g.deck=[C(6,3),C(12,1)]; ap(g,{type:'chance'},0); return g.pile.length===2&&g.cur===1&&g.last.ok; });
+T('vändtia chansa som inte passar',()=>{ const g=vp(); g.pile=[C(9)]; g.hands[0]=[C(3),C(4),C(5)]; g.deck=[C(6,3),C(4,1)]; ap(g,{type:'chance'},0); return g.pile.length===0&&g.hands[0].length===5&&g.cur===1; });
+T('vändtia chansa förbjudet om man kan lägga',()=>{ const g=vp(); g.pile=[C(4)]; g.hands[0]=[C(9),C(4,1),C(5)]; return ap(g,{type:'chance'},0)===false; });
+T('vändtia ta upp högen frivilligt',()=>{ const g=vp(); g.pile=[C(4)]; g.hands[0]=[C(9),C(4,1),C(5)]; return ap(g,{type:'take'},0)===true&&g.hands[0].length===4; });
+T('vändtia uppvända när hand och talong är slut',()=>{ const g=vp(); g.deck=[]; g.hands[0]=[]; g.pile=[]; g.up[0]=[[C(6)],[C(6,1),C(6,2)],[C(9)]]; ap(g,{type:'play',cards:[C(6),C(6,1),C(6,2)]},0); return g.up[0][0].length===0&&g.up[0][1].length===0&&g.pile.length===3; });
+T('vändtia dolt kort som inte passar',()=>{ const g=vp(); g.deck=[]; g.hands[0]=[]; g.up[0]=[[],[],[]]; g.down[0]=[C(3),C(4),C(5)]; g.pile=[C(13)]; ap(g,{type:'blind',i:0},0); return g.hands[0].length===2&&g.pile.length===0&&g.cur===1&&g.down[0][0]===null; });
+T('vändtia vinst när allt är slut',()=>{ const g=vp(); g.deck=[]; g.hands[0]=[]; g.up[0]=[[],[],[]]; g.down[0]=[null,null,C(14)]; g.pile=[C(3)]; ap(g,{type:'blind',i:2},0); return g.over&&g.winner===0; });
+T('vändtia 6 spelare: två kortlekar',()=>{ const g=mk('vandtia',['A','B','C','D','E','F']); const all=[...g.hands.flat(),...g.up.flat(2),...g.down.flat(),...g.deck]; return all.length===104&&new Set(all).size===104&&KIND.vandtia.valid(g); });
+T('vändtia gäst ser inte dolda/andras',()=>{ const g=mk('vandtia'); const r=gRedact(g,1); return r.hands[0].every(c=>c===-1)&&r.down.flat().every(c=>c===-1)&&r.hands[1].every(c=>c>=0)&&r.deck.length===0&&r.up[0].flat().every(c=>c>=0); });
 // ---------- Finns i sjön
 T('fisk fråga och få',()=>{ const g=mk('fisk'); g.hands[0]=[C(5),C(9)]; g.hands[1]=[C(5,1),C(5,2),C(8)]; g.cur=0; ap(g,{type:'ask',to:1,rank:5},0); return g.hands[0].filter(c=>rk(c)===5).length===3&&g.cur===0; });
 T('fisk fyrtal läggs ut',()=>{ const g=mk('fisk'); g.hands[0]=[C(5),C(5,3),C(9)]; g.hands[1]=[C(5,1),C(5,2),C(8)]; g.cur=0; ap(g,{type:'ask',to:1,rank:5},0); return g.books[0].includes(5)&&!g.hands[0].some(c=>rk(c)===5); });

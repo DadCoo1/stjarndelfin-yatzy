@@ -8,7 +8,7 @@
   const now=()=>Date.now();
   const isInt=(x,lo,hi)=>Number.isInteger(x)&&x>=lo&&x<=hi;
   const S=['♠','♥','♦','♣'], SN=['spader','hjärter','ruter','klöver'];
-  const rk=id=>id%13+2, su=id=>Math.floor(id/13);
+  const rk=id=>id%13+2, su=id=>Math.floor(id/13)%4;
   const RN=r=>({11:'J',12:'Q',13:'K',14:'A'})[r]||String(r);
   const RNAME=r=>({2:'tvåor',3:'treor',4:'fyror',5:'femmor',6:'sexor',7:'sjuor',8:'åttor',9:'nior',10:'tior',11:'knektar',12:'damer',13:'kungar',14:'ess'})[r];
   const deck=()=>KIT.shuffle([...Array(52).keys()]);
@@ -31,7 +31,7 @@
 .hand .pc{margin-left:calc(var(--cw)*var(--ov,-.45));transition:transform .15s}.hand .pc:first-child{margin-left:0}
 .hand .pc.can{cursor:pointer}.hand .pc.sel{transform:translateY(-14px);box-shadow:0 0 0 3px #22d3ee,0 6px 14px rgba(0,0,0,.4)}
 .hand .pc.no{filter:brightness(.62)}
-.opps{display:flex;justify-content:center;gap:6px;flex-wrap:wrap;margin:4px 0}.opps .opp{flex:1 1 0;max-width:180px}
+.opps{display:flex;justify-content:center;gap:6px;flex-wrap:wrap;margin:4px 0}.opps .opp{flex:1 1 98px;max-width:180px}
 .opp{background:var(--glass);border:1px solid var(--line);border-radius:14px;padding:6px 10px;min-width:96px;text-align:center;font-size:13px}
 .opp.on{border-color:var(--gold);box-shadow:0 0 0 2px rgba(250,204,21,.35)}
 .opp .mini{display:flex;justify-content:center;margin-top:4px;--cw:22px}.opp .mini .pc{margin-left:-14px}.opp .mini .pc:first-child{margin-left:0}
@@ -47,93 +47,189 @@
   const nextIdx=(g,s)=>{ let c=s; do{ c=(c+1)%g.names.length; }while((g.out||[]).includes(c)&&c!==s); return c; };
 
   /* =================================================================
-     1) VÄNDTIA
+     1) VÄNDTIA – regler enligt Svenska Bridgeförbundets beskrivning
+     • 2–8 spelare (två kortlekar från 6 spelare)
+     • tre dolda bordskort, tre uppvända ovanpå, tre på hand
+     • före start: byt handkort mot egna uppvända, lägg sedan handkort på
+       valfri spelares uppvända kort med samma valör
+     • den som har lägst kort (trea, 2 och 10 är specialkort) börjar
+     • lika eller högre; flera av samma valör på en gång
+     • 2 går på allt och börjar om, 10 bränner högen, fyra lika i rad bränner
+     • efter bränning lägger samma spelare igen; fyll på till tre från talongen
+     • kan man inte lägga: chansa från talongen eller ta upp högen
+     • tom hand och talong: uppvända kort, sist de dolda (blint)
      ================================================================= */
-  const VT={ cp(r,pile){ if(r===2||r===10||!pile.length) return true; return r>=rk(pile[pile.length-1]); },
-    zone(g,s){ return g.hands[s].length ? 'hand' : g.up[s].length ? 'up' : g.down[s].length ? 'down' : null; },
-    groups(g,s){ const z=VT.zone(g,s); if(z!=='hand'&&z!=='up') return []; const by={}; for(const c of g[z==='hand'?'hands':'up'][s]) (by[rk(c)]=by[rk(c)]||[]).push(c);
-      return Object.entries(by).filter(([r])=>VT.cp(+r,g.pile)).map(([r,cs])=>({r:+r,cs})); } };
-  GINFO.vandtia={name:'Vändtia', icon:'🔟', ai:BOTS[0], bots:BOTS, max:4, desc:'Bli av med korten först · 2–4 spelare', grad:'linear-gradient(135deg,#dc2626,#7c3aed)'};
+  const VT={
+    cp(r,pile){ if(r===2||r===10||!pile.length) return true; return r>=rk(pile[pile.length-1]); },
+    zone(g,s){ return g.hands[s].length ? 'hand' : g.up[s].some(st=>st.length) ? 'up' : g.down[s].some(c=>c!==null) ? 'down' : null; },
+    // kort som får spelas nu (hand eller uppvända), grupperade per valör
+    groups(g,s){ const z=VT.zone(g,s); let src=[]; if(z==='hand') src=g.hands[s]; else if(z==='up') src=g.up[s].flat(); else return [];
+      const by={}; for(const c of src) (by[rk(c)]=by[rk(c)]||[]).push(c);
+      let gs=Object.entries(by).map(([r,cs])=>({r:+r,cs})).filter(x=>VT.cp(x.r,g.pile));
+      if(g.first!=null) gs=gs.filter(x=>x.r===g.first);            // första draget: den lägsta valören
+      return gs; },
+    low(c){ const r=rk(c); return r===2||r===10 ? 99 : r; },          // 3 lägst, 2 och 10 räknas inte
+    out(g,s){ return !g.hands[s].length && !g.up[s].some(st=>st.length) && !g.down[s].some(c=>c!==null); },
+    refill(g,s){ while(g.hands[s].length<3 && g.deck.length) g.hands[s].push(g.deck.pop()); g.deckN=g.deck.length; },
+    burnCheck(g){ const top=g.pile.slice(-4), r=g.pile.length?rk(g.pile[g.pile.length-1]):0; return r===10 || (top.length===4 && top.every(c=>rk(c)===rk(top[0]))); },
+    allReady(g){ return g.ready.every((r,s)=>r||(g.out||[]).includes(s)); },
+    startPlay(g){ g.phase='play'; let best=99, who=g.names.findIndex((_,s)=>!(g.out||[]).includes(s)); for(let s=0;s<g.names.length;s++){ if((g.out||[]).includes(s)) continue; for(const c of g.hands[s]){ const v=VT.low(c); if(v<best){ best=v; who=s; } } }
+      g.cur=who; g.first = best<99 ? best : null; g.last={t:now(),type:'start',seat:who,rank:best<99?best:null}; }
+  };
+  const okIds=(a,max)=>Array.isArray(a)&&a.length<=max&&a.every(x=>isInt(x,-1,103));
+  GINFO.vandtia={name:'Vändtia', icon:'🔟', ai:BOTS[0], bots:[...BOTS,'Nova 🤖','Luna 🤖','Orion 🤖','Vega 🤖'], max:8, desc:'Bli av med korten först · 2–8 spelare', grad:'linear-gradient(135deg,#dc2626,#7c3aed)'};
   KIND.vandtia={
-    init(){ return {hands:[],up:[],down:[],pile:[],deck:[],burnt:0}; },
-    start(g){ const d=deck(), n=g.names.length; g.hands=[]; g.up=[]; g.down=[];
-      for(let s=0;s<n;s++){ g.down.push(d.splice(0,3)); g.up.push(d.splice(0,3)); g.hands.push(d.splice(0,3)); }
-      g.deck=d; g.deckN=d.length; g.pile=[]; g.burnt=0; g.cur=g.starter%n; g.out=[]; },
-    redact(g,seat){ g.hands=g.hands.map((h,s)=>s===seat?h:h.map(()=>-1)); g.down=g.down.map(h=>h.map(()=>-1)); g.deckN=g.deck.length; g.deck=[]; },
-    valid(g){ const n=g.names.length; if(n<1||n>4) return false; if(g.started===false) return true;
-      return n>=2 && ['hands','up','down'].every(k=>Array.isArray(g[k])&&g[k].length===n&&g[k].every(h=>okCards(h,52))) && okCards(g.pile,52) && okCards(g.deck,52); },
-    waitingFor(g){ return g.cur; },
-    scoreOf(g,i){ return `${g.hands[i].length+g.up[i].length+g.down[i].length} kort`; },
+    init(){ return {phase:'setup',hands:[],up:[],down:[],pile:[],deck:[],ready:[],burnt:0}; },
+    start(g){ const n=g.names.length, ids=[...Array(n>5?104:52).keys()], d=KIT.shuffle(ids); g.hands=[]; g.up=[]; g.down=[];
+      for(let s=0;s<n;s++){ g.down.push(d.splice(0,3)); g.up.push(d.splice(0,3).map(c=>[c])); g.hands.push(d.splice(0,3)); }
+      g.deck=d; g.deckN=d.length; g.pile=[]; g.burnt=0; g.out=[]; g.phase='setup'; g.ready=g.names.map(()=>false); g.first=null; g.cur=0; },
+    redact(g,seat){ g.hands=g.hands.map((h,s)=>s===seat?h:h.map(()=>-1)); g.down=g.down.map(h=>h.map(c=>c===null?null:-1)); g.deckN=g.deck.length; g.deck=[];
+      if(g.last&&g.last.drew!=null&&g.last.seat!==seat&&!g.last.ok) delete g.last.drew; },
+    valid(g){ const n=g.names.length; if(n<1||n>8) return false; if(g.started===false) return true;
+      return n>=2 && (g.phase==='setup'||g.phase==='play') && Array.isArray(g.hands)&&g.hands.length===n&&g.hands.every(h=>okIds(h,104))
+        && Array.isArray(g.up)&&g.up.length===n&&g.up.every(u=>Array.isArray(u)&&u.length===3&&u.every(st=>okIds(st,8)))
+        && Array.isArray(g.down)&&g.down.length===n&&g.down.every(d=>Array.isArray(d)&&d.length===3&&d.every(c=>c===null||isInt(c,-1,103)))
+        && okIds(g.pile,104) && okIds(g.deck,104) && Array.isArray(g.ready); },
+    waitingFor(g){ if(g.phase==='setup'){ const me=meSeat(); if(g.ready[me]===false&&!(g.out||[]).includes(me)) return me; return g.ready.findIndex((r,s)=>!r&&!(g.out||[]).includes(s)); } return g.cur; },
+    scoreOf(g,i){ const n=g.hands[i].length+g.up[i].flat().length+g.down[i].filter(c=>c!==null).length; return g.phase==='setup'?(g.ready[i]?'✅ klar':'🔄 byter'):`${n} kort`; },
     apply(g,a,seat){
-      if(a.type==='resign') return KIT.resign(g,seat);
-      if(g.over||seat!==g.cur) return false;
+      if(a.type==='resign'){ const ok=KIT.resign(g,seat); if(ok&&!g.over&&g.phase==='setup'&&VT.allReady(g)) VT.startPlay(g); return ok; }
+      if(g.over||(g.out||[]).includes(seat)) return false;
+      // ---------- förberedelse (alla samtidigt)
+      if(g.phase==='setup'){
+        if(g.ready[seat]) return false;
+        if(a.type==='swap'){ if(!isInt(a.u,0,2)) return false; const h=g.hands[seat], st=g.up[seat][a.u]; if(!h.includes(a.c)||st.length!==1) return false;
+          h[h.indexOf(a.c)]=st[0]; g.up[seat][a.u]=[a.c]; g.last={t:now(),type:'swap',seat}; return true; }
+        if(a.type==='stack'){ if(!isInt(a.to,0,g.names.length-1)||!isInt(a.u,0,2)) return false; const h=g.hands[seat], st=g.up[a.to][a.u];
+          if(!h.includes(a.c)||!st.length||rk(st[0])!==rk(a.c)) return false;
+          h.splice(h.indexOf(a.c),1); st.push(a.c); VT.refill(g,seat); g.last={t:now(),type:'stack',seat,to:a.to,c:a.c}; return true; }
+        if(a.type==='ready'){ g.ready[seat]=true; g.last={t:now(),type:'ready',seat}; if(VT.allReady(g)) VT.startPlay(g); return true; }
+        return false; }
+      // ---------- spelet
+      if(seat!==g.cur) return false;
       const z=VT.zone(g,seat); let played=null;
-      if(a.type==='take'){ if(!g.pile.length) return false; g.hands[seat].push(...g.pile); g.pile=[]; g.last={seat,t:now(),type:'take'}; g.cur=nextIdx(g,seat); return true; }
-      if(a.type==='play'){ if(z!=='hand'&&z!=='up') return false; const src=z==='hand'?g.hands[seat]:g.up[seat];
-        if(!Array.isArray(a.cards)||!a.cards.length||a.cards.length>4||new Set(a.cards).size!==a.cards.length||!a.cards.every(c=>src.includes(c))) return false;
+      if(a.type==='take'){ if(!g.pile.length) return false; g.hands[seat].push(...g.pile); g.pile=[]; g.first=null; g.last={seat,t:now(),type:'take'}; g.cur=nextIdx(g,seat); return true; }
+      if(a.type==='chance'){ if(!g.deck.length||VT.groups(g,seat).length||z==='down') return false;
+        const c=g.deck.pop(); g.deckN=g.deck.length;
+        if(VT.cp(rk(c),g.pile)){ g.pile.push(c); const burn=VT.burnCheck(g); if(burn){ g.burnt+=g.pile.length; g.pile=[]; } g.first=null; g.last={seat,t:now(),type:'chance',drew:c,ok:true,burn}; }
+        else { g.hands[seat].push(...g.pile,c); g.pile=[]; g.first=null; g.last={seat,t:now(),type:'chance',drew:c,ok:false}; }
+        g.cur=nextIdx(g,seat); return true; }
+      if(a.type==='play'){ if(z!=='hand'&&z!=='up') return false;
+        if(!Array.isArray(a.cards)||!a.cards.length||a.cards.length>8||new Set(a.cards).size!==a.cards.length) return false;
         const r=rk(a.cards[0]); if(!a.cards.every(c=>rk(c)===r)||!VT.cp(r,g.pile)) return false;
-        a.cards.forEach(c=>src.splice(src.indexOf(c),1)); g.pile.push(...a.cards); played=a.cards; }
-      else if(a.type==='blind'){ if(z!=='down'||!isInt(a.i,0,g.down[seat].length-1)) return false;
-        const c=g.down[seat].splice(a.i,1)[0];
-        if(!VT.cp(rk(c),g.pile)){ g.hands[seat].push(...g.pile,c); g.pile=[]; g.last={seat,t:now(),type:'blindfail',c}; g.cur=nextIdx(g,seat); return true; }
+        if(g.first!=null && r!==g.first) return false;
+        if(z==='hand'){ if(!a.cards.every(c=>g.hands[seat].includes(c))) return false; a.cards.forEach(c=>g.hands[seat].splice(g.hands[seat].indexOf(c),1)); }
+        else { const all=g.up[seat].flat(); if(!a.cards.every(c=>all.includes(c))) return false; g.up[seat]=g.up[seat].map(st=>st.filter(c=>!a.cards.includes(c))); }
+        g.pile.push(...a.cards); played=a.cards; }
+      else if(a.type==='blind'){ if(z!=='down'||!isInt(a.i,0,2)||g.down[seat][a.i]===null) return false;
+        const c=g.down[seat][a.i]; g.down[seat][a.i]=null;
+        if(!VT.cp(rk(c),g.pile)){ g.hands[seat].push(...g.pile,c); g.pile=[]; g.first=null; g.last={seat,t:now(),type:'blindfail',c}; g.cur=nextIdx(g,seat); return true; }
         g.pile.push(c); played=[c]; }
       else return false;
-      while(g.hands[seat].length<3 && g.deck.length) g.hands[seat].push(g.deck.pop()); g.deckN=g.deck.length;
-      const top=g.pile.slice(-4); const burn = rk(played[0])===10 || (top.length===4 && top.every(c=>rk(c)===rk(top[0])));
+      g.first=null; VT.refill(g,seat);
+      const burn=VT.burnCheck(g);
       g.last={seat,t:now(),type:a.type,cards:played,burn};
       if(burn){ g.burnt+=g.pile.length; g.pile=[]; }
-      if(!g.hands[seat].length&&!g.up[seat].length&&!g.down[seat].length){ g.over=true; g.winner=seat; return true; }
+      if(VT.out(g,seat)){ g.over=true; g.winner=seat; return true; }
       if(!burn) g.cur=nextIdx(g,seat);
       return true; },
-    aiSeat(g){ return !g.over&&isAI(g.cur)?g.cur:null; },
-    aiDelay(){ return 900; },
-    ai(g,seat){ const z=VT.zone(g,seat), lv=g.ai[seat];
-      if(z==='down') return {type:'blind', i:rint(g.down[seat].length)};
-      const gs=VT.groups(g,seat); if(!gs.length) return {type:'take'};
+    aiSeat(g){ if(g.over) return null; if(g.phase==='setup'){ const i=g.ready.findIndex((r,s)=>!r&&isAI(s)&&!(g.out||[]).includes(s)); return i>=0?i:null; } return isAI(g.cur)?g.cur:null; },
+    aiDelay(g){ return g.phase==='setup'?350:900; },
+    ai(g,seat){ const lv=g.ai[seat];
+      const str=c=>{ const r=rk(c); return r===10?20: r===2?19: r; };       // hur stark ett kort är
+      if(g.phase==='setup'){ const h=g.hands[seat];
+        if(lv!=='easy'){ // starka kort upp på bordet, svaga på hand
+          for(let u=0;u<3;u++){ const st=g.up[seat][u]; if(st.length!==1) continue; const best=h.slice().sort((a,b)=>str(b)-str(a))[0]; if(best!=null&&str(best)>str(st[0])) return {type:'swap',c:best,u}; }
+          // svaga kort på motståndarnas uppvända, starka på egna
+          for(const c of h){ for(let s=0;s<g.names.length;s++){ if(s!==seat && str(c)<=7) for(let u=0;u<3;u++){ const st=g.up[s][u]; if(st.length&&rk(st[0])===rk(c)) return {type:'stack',c,to:s,u}; } }
+            if(str(c)>=11) for(let u=0;u<3;u++){ const st=g.up[seat][u]; if(st.length&&rk(st[0])===rk(c)) return {type:'stack',c,to:seat,u}; } } }
+        return {type:'ready'}; }
+      const z=VT.zone(g,seat);
+      if(z==='down'){ const free=[0,1,2].filter(i=>g.down[seat][i]!==null); return {type:'blind', i:free[rint(free.length)]}; }
+      const gs=VT.groups(g,seat);
+      if(!gs.length){ if(g.deck.length && (lv!=='easy' || Math.random()<.5)) return {type:'chance'}; return {type:'take'}; }
       if(lv==='easy'){ const p=gs[rint(gs.length)]; return {type:'play', cards:Math.random()<.5?p.cs:[p.cs[0]]}; }
       const normal=gs.filter(x=>x.r!==2&&x.r!==10).sort((a,b)=>a.r-b.r);
       let p = normal[0];
-      if(lv==='hard'){ const nx=nextIdx(g,seat), danger=g.hands[nx].length+g.up[nx].length+g.down[nx].length<=3;
-        if(danger && normal.length) p=normal[normal.length-1];
+      if(lv==='hard'){ const nx=nextIdx(g,seat), left=g.hands[nx].length+g.up[nx].flat().length+g.down[nx].filter(c=>c!==null).length;
+        if(left<=3 && normal.length) p=normal[normal.length-1];
         if(!p && g.pile.length>=6) p=gs.find(x=>x.r===10); }
       if(!p) p=gs.find(x=>x.r===2)||gs.find(x=>x.r===10)||gs[0];
       return {type:'play', cards:p.cs}; },
-    effects(prev,d){ if(!d.last||(prev.last&&prev.last.t===d.last.t)) return;
-      if(d.last.burn){ sfx.yatzy(); sparkles(18); toast(`🔥 ${pname(d.last.seat)} vände högen!`,1600); }
-      else if(d.last.type==='take'||d.last.type==='blindfail') { sfx.unbubble(); toast(`${pname(d.last.seat)} fick ta upp högen`,1600); }
-      else sfx.pick(); },
+    effects(prev,d){ if(!d.last||(prev.last&&prev.last.t===d.last.t)) return; const L=d.last, who=L.seat===meSeat()?'Du':bare(pname(L.seat));
+      if(L.type==='start'){ toast(L.rank?`${who} har lägst kort och börjar`:`${who} börjar`,2200); sfx.turn(); return; }
+      if(L.type==='stack'){ sfx.pick(); if(L.to===meSeat()&&L.seat!==meSeat()) toast(`${who} lade ett kort på dina uppvända 😈`,1800); return; }
+      if(L.type==='swap'||L.type==='ready'){ sfx.bubble(); return; }
+      if(L.burn){ sfx.yatzy(); sparkles(18); toast(`🔥 ${who} brände högen!`,1600); return; }
+      if(L.type==='chance'){ L.ok ? (sfx.pick(), toast(`🍀 ${who} chansade – och det gick!`,1700)) : (sfx.unbubble(), toast(`${who} chansade fel och tar upp högen`,1700)); return; }
+      if(L.type==='take'||L.type==='blindfail'){ sfx.unbubble(); toast(`${who} tog upp högen`,1500); return; }
+      sfx.pick(); },
     html(){
-      const g=G, me=meSeat(), my=!g.over&&g.cur===me&&canActG(me), z=VT.zone(g,me), sel=vtSel.get();
+      const g=G, me=meSeat(), sel=vtSel.get();
+      const top=g.pile.slice(-3), deckN=g.deckN??g.deck.length;
+      const stackHTML=(s,u,o={})=>{ const st=g.up[s][u], dn=g.down[s][u];
+        return `<div class="vt-slot ${o.cls||''}" ${o.attr||''}>${dn!==null&&dn!==undefined?card(-1,{cls: o.blind?'can':'', attr:o.blind?`data-vt="blind" data-i="${u}"`:''}):'<div class="pc empty"></div>'}
+          ${st.length?`<div class="vt-st">${card(st[st.length-1],{cls:`upc ${o.upcls?o.upcls(st):''}`,attr:o.upattr?o.upattr(st):''})}${st.length>1?`<b class="vt-n">×${st.length}</b>`:''}</div>`:''}</div>`; };
+      // ---------- förberedelsen
+      if(g.phase==='setup'){
+        const mine=g.ready[me]===false && canActG(me), pick=vtPick.get();
+        const hc=pick!=null?rk(pick):null;
+        const opp=g.names.map((n,s)=>s===me?'':`<div class="opp ${g.ready[s]?'':'on'}"><b>${isAI(s)?'🤖 ':''}${esc(bare(n))}</b> ${g.ready[s]?'✅':'🔄'}<div class="vt-ups">${[0,1,2].map(u=>{ const st=g.up[s][u]; const ok=mine&&hc!=null&&st.length&&rk(st[0])===hc;
+            return `<div class="vt-mini ${ok?'tgt':''}" ${ok?`data-vt="stack" data-to="${s}" data-u="${u}"`:''}>${st.length?card(st[st.length-1]):''}${st.length>1?`<b class="vt-n">×${st.length}</b>`:''}</div>`; }).join('')}</div></div>`).join('');
+        const myUp=`<div class="vt-mine">${[0,1,2].map(u=>stackHTML(me,u,{upcls:st=>mine&&hc!=null&&(st.length===1||rk(st[0])===hc)?'can':'', upattr:()=>mine?`data-vt="mine" data-u="${u}"`:''})).join('')}</div>`;
+        const hand=`<div class="hand" style="--ov:${handOv(g.hands[me].length)}">${sortHand(g.hands[me]).map(c=>card(c,{cls:`${mine?'can':''} ${pick===c?'sel':''}`,attr:`data-vt="pick" data-c="${c}"`})).join('')}</div>`;
+        const sub = !mine ? (g.ready[me]?'Väntar på att de andra blir klara…':'') : pick==null ? '<b style="color:var(--gold)">Förbered</b> – tryck på ett handkort' : 'Tryck på ett eget uppvänt kort för att <b>byta</b> – eller på ett kort med samma valör (även andras) för att <b>lägga på</b>';
+        return `<div class="gsub">${sub}</div><div class="opps">${opp}</div><div class="vt-lbl">Dina bordskort</div>${myUp}<div class="vt-lbl">Din hand</div>${hand}
+          <div class="cbtns">${mine?`<button class="pri" data-vt="ready">✅ Klar – börja spela</button>`:''}</div>
+          <div class="ghint">Lägg gärna starka kort (10, 2, ess) bland dina uppvända och svaga kort på motspelarnas. ${KIT.resignHTML()}</div>`; }
+      // ---------- spelet
+      const my=!g.over&&g.cur===me&&canActG(me), z=VT.zone(g,me);
       const groups = my ? VT.groups(g,me) : [], ok=new Set(groups.flatMap(x=>x.cs));
-      const top=g.pile.slice(-3);
-      const table=`<div class="table"><div class="vt-deck">${(g.deckN||g.deck.length)?card(-1):'<div class="pc empty"></div>'}<small>${g.deckN??g.deck.length} kvar</small></div>
-        <div class="vt-pile">${top.length?top.map((c,i)=>card(c,{cls:'pl',attr:`style="--i:${i}"`})).join(''):'<div class="pc empty"></div>'}<small>${g.pile.length?`${g.pile.length} i högen`:'tom hög'}</small></div></div>`;
-      const myUp=`<div class="vt-mine">${g.down[me].map((c,i)=>`<div class="vt-slot">${card(-1,{cls: z==='down'&&my?'can':'', attr:`data-vt="blind" data-i="${i}"`})}${g.up[me][i]!==undefined?card(g.up[me][i],{cls:`upc ${z==='up'&&my?(ok.has(g.up[me][i])?'can':'no'):''} ${sel.includes(g.up[me][i])?'sel':''}`,attr:`data-vt="c" data-c="${g.up[me][i]}"`}):''}</div>`).join('')}
-        ${g.up[me].slice(g.down[me].length).map(c=>`<div class="vt-slot">${card(c,{cls:`upc ${z==='up'&&my?(ok.has(c)?'can':'no'):''} ${sel.includes(c)?'sel':''}`,attr:`data-vt="c" data-c="${c}"`})}</div>`).join('')}</div>`;
+      const table=`<div class="table"><div class="vt-deck">${deckN?card(-1):'<div class="pc empty"></div>'}<small>${deckN} i talongen</small></div>
+        <div class="vt-pile">${top.length?top.map((c,i)=>card(c,{cls:'pl',attr:`style="--i:${i}"`})).join(''):'<div class="pc empty"></div>'}<small>${g.pile.length?`${g.pile.length} i högen`:g.burnt?'🔥 bränd':'tom hög'}</small></div></div>`;
+      const myUp=`<div class="vt-mine">${[0,1,2].map(u=>stackHTML(me,u,{blind: my&&z==='down', upcls:st=>z==='up'&&my?(ok.has(st[0])?'can':'no'):'', upattr:st=>`data-vt="c" data-c="${st[0]}"`, cls: z==='up'&&my&&g.up[me][u].some(c=>sel.includes(c))?'selst':''})).join('')}</div>`;
       const hand=`<div class="hand" style="--ov:${handOv(g.hands[me].length)}">${sortHand(g.hands[me]).map(c=>card(c,{cls:`${my&&z==='hand'?(ok.has(c)?'can':'no'):''} ${sel.includes(c)?'sel':''}`,attr:`data-vt="c" data-c="${c}"`})).join('')}</div>`;
       const canPlay = my && sel.length && (z==='hand'||z==='up');
-      let sub; if(g.over) sub=''; else if(my) sub = z==='down' ? 'Dina sista kort ligger dolda – vänd ett och hoppas!' : groups.length ? 'Välj kort (samma valör) och tryck Lägg' : 'Inget passar – du måste ta upp högen';
+      const canChance = my && !groups.length && deckN>0 && z!=='down';
+      let sub; if(g.over) sub=''; else if(my) sub = z==='down' ? 'Dina sista kort ligger dolda – vänd ett och hoppas!' : g.first!=null ? `Du har lägst kort – börja med ${RNAME(g.first)}` : groups.length ? 'Välj kort (samma valör) och tryck Lägg' : deckN ? 'Inget passar – chansa från talongen eller ta upp högen' : 'Inget passar – du måste ta upp högen';
       else sub=`${isAI(g.cur)?'🤖 ':''}<b>${esc(pname(g.cur))}</b> funderar…`;
-      return gHeadHTML(sub).replace('class="ghead"','class="ghead vt-head"') + opps(g,me,i=>`<div class="mini">${g.hands[i].slice(0,6).map(()=>card(-1)).join('')}</div><small>${g.hands[i].length} på hand · ${g.up[i].map(c=>RN(rk(c))+S[su(c)]).join(' ')||'–'}</small>`)
-        + table + myUp + hand + (g.over?gOverHTML('Först av med alla kort!'):`<div class="cbtns"><button class="pri" data-vt="play" ${canPlay?'':'disabled'}>Lägg</button><button data-vt="take" ${my&&g.pile.length?'':'disabled'}>Ta upp högen</button></div>
-        <div class="ghint">Lägg lika eller högre. 2 går på allt och börjar om · 10 vänder (tar bort) högen och du spelar igen · fyra lika i rad vänder också. ${KIT.resignHTML()}</div>`); }
+      return gHeadHTML(sub).replace('class="ghead','class="vt-head ghead') + opps(g,me,i=>`<small>${g.hands[i].length} på hand · ${g.up[i].map(st=>st.length?RN(rk(st[0]))+(st.length>1?'×'+st.length:''):'').filter(Boolean).join(' ')||'–'} · ${g.down[i].filter(c=>c!==null).length} dolda</small>`)
+        + table + myUp + hand + (g.over?gOverHTML('Först av med alla kort!'):`<div class="cbtns"><button class="pri" data-vt="play" ${canPlay?'':'disabled'}>Lägg</button>${canChance?`<button data-vt="chance">🍀 Chansa</button>`:''}<button data-vt="take" ${my&&g.pile.length?'':'disabled'}>Ta upp högen</button></div>
+        <div class="ghint">Lika eller högre · 2 går på allt och börjar om · 10 bränner högen · fyra lika i rad bränner · efter bränning lägger du igen. ${KIT.resignHTML()}</div>`); }
   };
   const vtSel={ ids:[], gid:null, get(){ if(this.gid!==G.id+':'+G.seq){ this.ids=[]; this.gid=G.id+':'+G.seq; } return this.ids; } };
-  document.addEventListener('click',e=>{ const b=e.target.closest('[data-vt]'); if(!b||!G||G.kind!=='vandtia') return; const me=meSeat(); if(G.over||G.cur!==me||!canActG(me)) return;
-    const a=b.dataset.vt, sel=vtSel.get(), z=VT.zone(G,me);
-    if(a==='c'){ const c=+b.dataset.c; const src=z==='hand'?G.hands[me]:z==='up'?G.up[me]:[]; if(!src.includes(c)) return;
-      if(sel.includes(c)) sel.splice(sel.indexOf(c),1); else { if(sel.length && rk(sel[0])!==rk(c)) sel.length=0; if(!VT.cp(rk(c),G.pile)){ toast('Den passar inte – lägg lika eller högre'); return; } sel.push(c); }
+  const vtPick={ c:null, gid:null, get(){ const k=G.id+':'+(G.hands[meSeat()]||[]).join(); if(this.gid!==k){ this.c=null; this.gid=k; } return this.c; } };
+  document.addEventListener('click',e=>{ const b=e.target.closest('[data-vt]'); if(!b||!G||G.kind!=='vandtia') return; const me=meSeat(); if(G.over||!canActG(me)) return;
+    const a=b.dataset.vt;
+    if(G.phase==='setup'){ if(G.ready[me]) return;
+      if(a==='pick'){ const c=+b.dataset.c; vtPick.get(); vtPick.c = vtPick.c===c ? null : c; sfx.bubble(); render(); return; }
+      if(a==='ready'){ vtPick.c=null; doAct({type:'ready'}); return; }
+      const c=vtPick.get(); if(c==null){ toast('Välj ett handkort först'); return; }
+      if(a==='stack'){ doAct({type:'stack',c,to:+b.dataset.to,u:+b.dataset.u}); vtPick.c=null; return; }
+      if(a==='mine'){ const u=+b.dataset.u, st=G.up[me][u]; if(st.length&&rk(st[0])===rk(c)) doAct({type:'stack',c,to:me,u}); else if(st.length===1) doAct({type:'swap',c,u}); else toast('Högar med flera kort kan inte bytas'); vtPick.c=null; return; }
+      return; }
+    if(G.cur!==me) return;
+    const sel=vtSel.get(), z=VT.zone(G,me);
+    if(a==='c'){ const c=+b.dataset.c; const src=z==='hand'?G.hands[me]:z==='up'?G.up[me].flat():[]; if(!src.includes(c)) return;
+      // uppvända högar väljs hela på en gång
+      const pick = z==='up' ? (G.up[me].find(st=>st.includes(c))||[c]) : [c];
+      if(pick.every(x=>sel.includes(x))) pick.forEach(x=>sel.splice(sel.indexOf(x),1));
+      else { if(sel.length && rk(sel[0])!==rk(c)) sel.length=0; if(!VT.cp(rk(c),G.pile)){ toast('Den passar inte – lägg lika eller högre'); return; } if(G.first!=null&&rk(c)!==G.first){ toast(`Börja med ${RNAME(G.first)}`); return; } pick.forEach(x=>{ if(!sel.includes(x)) sel.push(x); }); }
       sfx.bubble(); render(); return; }
     if(a==='play'&&sel.length){ doAct({type:'play',cards:sel.slice()}); return; }
     if(a==='take'){ doAct({type:'take'}); return; }
+    if(a==='chance'){ doAct({type:'chance'}); return; }
     if(a==='blind'&&z==='down'){ doAct({type:'blind',i:+b.dataset.i}); return; } });
   css(`.vt-deck,.vt-pile{display:flex;flex-direction:column;align-items:center;gap:4px}.vt-deck small,.vt-pile small{font-size:12px;opacity:.7}
 .vt-pile{position:relative;min-width:100px}.vt-pile .pc.pl{position:absolute;top:0;left:50%;margin-left:calc(var(--cw)*-.5 + var(--i)*14px - 14px);transform:rotate(calc(var(--i)*6deg - 6deg))}.vt-pile .pc.pl:last-of-type{position:relative;left:auto;margin-left:calc(var(--i)*14px - 14px)}
 .pc.empty{background:transparent;border:2px dashed rgba(148,163,184,.35);box-shadow:none}
-.vt-mine{display:flex;justify-content:center;gap:10px;--cw:min(52px,13vw,7.5dvh);margin:10px 0 6px}.vt-slot{position:relative}.vt-slot{margin-right:12px}.vt-slot .upc{position:absolute;top:-16px;left:14px}
-.vt-slot .pc.can{cursor:pointer;outline:3px solid #22d3ee}.vt-slot .pc.sel{transform:translateY(-12px);box-shadow:0 0 0 3px #22d3ee}.vt-slot .pc.no{filter:brightness(.62)}
-.vt-head{margin-bottom:0}`);
-  GINFO.vandtia.menu=()=>KIT.menu('vandtia',{rules:'Alla får tre dolda kort, tre synliga ovanpå och tre på hand. Lägg lika eller högre än högen – 2 går på allt, 10 vänder bort högen. Kan du inte lägga tar du upp högen. Först av med alla kort vinner!', bots:[1,3]});
+.vt-mine{display:flex;justify-content:center;gap:18px;--cw:min(52px,13vw,7.5dvh);margin:12px 0 6px}.vt-slot{position:relative}.vt-st{position:absolute;top:-14px;left:12px}
+.vt-slot .pc.can{cursor:pointer;outline:3px solid #22d3ee}.vt-slot.selst .upc{transform:translateY(-12px);box-shadow:0 0 0 3px #22d3ee}.vt-slot .pc.no{filter:brightness(.62)}
+.vt-n{position:absolute;right:-8px;top:-8px;background:#7c3aed;color:#fff;font-size:11px;border-radius:999px;padding:1px 6px;box-shadow:0 2px 4px rgba(0,0,0,.4)}
+.vt-lbl{text-align:center;font-size:12px;opacity:.7;margin-top:4px}
+.vt-ups{display:flex;gap:4px;justify-content:center;margin-top:4px;--cw:26px}.vt-mini{position:relative;min-width:26px;min-height:37px;border-radius:5px}.vt-mini.tgt{outline:3px solid #f472b6;outline-offset:2px;cursor:pointer;animation:fpc .7s ease-in-out infinite alternate}
+@keyframes fpc{to{transform:scale(1.12)}}`);
+  GINFO.vandtia.menu=()=>KIT.menu('vandtia',{rules:'Alla får tre dolda kort, tre uppvända ovanpå och tre på hand. Före start får du byta handkort mot dina uppvända och lägga handkort på vems uppvända kort som helst med samma valör. Lägg lika eller högre – 2 går på allt, 10 bränner högen, fyra lika bränner. Kan du inte lägga chansar du från talongen eller tar upp högen. Först av med alla kort vinner! (Från 6 spelare används två kortlekar.)', bots:[1,7]});
 
   /* =================================================================
      2) FINNS I SJÖN
