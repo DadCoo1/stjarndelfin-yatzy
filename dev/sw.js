@@ -2,8 +2,8 @@
 // Release och testversion (/dev/) har varsin cache och rör aldrig varandras.
 const DEV = /\/dev\//.test(self.location.pathname);
 const PFX = DEV ? 'fl-dev-' : 'stjarndelfin-';
-const CACHE = PFX + 'v32';
-const FILES = ['./', './index.html', './manifest.webmanifest', './icon-192.png', './icon-512.png', './icon-180.png', './games.js', './invaders.js', './chat.js', './app.js', './peerjs.min.js', './qr.js', './fr.js', './kina.js', './ordfajt.js', './pong.js'];
+const CACHE = PFX + 'v33';
+const FILES = ['./', './index.html', './manifest.webmanifest', './icon-192.png', './icon-512.png', './icon-180.png', './games.js', './invaders.js', './chat.js', './app.js', './peerjs.min.js', './qr.js', './fr.js', './kina.js', './ordfajt.js', './pong.js', './kit.js', './strat.js'];
 self.addEventListener('install', e => { e.waitUntil(caches.open(CACHE).then(c => c.addAll(FILES.map(u => new Request(u, {cache: 'reload'})))).then(() => self.skipWaiting())); });
 self.addEventListener('activate', e => {
   e.waitUntil(caches.keys().then(ks => Promise.all(ks.filter(k => k.startsWith(PFX) && k !== CACHE).map(k => caches.delete(k)))).then(() => self.clients.claim()));

@@ -6,7 +6,7 @@
   if(!same || !/[?&]bot=1/.test(location.search)){ document.documentElement.innerHTML=''; throw new Error('Inramning blockerad'); }
 })();
 /* ================= Version & utvecklingsläge ================= */
-const APP_VERSION='2026.11.04.4-dev';
+const APP_VERSION='2026.11.04.5-dev';
 const DEV = /\/dev(\/|$)/.test(location.pathname);      // testversionen ligger i mappen /dev/
 const BOT = DEV && /[?&]bot=1/.test(location.search) && window.parent!==window;   // osynlig testkompis i en ram (bara dev)
 const LSP = DEV ? (BOT ? 'dev:bot:' : 'dev:') : '';    // egen sparad data i testversionen
@@ -1989,6 +1989,28 @@ function topbar(){
     <div class="tb-title">${isKind()?`${gIcon()} <b>${gName()}</b>`:'🎲 <b>Yatzy</b>'}${mode==='online'&&gameId?` · ${esc(gameId)}`:''}${mode==='online'?`<div class="net ns-${net}">${netText()}</div>`:''}</div>
     <button class="iconbtn chatic" data-c="toggle" aria-label="Chatt">💬<i class="cbadge ${chatUnread()?'on':''}" data-cbadge>${chatUnread()||''}</i></button><button class="iconbtn ${spPlaying?'sp-on':''}" data-act="sptoggle" aria-label="Musik" style="margin-right:-2px">🎵</button><button class="iconbtn" data-act="settings" aria-label="Inställningar">⚙️</button></div>`;
 }
+/* ---------- lobbyn: spelen i kategorier ---------- */
+const LOBBY_CATS=[
+  ['🎲','Tärningsspel',['yatzy','fia']],
+  ['🃏','Kortspel',['sol','vandtia','fisk','hjarter']],
+  ['♟️','Strategi & brädspel',['kina','othello','c4','gomoku','ships','mm']],
+  ['🔤','Ordspel',['ordfajt','wordle','hang']],
+  ['🧩','Pussel & minne',['sudoku','memory']],
+  ['🕹️','Arkad',['inv','pong']]
+];
+const TILE_DESC={ships:'Mot datorn eller en kompis', mm:'Knäck den hemliga färgkoden', hang:'Gissa ordet innan gubben hängs', kina:'2–6 spelare · online eller mot datorn',
+  ordfajt:'Ordspel · svenska, norska, jamska', pong:'Mot datorn, två på en skärm eller online'};
+function lobbyTilesHTML(svSol, invS){
+  const tile=k=>{
+    if(k==='yatzy') return `<button class="tile" style="--tg:linear-gradient(135deg,#22d3ee,#6366f1 60%,#a855f7)" data-act="yatzymenu"><span class="ti">🎲</span><b>Yatzy</b><small>1–4 spelare · online, datorn eller samma mobil</small></button>`;
+    if(k==='sol') return `<button class="tile leo" data-act="opensol"><span class="ti">🃏</span><b>Patiens</b><small>Ensam · offline</small>${svSol && !svSol.won && svSol.started?'<span class="badge">↩︎ fortsätt</span>':''}</button>`;
+    if(k==='inv') return `<button class="tile" style="--tg:linear-gradient(135deg,#16a34a,#0f172a 75%)" data-act="openinv"><span class="ti">👾</span><b>Space Invaders</b><small>Ensam · 100+ nivåer</small>${invS.best?`<span class="badge">🏆 ${invS.best}</span>`:''}</button>`;
+    const gi=typeof GINFO!=='undefined' && GINFO[k]; if(!gi) return '';
+    const badge = gi.badge ? gi.badge() : '';
+    return `<button class="tile" style="--tg:${gi.grad}" data-act="gmenu" data-k="${k}"><span class="ti">${gi.icon}</span><b>${gi.name}</b><small>${esc(gi.desc||TILE_DESC[k]||'')}</small>${badge}</button>`;
+  };
+  return LOBBY_CATS.map(([ic,name,keys])=>{ const t=keys.map(tile).join(''); return t ? `<h3 class="cat"><span>${ic}</span>${name}</h3><div class="tiles">${t}</div>` : ''; }).join('');
+}
 function lobbyHTML(){
   const devbar = DEV ? `<div class="devbar">🧪 <b>Testversion</b> · egen data och egna spelkoder · <a href="../">Öppna releaseversionen ›</a></div>` : '';
   let h = topbarLobby() + devbar + `<div class="lobby"><div class="lob-hero"><div class="logo brand">${DOLPHIN('lg','#a5f3ff','#7c6cff').replace('<svg','<svg class="big"')}
@@ -2006,18 +2028,9 @@ function lobbyHTML(){
     }
   }catch(e){}
   const svSol=S||solLoad(), invS=(typeof INV!=='undefined')?INV.stats():{best:0};
-  h += `<h2 class="sec"><span class="leopill"><i>🐆</i>Välj spel</span></h2>
-    <div class="tiles">
-      <button class="tile" style="--tg:linear-gradient(135deg,#22d3ee,#6366f1 60%,#a855f7)" data-act="yatzymenu"><span class="ti">🎲</span><b>Yatzy</b><small>1–4 spelare · online, datorn eller samma mobil</small></button>
-      <button class="tile leo" data-act="opensol"><span class="ti">🃏</span><b>Patiens</b><small>Ensam · offline</small>${svSol && !svSol.won && svSol.started?'<span class="badge">↩︎ fortsätt</span>':''}</button>
-      <button class="tile" style="--tg:linear-gradient(135deg,#0ea5e9,#1e3a8a)" data-act="gmenu" data-k="ships"><span class="ti">🚢</span><b>Sänka skepp</b><small>Mot datorn eller en kompis</small></button>
-      <button class="tile" style="--tg:linear-gradient(135deg,#c026d3,#ec4899)" data-act="gmenu" data-k="mm"><span class="ti">🔮</span><b>Mastermind</b><small>Knäck den hemliga färgkoden</small></button>
-      <button class="tile" style="--tg:linear-gradient(135deg,#f59e0b,#ef4444)" data-act="gmenu" data-k="hang"><span class="ti">🪢</span><b>Hänga gubbe</b><small>Gissa ordet innan gubben hängs</small></button>
-      <button class="tile" style="--tg:linear-gradient(135deg,#f43f5e,#f59e0b 55%,#22c55e)" data-act="gmenu" data-k="kina"><span class="ti">⭐</span><b>Kinaschack</b><small>2–6 spelare · online eller mot datorn</small></button>
-      <button class="tile" style="--tg:linear-gradient(135deg,#0ea5e9,#22c55e 55%,#facc15)" data-act="gmenu" data-k="ordfajt"><span class="ti">🔤</span><b>Ordfajt</b><small>Ordspel · svenska, norska, jamska</small></button>
-      <button class="tile" style="--tg:linear-gradient(135deg,#22d3ee,#6366f1 55%,#f472b6)" data-act="gmenu" data-k="pong"><span class="ti">🏓</span><b>Pong</b><small>Mot datorn, två på en skärm eller online</small></button>
-      <button class="tile" style="--tg:linear-gradient(135deg,#16a34a,#0f172a 75%)" data-act="openinv"><span class="ti">👾</span><b>Space Invaders</b><small>Ensam · 100+ nivåer</small>${invS.best?`<span class="badge">🏆 ${invS.best}</span>`:''}</button>
-    </div>
+  h += `<h2 class="sec"><span class="leopill"><i>🐆</i>Välj spel</span></h2>${lobbyTilesHTML(svSol, invS)}
+    `;
+  h += `
     <div class="chipsrow"><button class="bigbtn chatbtn" data-act="openchat">💬 Chatt <small>🔒 krypterad</small>${(typeof CHAT!=='undefined'&&CHAT.unread())?`<span class="badge">${CHAT.unread()}</span>`:''}</button></div>
     <div class="chipsrow"><button class="bigbtn" data-act="joinonline" style="background:linear-gradient(135deg,#2dd4bf,#3b82f6 60%,#6366f1)">🔗 Gå med i spel med kod</button></div>
     <div class="chipsrow"><button class="bigbtn alt" data-act="stats">📊 Statistik & rekord</button></div>`;
