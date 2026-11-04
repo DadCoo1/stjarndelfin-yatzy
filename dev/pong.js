@@ -134,10 +134,19 @@ const PONG = (()=>{
   const toLogical = (cx,cy)=>{ const r=cv.getBoundingClientRect(); let x=(cx-r.left)/r.width*W, y=(cy-r.top)/r.height*H; if(flip()) y=H-y; return [x,y]; };
   const flip = () => mode==='online' && mySeat===1;
   function seatForPointer(y){ if(local2()) return y>H/2?0:1; return mine(); }
-  function ptrsFor(s){ for(const v of ptrs.values()) if(v.s===s) return v; return null; }
-  function onDown(e){ if(!cv) return; e.preventDefault(); unlockAudio(); const [x,y]=toLogical(e.clientX,e.clientY); const s=seatForPointer(y); if(isAI(s) && mode==='local') return; ptrs.set(e.pointerId,{s,x}); try{ cv.setPointerCapture(e.pointerId); }catch(err){} }
-  function onMove(e){ const v=ptrs.get(e.pointerId); if(!v) return; e.preventDefault(); v.x=toLogical(e.clientX,e.clientY)[0]; }
+  // det finger som rörde sig senast styr (gamla fingrar som "fastnat" spelar ingen roll)
+  function ptrsFor(s){ let best=null; for(const v of ptrs.values()) if(v.s===s && (!best||v.t>best.t)) best=v; return best; }
+  // fingrarna följs i hela fönstret, inte bara på spelplanen: spelplanen ritas om vid varje mål,
+  // och då kan mobilen tappa bort ett finger som bara lyssnas på i själva canvasen
+  const active = () => cv && cv.isConnected && G && G.kind==='pong' && view==='game' && !document.querySelector('#modal.show');
+  function inside(e){ const r=cv.getBoundingClientRect(); return e.clientX>=r.left-30 && e.clientX<=r.right+30 && e.clientY>=r.top-30 && e.clientY<=r.bottom+40; }
+  function onDown(e){ if(!active() || !inside(e) || e.target.closest('button,a,input')) return; e.preventDefault(); unlockAudio();
+    const [x,y]=toLogical(e.clientX,e.clientY); const s=seatForPointer(y); if(isAI(s) && mode==='local') return; ptrs.set(e.pointerId,{s,x,t:performance.now()}); }
+  function onMove(e){ let v=ptrs.get(e.pointerId); if(!v){ if(e.buttons||e.pointerType==='touch') onDown(e); return; } if(e.cancelable) e.preventDefault(); if(!cv) return; v.x=toLogical(e.clientX,e.clientY)[0]; v.t=performance.now(); }
   function onUp(e){ ptrs.delete(e.pointerId); }
+  window.addEventListener('pointerdown',onDown,{passive:false}); window.addEventListener('pointermove',onMove,{passive:false});
+  window.addEventListener('pointerup',onUp); window.addEventListener('pointercancel',onUp);
+  window.addEventListener('blur',()=>ptrs.clear()); document.addEventListener('visibilitychange',()=>{ if(document.visibilityState!=='visible') ptrs.clear(); });
   document.addEventListener('keydown',e=>{ if(G&&G.kind==='pong'&&view==='game'&&['ArrowLeft','ArrowRight','KeyA','KeyD'].includes(e.code)){ keys[e.code]=true; e.preventDefault(); } });
   document.addEventListener('keyup',e=>{ keys[e.code]=false; });
 
@@ -189,6 +198,7 @@ const PONG = (()=>{
     const dt=Math.min(.05,(now-(lastT||now))/1000); lastT=now;
     if(!P || P.gid!==G.id){ P=fresh(); lastSnap=null; }
     // mina fingrar styr mitt racket (eller båda i läget två på samma skärm)
+    for(const [id,v] of ptrs) if(now-v.t>1500) ptrs.delete(id);   // finger som legat still länge: släpp (racketet står kvar)
     for(const s of [0,1]){
       const mineS = mode==='online' ? s===mySeat : !isAI(s); if(!mineS) continue;
       const v=ptrsFor(s), kx = (local2()&&s===1) ? (keys.KeyD?1:0)-(keys.KeyA?1:0) : (keys.ArrowRight?1:0)-(keys.ArrowLeft?1:0) + (local2()?0:(keys.KeyD?1:0)-(keys.KeyA?1:0));
@@ -212,7 +222,6 @@ const PONG = (()=>{
   function mount(){
     const host=document.getElementById('pgHost'); if(!host) return;
     if(!cv){ cv=document.createElement('canvas'); cv.className='pg-cv'; ctx=cv.getContext('2d');
-      cv.addEventListener('pointerdown',onDown); cv.addEventListener('pointermove',onMove); cv.addEventListener('pointerup',onUp); cv.addEventListener('pointercancel',onUp);
       cv.addEventListener('contextmenu',e=>e.preventDefault()); }
     host.appendChild(cv); fit();
     if(!raf){ lastT=0; raf=requestAnimationFrame(loop); }
