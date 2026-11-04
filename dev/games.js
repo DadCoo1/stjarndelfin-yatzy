@@ -33,7 +33,7 @@ const isArrI=(a,n,lo,hi)=>Array.isArray(a) && a.length<=n && a.every(x=>Number.i
 function startGameLocal(kind, name, level, bots=1){
   stopNet(); clearTimeout(aiTimer); closeModal();
   mode='local'; mySeat=0; gameId=null; role=null;
-  const bn=GINFO[kind].bots ? GINFO[kind].bots.slice(0,Math.max(1,Math.min(5,bots))) : [GINFO[kind].ai];
+  const bn=GINFO[kind].bots ? GINFO[kind].bots.slice(0,Math.max(1,Math.min(7,bots))) : [GINFO[kind].ai];
   G=gNewState(kind,[name, ...bn],0,[false, ...bn.map(()=>level)]); KIND[kind].start(G); lsSet('ry_local', JSON.stringify(G));
   view='game'; resetDrafts(); render(); gMaybeAI();
 }

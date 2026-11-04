@@ -6,7 +6,7 @@
   if(!same || !/[?&]bot=1/.test(location.search)){ document.documentElement.innerHTML=''; throw new Error('Inramning blockerad'); }
 })();
 /* ================= Version & utvecklingsläge ================= */
-const APP_VERSION='2026.11.04.15-dev';
+const APP_VERSION='2026.11.04.16-dev';
 const DEV = /\/dev(\/|$)/.test(location.pathname);      // testversionen ligger i mappen /dev/
 const BOT = DEV && /[?&]bot=1/.test(location.search) && window.parent!==window;   // osynlig testkompis i en ram (bara dev)
 const LSP = DEV ? (BOT ? 'dev:bot:' : 'dev:') : '';    // egen sparad data i testversionen
@@ -632,7 +632,7 @@ function onGuestMsg(m){
   lastHeard=Date.now();
   if(m.t==='ping'){ sendTo(conn,{t:'pong'}); return; }
   if(!m.t || m.t==='pong') return;
-  if(m.t==='welcome'){ if(!isI(m.seat,1,5) || (m.name!=null && !okPName(m.name))) return; const first=mySeat===null; mySeat=m.seat; if(m.name) myName=String(m.name); saveNet(); render(); if(first) toast(`Du är med i spelet ${gameId}! 🐬`); return; }
+  if(m.t==='welcome'){ if(!isI(m.seat,1,7) || (m.name!=null && !okPName(m.name))) return; const first=mySeat===null; mySeat=m.seat; if(m.name) myName=String(m.name); saveNet(); render(); if(first) toast(`Du är med i spelet ${gameId}! 🐬`); return; }
   if(m.t==='full'){
     if(m.reason==='started' && G && G.started!==false && Array.isArray(G.names) && G.names.includes(myName)){
       setNet('lost'); retry(connectGuest,5000); return;                 // vi hör hemma i spelet – försök igen i stället för att lämna
