@@ -27,7 +27,8 @@ const FR = (()=>{
 
   /* ---------- begrepp ---------- */
   const TYPES={feature:['✨','Ny funktion'], bug:['🐞','Bugg'], improve:['💡','Förbättring'], question:['❓','Fråga']};
-  const AREAS=['Allmänt','Yatzy','Patiens','Sänka skepp','Mastermind','Hänga gubbe','Space Invaders','Chatt','Musik','Utseende'];
+  const AREAS=['Allmänt','Yatzy','Patiens','Sänka skepp','Mastermind','Hänga gubbe','Space Invaders','Kinaschack','Ordfajt','Pong','Fyra i rad','Luffarschack','Othello','Fia','Memory','Vändtia','Finns i sjön','Hjärter','Wordle','Sudoku','Chatt','Musik','Utseende'];
+  const FREQ=['Varje gång','Ibland','En gång'];
   // statusflöde (som i GitHub/Jira, på svenska)
   const STATUS={
     new:['🆕','Ny','Inkommen, ingen har tittat än','#38bdf8'],
@@ -193,6 +194,11 @@ const FR = (()=>{
      UTSEENDE
      ===================================================================== */
   let openId=null, filter='open', mode=null, draft={type:'feature', area:'Allmänt', title:'', desc:''};
+  const bugD={steps:'', what:'', expected:'', freq:'Varje gång'};
+  // teknisk information som skickas med en buggrapport (inget personligt)
+  function techInfo(){ const ua=navigator.userAgent; const os=/Android [\d.]+/.exec(ua)?.[0]||/iPhone OS [\d_]+/.exec(ua)?.[0]?.replace(/_/g,'.')||/Windows NT [\d.]+|Mac OS X [\d_]+|Linux/.exec(ua)?.[0]||'okänt';
+    const br=/(Firefox|Edg|SamsungBrowser|Chrome|Version)\/[\d.]+/.exec(ua)?.[0]?.replace('Version','Safari')||'okänd';
+    return `Version ${typeof APP_VERSION!=='undefined'?APP_VERSION:'?'} · ${os} · ${br} · skärm ${innerWidth}×${innerHeight}${matchMedia('(display-mode: standalone)').matches?' · installerad':''}`; }
   const fmt = t => new Date(t).toLocaleString('sv-SE',{day:'numeric', month:'short', hour:'2-digit', minute:'2-digit'});
   const ago = t => { const s=(Date.now()-t)/1000; return s<60?'nyss':s<3600?Math.floor(s/60)+' min sedan':s<86400?Math.floor(s/3600)+' tim sedan':Math.floor(s/86400)+' d sedan'; };
   const chip = s => `<span class="fr-st" style="--c:${STATUS[s][3]}">${STATUS[s][0]} ${STATUS[s][1]}</span>`;
@@ -211,7 +217,7 @@ const FR = (()=>{
     const F={open:['Öppna', r=>OPEN.includes(r.status)], mine:['Mina', r=>ME && r.author===ME.id], done:['Klara', r=>r.status==='done'], closed:['Stängda', r=>['rejected','duplicate','withdrawn'].includes(r.status)], all:['Alla', ()=>true]};
     const list=all.filter(F[filter][1]);
     const counts={}; Object.keys(STATUS).forEach(s=>counts[s]=all.filter(r=>r.status===s).length);
-    return `<button class="bigbtn fr-new" data-fr="new">＋ Ny önskan</button>
+    return `<div class="fr-newrow"><button class="bigbtn fr-new" data-fr="new">＋ Ny önskan</button><button class="bigbtn fr-new fr-bug" data-fr="bug">🐞 Rapportera bugg</button></div>
       <div class="fr-filters">${Object.entries(F).map(([k,[l,f]])=>`<button class="${filter===k?'on':''}" data-fr="filter" data-f="${k}">${l} <i>${all.filter(f).length}</i></button>`).join('')}</div>
       ${list.length ? list.map(r=>`<button class="fr-card ${unreadOf(r)?'unread':''}" data-fr="open" data-id="${r.id}">
           <div class="fr-c1"><span class="fr-key">${r.key}</span>${chip(r.status)}${r.prio==='high'?'<span class="fr-prio">🔥</span>':''}<span class="fr-ago">${ago(r.last)}</span></div>
@@ -221,13 +227,20 @@ const FR = (()=>{
       <div class="fr-foot">Önskelistan delas med dem du spelar och chattar med. <button class="fr-link" data-fr="about">Hur funkar det?</button></div>`;
   }
   function formHTML(){
-    return `<div class="fr-form"><h2>💡 Ny önskan</h2>
+    return `<div class="fr-form"><h2>${draft.type==='bug'?'🐞 Rapportera en bugg':'💡 Ny önskan'}</h2>
       <label>Vad gäller det?</label><div class="fr-chips">${Object.entries(TYPES).map(([k,[i,l]])=>`<button data-fr="type" data-t="${k}" class="${draft.type===k?'sel':''}">${i} ${l}</button>`).join('')}</div>
       <label>Vilken del av appen?</label><div class="fr-chips">${AREAS.map(a=>`<button data-fr="area" data-a="${esc(a)}" class="${draft.area===a?'sel':''}">${esc(a)}</button>`).join('')}</div>
-      <label for="frTitle">Rubrik</label><input id="frTitle" maxlength="90" value="${esc(draft.title)}" placeholder="${draft.type==='bug'?'t.ex. Tärningarna fastnar ibland':'t.ex. Ett kortspel till – Finns i sjön'}">
-      <label for="frDesc">Beskriv – vad vill du ska hända, och varför?</label><textarea id="frDesc" maxlength="2000" rows="6" placeholder="${draft.type==='bug'?'Vad gjorde du? Vad hände? Vad borde ha hänt?':'Berätta så mycket du vill 🙂'}">${esc(draft.desc)}</textarea>
+      <label for="frTitle">Rubrik</label><input id="frTitle" maxlength="90" value="${esc(draft.title)}" placeholder="${draft.type==='bug'?'t.ex. Racketet fastnar efter första poängen':'t.ex. Ett kortspel till – Finns i sjön'}">
+      ${draft.type==='bug' ? `
+      <label for="frSteps">1. Vad gjorde du precis innan?</label><textarea id="frSteps" maxlength="600" rows="3" placeholder="t.ex. Spelade Pong mot datorn och höll fingret på racketet när datorn fick poäng">${esc(bugD.steps)}</textarea>
+      <label for="frWhat">2. Vad hände?</label><textarea id="frWhat" maxlength="600" rows="3" placeholder="t.ex. Racketet gick inte att flytta längre">${esc(bugD.what)}</textarea>
+      <label for="frExp">3. Vad borde ha hänt?</label><textarea id="frExp" maxlength="400" rows="2" placeholder="t.ex. Racketet ska följa fingret">${esc(bugD.expected)}</textarea>
+      <label>4. Hur ofta händer det?</label><div class="fr-chips">${FREQ.map(x=>`<button data-fr="freq" data-v="${x}" class="${bugD.freq===x?'sel':''}">${x}</button>`).join('')}</div>
+      <label for="frDesc">Något mer? (valfritt)</label><textarea id="frDesc" maxlength="300" rows="2">${esc(draft.desc)}</textarea>
+      <div class="fr-tech">📱 Skickas med: ${esc(techInfo())}</div>` : `
+      <label for="frDesc">Beskriv – vad vill du ska hända, och varför?</label><textarea id="frDesc" maxlength="2000" rows="6" placeholder="Berätta så mycket du vill 🙂">${esc(draft.desc)}</textarea>`}
       <label for="frName">Ditt namn</label><input id="frName" maxlength="20" value="${esc(myName())}" placeholder="Ditt namn">
-      <div class="btns"><button data-fr="back">Avbryt</button><button class="pri" data-fr="submit">Skicka önskan 🚀</button></div></div>`;
+      <div class="btns"><button data-fr="back">Avbryt</button><button class="pri" data-fr="submit">${draft.type==='bug'?'Skicka buggrapport 🐞':'Skicka önskan 🚀'}</button></div></div>`;
   }
   function detailHTML(r){
     markSeen(r.id);
@@ -235,7 +248,7 @@ const FR = (()=>{
     const dupR = r.dup && STATE.reqs[r.dup];
     const tl=r.timeline.map(x=>{
       const e=x.e;
-      if(x.t==='created') return `<div class="fr-ev"><span class="fr-dot">🌱</span><div><b>${who(e.author,e.name)}</b> önskade detta <span class="fr-when">${fmt(e.ts)}</span></div></div>`;
+      if(x.t==='created') return `<div class="fr-ev"><span class="fr-dot">🌱</span><div><b>${who(e.author,e.name)}</b> ${r.type==='bug'?'rapporterade buggen':'önskade detta'} <span class="fr-when">${fmt(e.ts)}</span></div></div>`;
       if(x.t==='edit') return `<div class="fr-ev"><span class="fr-dot">✏️</span><div><b>${who(e.author,e.name)}</b> ändrade texten <span class="fr-when">${fmt(e.ts)}</span></div></div>`;
       if(x.t==='st') return `<div class="fr-ev"><span class="fr-dot">${STATUS[e.data.status][0]}</span><div><b>${who(e.author,e.name)}</b> ändrade status ${chip(x.from)} → ${chip(e.data.status)}${e.data.prio?` · prioritet ${PRIO[e.data.prio][0]} ${PRIO[e.data.prio][1]}`:''} <span class="fr-when">${fmt(e.ts)}</span>${e.data.note?`<div class="fr-note">${para(e.data.note)}</div>`:''}</div></div>`;
       return `<div class="fr-cmt ${x.m?'dev':''} ${ME&&e.author===ME.id?'me':''}"><div class="fr-cmh"><b>${who(e.author,e.name)}</b><span class="fr-when">${fmt(e.ts)}</span></div><div>${para(e.data.text)}</div></div>`;
@@ -243,7 +256,7 @@ const FR = (()=>{
     return `<div class="fr-detail">
       <div class="fr-c1"><span class="fr-key big">${r.key}</span>${chip(r.status)}<span class="fr-prio">${PRIO[r.prio][0]} ${PRIO[r.prio][1]}</span></div>
       <h2>${TYPES[r.type][0]} ${esc(r.title)}</h2>
-      <div class="fr-meta">${TYPES[r.type][1]} · ${esc(r.area)} · önskad av <b>${who(r.author,r.name)}</b> ${ago(r.ts)}</div>
+      <div class="fr-meta">${TYPES[r.type][1]} · ${esc(r.area)} · ${r.type==='bug'?'rapporterad':'önskad'} av <b>${who(r.author,r.name)}</b> ${ago(r.ts)}</div>
       <div class="fr-stx">${STATUS[r.status][2]}${dupR?` – se <button class="fr-link" data-fr="open" data-id="${dupR.id}">${dupR.key} ${esc(dupR.title)}</button>`:''}</div>
       ${r.desc?`<div class="fr-desc">${para(r.desc)}</div>`:''}
       <div class="fr-acts"><button class="${voted?'on':''}" data-fr="vote">👍 ${voted?'Du vill också':'Jag vill också'} · ${r.votes.size}</button>
@@ -297,18 +310,24 @@ const FR = (()=>{
         case 'open': openId=b.dataset.id; mode=null; pend={}; refresh(); window.scrollTo(0,0); break;
         case 'back': if(mode==='new'){ draft.title=document.getElementById('frTitle')?.value||draft.title; draft.desc=document.getElementById('frDesc')?.value||draft.desc; } openId=null; mode=null; refresh(); break;
         case 'filter': filter=b.dataset.f; refresh(); break;
-        case 'new': openId=null; mode='new'; refresh(); window.scrollTo(0,0); break;
+        case 'new': openId=null; mode='new'; if(draft.type==='bug') draft.type='feature'; refresh(); window.scrollTo(0,0); break;
         case 'about': openId=null; mode='about'; refresh(); window.scrollTo(0,0); break;
         case 'type': draft.type=b.dataset.t; keepForm(); refresh(); break;
         case 'area': draft.area=b.dataset.a; keepForm(); refresh(); break;
+        case 'freq': bugD.freq=b.dataset.v; keepForm(); refresh(); break;
+        case 'bug': openId=null; mode='new'; draft.type='bug'; refresh(); window.scrollTo(0,0); break;
         case 'mkid': await me(); refresh(); break;
         case 'submit': {
           keepForm(); const name=cleanLine(document.getElementById('frName')?.value,20);
           if(draft.title.trim().length<3){ toast('Skriv en rubrik (minst 3 tecken) ✏️'); return; }
+          const send={...draft};
+          if(draft.type==='bug'){ if(bugD.what.trim().length<3){ toast('Berätta vad som hände (punkt 2) ✏️'); return; }
+            send.desc=[ bugD.steps.trim()&&`Vad jag gjorde:\n${bugD.steps.trim()}`, `Vad som hände:\n${bugD.what.trim()}`, bugD.expected.trim()&&`Vad som borde ha hänt:\n${bugD.expected.trim()}`,
+              `Hur ofta: ${bugD.freq}`, draft.desc.trim()&&`Mer:\n${draft.desc.trim()}`, `— ${techInfo()}` ].filter(Boolean).join('\n\n').slice(0,2000); }
           await me(); if(name){ ME.name=name; sv('me',ME); lsSet('ry_name', lsGet('ry_name')||name); }
-          const ev=await publish('req', null, draft);
-          draft={type:'feature', area:'Allmänt', title:'', desc:''}; mode=null; openId=ev.id; refresh(); window.scrollTo(0,0);
-          toast(`Tack! Din önskan har fått nummer ${keyOf(ev.id)} 🎉`,3500); if(typeof sparkles==='function') sparkles(20);
+          const ev=await publish('req', null, send);
+          draft={type:'feature', area:'Allmänt', title:'', desc:''}; Object.assign(bugD,{steps:'',what:'',expected:'',freq:'Varje gång'}); mode=null; openId=ev.id; refresh(); window.scrollTo(0,0);
+          toast(send.type==='bug'?`Tack för buggrapporten! Den har nummer ${keyOf(ev.id)} 🐞`:`Tack! Din önskan har fått nummer ${keyOf(ev.id)} 🎉`,3500); if(typeof sparkles==='function') sparkles(20);
           break; }
         case 'comment': { const t=document.getElementById('frCmt')?.value||''; if(!t.trim()) return; await publish('cmt', openId, {text:t}); refresh(); break; }
         case 'vote': { await me(); const r=STATE.reqs[openId]; await publish('vote', openId, {on:!r.votes.has(ME.id)}); refresh(); break; }
@@ -329,7 +348,8 @@ const FR = (()=>{
       }
     }catch(err){ console.error('fr',err); toast('Något gick fel – försök igen'); }
   });
-  function keepForm(){ const t=document.getElementById('frTitle'), d=document.getElementById('frDesc'); if(t) draft.title=t.value; if(d) draft.desc=d.value; }
+  function keepForm(){ const t=document.getElementById('frTitle'), d=document.getElementById('frDesc'); if(t) draft.title=t.value; if(d) draft.desc=d.value;
+    const v=id=>document.getElementById(id); if(v('frSteps')) bugD.steps=v('frSteps').value; if(v('frWhat')) bugD.what=v('frWhat').value; if(v('frExp')) bugD.expected=v('frExp').value; }
 
   /* ---------- stil ---------- */
   const st=document.createElement('style'); st.textContent=`
@@ -360,6 +380,8 @@ const FR = (()=>{
 .fr-form label,.fr-manage label,.fr-about label{display:block;margin:14px 2px 6px;font-size:14px;color:var(--dim)}
 .fr-form input,.fr-form textarea,.fr-reply textarea,.fr-manage textarea,.fr-manage select,.fr-about input,#frEt,#frEd{width:100%;padding:12px 14px;border-radius:14px;border:1px solid var(--line);background:rgba(0,0,0,.28);color:var(--txt);font:inherit;font-size:16px;outline:none;resize:vertical}
 .fr-chips{display:flex;flex-wrap:wrap;gap:6px}
+.fr-newrow{display:flex;gap:8px}.fr-newrow .bigbtn{flex:1;margin:0}.fr-bug{background:linear-gradient(135deg,#f97316,#dc2626)!important}
+.fr-tech{margin:12px 2px 0;font-size:12px;color:var(--dim);line-height:1.4}
 .fr-chips button{padding:8px 12px;border-radius:999px;border:1px solid var(--line);background:rgba(0,0,0,.22);font-size:14px}
 .fr-chips button.sel{background:rgba(62,230,255,.2);border-color:var(--aqua);box-shadow:0 0 0 1px var(--aqua)}
 .fr-meta{font-size:14px;opacity:.85}

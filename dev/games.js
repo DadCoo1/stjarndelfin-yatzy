@@ -618,12 +618,12 @@ body.desk .sboard{max-width:520px} body.desk .sboard.small{max-width:400px}
 .slabel .fleet{display:flex;gap:4px;font-size:9px;letter-spacing:-1px;color:#7dd3fc}.slabel .fleet .dead{color:#ef4444;text-decoration:line-through;opacity:.6}
 .sgrid-wrap{display:grid;grid-template-columns:18px 1fr;grid-template-rows:16px 1fr}
 .scolh{grid-column:2;display:grid;grid-template-columns:repeat(10,1fr);font-size:10px;color:var(--dim);text-align:center}
-.srowh{grid-row:2;display:grid;grid-template-rows:repeat(10,1fr);font-size:10px;color:var(--dim);align-items:center}
+.srowh{grid-row:2;display:grid;grid-template-rows:repeat(10,minmax(0,1fr));font-size:10px;color:var(--dim);align-items:center}
 .scolh b,.srowh b{font-weight:600}
-.sgrid{grid-column:2;grid-row:2;display:grid;grid-template-columns:repeat(10,1fr);gap:2px;padding:3px;border-radius:12px;aspect-ratio:1;
+.sgrid{grid-column:2;grid-row:2;display:grid;grid-template-columns:repeat(10,minmax(0,1fr));grid-template-rows:repeat(10,minmax(0,1fr));container-type:inline-size;gap:2px;padding:3px;border-radius:12px;aspect-ratio:1;
   background:linear-gradient(160deg,#0c4a6e,#082f49);box-shadow:inset 0 0 30px rgba(0,0,0,.45),0 10px 30px rgba(0,0,0,.35);border:1px solid rgba(125,211,252,.35)}
 .sboard.active .sgrid{box-shadow:inset 0 0 30px rgba(0,0,0,.45),0 0 0 2px rgba(125,249,255,.6),0 0 30px rgba(62,230,255,.35)}
-.sc{position:relative;border-radius:4px;background:radial-gradient(circle at 30% 25%,rgba(125,211,252,.22),rgba(14,116,144,.25));display:grid;place-items:center}
+.sc{position:relative;min-width:0;min-height:0;border-radius:4px;background:radial-gradient(circle at 30% 25%,rgba(125,211,252,.22),rgba(14,116,144,.25));display:grid;place-items:center}
 .sc.tgt{cursor:crosshair}
 @media (hover:hover){ .sc.tgt:hover{background:rgba(250,204,21,.45);box-shadow:0 0 0 2px #facc15 inset} .sc.place:hover{filter:brightness(1.3)} }
 .sc.ship{background:linear-gradient(180deg,#cbd5e1,#64748b);box-shadow:inset 0 1px 0 rgba(255,255,255,.6)}
@@ -632,7 +632,7 @@ body.desk .sboard{max-width:520px} body.desk .sboard.small{max-width:400px}
 .sc.ship.sunk{background:linear-gradient(180deg,#57534e,#1c1917)}
 .sc.hit{background:radial-gradient(circle,#fb923c,#b91c1c 70%)}
 .sc.ship.hit{background:radial-gradient(circle,#fb923c,#7f1d1d 75%)}
-.sc i{font-style:normal;font-size:clamp(9px,2.4vw,16px);line-height:1}
+.sc i{font-style:normal;font-size:calc(100cqw/10*.55);line-height:1;display:block}
 .sc .dot{width:28%;height:28%;border-radius:50%;background:#e0f2fe;opacity:.85;box-shadow:0 0 6px #7dd3fc}
 .sc.near{background:rgba(14,116,144,.08)}
 .sc.near::after{content:'';width:18%;height:18%;border-radius:50%;background:rgba(224,242,254,.3)}
