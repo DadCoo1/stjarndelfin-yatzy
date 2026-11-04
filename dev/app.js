@@ -6,7 +6,7 @@
   if(!same || !/[?&]bot=1/.test(location.search)){ document.documentElement.innerHTML=''; throw new Error('Inramning blockerad'); }
 })();
 /* ================= Version & utvecklingsläge ================= */
-const APP_VERSION='2026.11.04.11-dev';
+const APP_VERSION='2026.11.04.12-dev';
 const DEV = /\/dev(\/|$)/.test(location.pathname);      // testversionen ligger i mappen /dev/
 const BOT = DEV && /[?&]bot=1/.test(location.search) && window.parent!==window;   // osynlig testkompis i en ram (bara dev)
 const LSP = DEV ? (BOT ? 'dev:bot:' : 'dev:') : '';    // egen sparad data i testversionen
@@ -2037,7 +2037,7 @@ function lobbyHTML(){
   const bf=bestList('free')[0], bd=bestList('down')[0];
   if(false) h += `<div class="note" style="margin-top:6px">🏆 Rekord ensam: ${bf?`<b>${bf.s}</b> valfritt (${esc(bf.n)})`:''}${bf&&bd?' · ':''}${bd?`<b>${bd.s}</b> i ordning (${esc(bd.n)})`:''}</div>`;
   const fu=(typeof FR!=='undefined')?FR.unread():0;
-  h += `<div class="lob-foot"><button data-act="frnew">💡 Önska något</button><button data-act="frlist">📋 Önskelistan<i class="frb ${fu?'on':''}" data-frbadge>${fu||''}</i></button></div>`;
+  h += `<div class="lob-foot"><button data-act="frnew">💡 Önska något</button><button data-act="frbug">🐞 Rapportera bugg</button><button data-act="frlist">📋 Önskelistan<i class="frb ${fu?'on':''}" data-frbadge>${fu||''}</i></button></div>`;
   return h + '</div></div>';
 }
 function updateFrBadge(){ const n=(typeof FR!=='undefined')?FR.unread():0; document.querySelectorAll('[data-frbadge]').forEach(el=>{ el.textContent=n||''; el.classList.toggle('on',n>0); }); }
@@ -2168,6 +2168,7 @@ document.addEventListener('click', e=>{
     case 'openinv': openInv(); break;
     case 'frlist': FR.open(); break;
     case 'frnew': FR.open(); setTimeout(()=>document.querySelector('[data-fr="new"]')?.click(),0); break;
+    case 'frbug': FR.open(); setTimeout(()=>document.querySelector('[data-fr="bug"]')?.click(),0); break;
     case 'openchat': CHAT.open(); break;
     case 'opensol': openSol(); break;
     case 'solnew': showSolNew(false); break;
