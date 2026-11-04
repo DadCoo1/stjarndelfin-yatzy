@@ -61,9 +61,10 @@ const SLALOM = (()=>{
   // en port: a,b = stängernas fötter {x,z}; open = vinkelrät mot fallinjen; aim = idealt passage-ställe
   function mkGate(a,b,col,type,aim){ return {a,b,col,type,aim, zmin:Math.min(a.z,b.z), zmax:Math.max(a.z,b.z), pass:null, hit:0}; }
   function setCourse(g){
-    const d=DISC[g.disc], r=rng(g.seed), par=g.par, nG=par?(g.disc==='gs'?16:24):d.gates;
+    const seed=runSeed(g), tseed=g.std?(g.disc==='gs'?7101:7202):g.seeds[0];   // samma backe båda åken, ny sättning i åk 2
+    const d=DISC[g.disc], r=rng(seed), par=g.par, nG=par?(g.disc==='gs'?16:24):d.gates;
     const lenGuess = g.disc==='gs' ? nG*23+90 : nG*9.5+110;
-    T=terrain(g.seed, par, lenGuess);
+    T=terrain(tseed, par, g.disc==='gs'?16*23+90+6*23:36*9.5+110);
     const lanes = par ? [-8.5, 8.5] : [0];
     const out=lanes.map(()=>[]);
     // fallinjen för banan: följer pistens mitt
@@ -81,7 +82,7 @@ const SLALOM = (()=>{
         const w=4+r()*4;                                      // portbredd 4–8 m mellan de inre stängerna
         lanes.forEach((L,k)=>{ const s = k===1?-side:side, turn=fx(z,L)+s*off;   // vändstången (inre stången närmast fallinjen)
           const a={x:turn,z}, b={x:turn+s*w,z};
-          out[k].push(mkGate(s>0?a:b, s>0?b:a, par?(k===0?'r':'b'):col, 'gs', {x:turn+s*1.1,z}));
+          const gt=mkGate(s>0?a:b, s>0?b:a, par?(k===0?'r':'b'):col, 'gs', {x:turn+s*1.1,z}); gt.turn={x:turn,z}; gt.side=s; out[k].push(gt);
         });
         side=-side; col=col==='r'?'b':'r';
       }
@@ -91,6 +92,7 @@ const SLALOM = (()=>{
       if(!par){
         const put=(type,len)=>{ for(let tries=0;tries<40;tries++){ const i=5+Math.floor(r()*(nG-10-len)); if(plan.slice(i-2,i+len+2).every(x=>x==='o') && (tries>30 || r()<.6)){ for(let k=0;k<len;k++) plan[i+k]=type; return; } } };
         put('v',3+Math.floor(r()*2));                                  // vertikal: 3–4 stängda portar
+        const ls=1+Math.floor(r()*2); for(let k=0;k<ls;k++) put('L',1); // långsväng (dubbelkäpp)
         if(r()<.5) put('v',3);
         const hp=2+Math.floor(r()*2); for(let h=0;h<hp;h++) put('h',2);  // hårnålar: 2 stängda portar
       }
@@ -98,20 +100,24 @@ const SLALOM = (()=>{
       let prevTurn=null;
       while(i<nG){
         const p=pitchAt(z+6), steep=clamp((p-.2)/.35,0,1);
-        if(plan[i]==='o'){
+        if(plan[i]==='o'||plan[i]==='L'){
+          const long=plan[i]==='L';
           // avstånd vändstång–vändstång 6–13 m; mer sidoförskjutning i branter
           let off=lerp(1.7,2.3,steep)+(r()-.5)*.6;
           if(plan[i+1]&&plan[i+1]!=='o') off=lerp(2.8,3.4,steep);         // fartkontroll före kombination
           if(i>=nG-2) off=1.5;
+          if(par) off*=.85;                                                  // parallellbanor sätts lite rakare
           let dz=lerp(10,8.8,steep)+(r()-.5)*1.6;                          // nedför mellan vändstängerna
-          if(r()<.12 && i>3 && i<nG-4){ dz=11.8; off+=.6; }                // rytmbyte: längre sväng
+          if(long){ dz=12.2+r()*.6; off+=1.1; }                             // långsväng
+          else if(r()<.1 && i>3 && i<nG-4){ dz=11.4; off+=.4; }            // rytmbyte
           const lat = prevTurn ? Math.abs((fx(z+dz,0)+side*off)-prevTurn.x) : off*2;
           if(Math.hypot(dz,lat)>13) dz=Math.sqrt(169-lat*lat);              // vändstång–vändstång högst 13 m
           if(Math.hypot(dz,lat)<6) dz=Math.sqrt(36-Math.min(35,lat*lat));   // och minst 6 m
           z+=dz;
-          const w=4+r()*2;
+          // enkelkäpp i vanliga portar; dubbelkäpp i första/sista porten och i långsvängar (regel 613.4)
+          const dbl = long || i===0 || i>=nG-1, w = dbl ? 4+r()*2 : 14;
           lanes.forEach((L,k)=>{ const s=k===1?-side:side, turn=fx(z,L)+s*off, a={x:turn,z}, b={x:turn+s*w,z};
-            out[k].push(mkGate(s>0?a:b, s>0?b:a, par?(k===0?'r':'b'):col, 'open', {x:turn+s*.8,z})); });
+            const gt=mkGate(s>0?a:b, s>0?b:a, par?(k===0?'r':'b'):col, dbl?'open':'single', {x:turn+s*.75,z}); gt.turn={x:turn,z}; gt.side=s; out[k].push(gt); });
           prevTurn={x:fx(z,0)+side*off,z};
           side=-side; col=col==='r'?'b':'r'; i++;
         } else {
@@ -120,7 +126,7 @@ const SLALOM = (()=>{
           z+=9.5; const L=5.4, gap=type==='h'?1:.9;
           const cx=fx(z,0);
           for(let k=0;k<n;k++){ const za=z+k*(L+gap), zb=za+L;
-            out[0].push(mkGate({x:cx,z:za},{x:cx,z:zb},col,'closed',{x:cx,z:(za+zb)/2}));
+            const gt=mkGate({x:cx,z:za},{x:cx,z:zb},col,'closed',{x:cx,z:(za+zb)/2}); gt.turn={x:cx,z:(za+zb)/2}; out[0].push(gt);
             col=col==='r'?'b':'r'; }
           z+=n*(L+gap)-gap; prevTurn={x:cx,z};
           side = (n%2===0) ? side : -side;     // efter ett udda antal korsningar fortsätter rytmen åt andra hållet
@@ -134,12 +140,16 @@ const SLALOM = (()=>{
     return {d, gates:out, lanes, L};
   }
 
+  // fröet för aktuellt åk: standardbanan är alltid densamma, annars nya frön per parti
+  const runSeed=g=> g.std ? (g.disc==='gs'?[51101,51202]:[52101,52202])[(g.run||1)-1] + (g.par?7:0) : g.seeds[(g.run||1)-1];
+
   /* ---------- åket ---------- */
   let R=null, cv=null, ctx=null, raf=0, lastT=0, W=360, H=640, sendT=0, pend={disc:'gs',par:false,pen:true}, fresh=false;
   const keys={}; let steer=0, drag=null;
   function newRun(){
     const C=setCourse(G), me=meSeat();
-    const mkSk=(k,isAIsk)=>({k, x: mid(2)+(C.lanes[k]||0), z:2, v:0, th:0, om:0, t:0, done:false, dsq:false, missed:0, pen:0, gi:0, ai:isAIsk, lean:0, tuck:0, straight:0, plant:0, lastSign:0, trail:[]});
+    const lane=k=> G.par ? ((G.run||1)===2 ? 1-k : k) : 0;     // i parallell byter man bana till åk 2
+    const mkSk=(k,isAIsk)=>({k, lane:lane(k), x: mid(2)+(C.lanes[lane(k)]||0), z:2, v:0, th:0, om:0, t:0, done:false, dsq:false, missed:0, pen:0, gi:0, ai:isAIsk, lean:0, tuck:0, straight:0, plant:0, lastSign:0, trail:[]});
     const sk = G.par ? [mkSk(0,isAI(0)&&mode==='local'), mkSk(1,isAI(1)&&mode==='local')] : [mkSk(0,false)];
     R={gid:G.id+':'+(G.go||0), C, sk, me: G.par?me:0, cd:3.2, started:false, parts:[], shake:0, finishT:0, sent:false, cheer:1.5, beeped:-1, remote:null, split:null};
   }
@@ -162,7 +172,8 @@ const SLALOM = (()=>{
     const wantTuck = (s.straight>.35 && s.v>8 && (d.panel || s.z>R.C.L-45)) ? 1 : 0;
     s.tuck += (wantTuck-s.tuck)*Math.min(1,dt*4);
     const p=pitchAt(s.z), sinP=p/Math.sqrt(1+p*p);
-    const a = 9.81*sinP*Math.cos(s.th) - d.drag*(1-.32*s.tuck)*s.v*s.v - d.fric*Math.abs(om)*s.v - (s.dragExtra||0);
+    const upright=(1-s.tuck)*Math.min(1,Math.abs(om)/d.turn);
+    const a = 9.81*sinP*Math.cos(s.th) - d.drag*(1-.4*s.tuck+.15*upright)*s.v*s.v - d.fric*Math.abs(om)*s.v - (s.dragExtra||0);
     s.v = Math.max(0, s.v + a*dt);
     if(s.v<1.5) s.v=Math.min(1.5,s.v+dt*2);
     const pz=s.z, px=s.x;
@@ -177,7 +188,7 @@ const SLALOM = (()=>{
     if(off>0) s.v*=Math.pow(.45,dt);
     if(off>4){ s.x=mid(s.z)+Math.sign(s.x-mid(s.z))*(halfAt(s.z)+4); s.th*=.4; }
     // portar i tur och ordning
-    const gs=R.C.gates[s.k];
+    const gs=R.C.gates[s.lane];
     let g=gs[s.gi];
     while(g){
       const c=crossed(g,px,pz,s.x,s.z);
@@ -197,7 +208,7 @@ const SLALOM = (()=>{
   // datorn: siktar på nästa ports idealpassage och glider mot nästa i tid
   const AILV={easy:{gain:1.5,late:.5,slow:.45,cap:.78}, medium:{gain:1.55,late:.46,slow:.2,cap:.88}, hard:{gain:1.6,late:.43,slow:0,cap:1}};
   function aiInput(s,lv,dt){
-    const P=AILV[lv]||AILV.medium, gs=R.C.gates[s.k], d=R.C.d;
+    const P=AILV[lv]||AILV.medium, gs=R.C.gates[s.lane], d=R.C.d;
     const g=gs[s.gi]; if(!g) return clamp((mid(s.z+20)-s.x)*.08,-.5,.5);
     let tx=g.aim.x, tz=g.aim.z;
     const nx=gs[s.gi+1], lead=s.v*(P.late+(d.panel?0:.07));
@@ -391,6 +402,10 @@ const SLALOM = (()=>{
     C.gates.forEach((gs,k)=>gs.forEach((g,i)=>{ if(g.zmax>zA-1&&g.zmin<zB) objs.push({z:g.zmax, t:'gate', g, i, k}); }));
     // spår från tidigare åkare genom portarnas idealpassager
     C.gates.forEach(gs=>{ for(let i=1;i<gs.length;i++){ const a=gs[i-1].aim, b=gs[i].aim; if(b.z>zA&&a.z<zB) objs.push({z:b.z, t:'rut', a, b}); } });
+    // blå färg sprayad i snön: in- och utgång vid varje sväng
+    C.gates.forEach(gs=>gs.forEach((g,i)=>{ if(g.type==='closed'||g.aim.z<zA||g.aim.z>zB) return; const pv=gs[i-1], nx=gs[i+1];
+      const dirTo=(q,len)=>{ if(!q) return null; const dx=q.aim.x-g.aim.x, dz=q.aim.z-g.aim.z, L=Math.hypot(dx,dz)||1; return {x:g.aim.x+dx/L*len, z:g.aim.z+dz/L*len}; };
+      objs.push({z:g.aim.z+.01, t:'dye', p:dirTo(pv,3.6), a:{x:g.aim.x+(g.side||0)*.35,z:g.aim.z}, n:dirTo(nx,3)}); }));
     objs.push({z:C.L, t:'finish'});
     R.sk.forEach(o=>{ if(o!==s && o.z>zA) objs.push({z:o.z, t:'skier', sk:o}); });
     objs.sort((a,b)=>b.z-a.z);
@@ -401,6 +416,9 @@ const SLALOM = (()=>{
     const C=R.C, t=now();
     if(o.t==='rut'){ const a=P(o.a.x,o.a.z), b=P(o.b.x,o.b.z); if(!a||!b) return; ctx.strokeStyle='rgba(140,162,196,.32)'; ctx.lineWidth=Math.max(.6,b[2]*.06);
       const mx=(o.a.x+o.b.x)/2+(o.b.x-o.a.x)*.0, mz=(o.a.z+o.b.z)/2, c=P(mx-(o.b.x-o.a.x)*.18,mz); ctx.beginPath(); ctx.moveTo(a[0],a[1]); if(c) ctx.quadraticCurveTo(c[0],c[1],b[0],b[1]); else ctx.lineTo(b[0],b[1]); ctx.stroke(); return; }
+    if(o.t==='dye'){ const a=P(o.a.x,o.a.z); if(!a) return; ctx.strokeStyle='rgba(29,78,216,.5)'; ctx.lineCap='round'; ctx.setLineDash([a[2]*.6,a[2]*.35]);
+      ctx.lineWidth=Math.max(1,a[2]*.16); ctx.beginPath(); const p=o.p&&P(o.p.x,o.p.z), n=o.n&&P(o.n.x,o.n.z);
+      if(p){ ctx.moveTo(p[0],p[1]); ctx.lineTo(a[0],a[1]); } else ctx.moveTo(a[0],a[1]); if(n) ctx.lineTo(n[0],n[1]); ctx.stroke(); ctx.setLineDash([]); return; }
     if(o.t==='tree'){ const p=P(o.x,o.z); if(!p) return; const img=SPR.tree[o.v]; const h=p[2]*8*o.s, w=h*img.width/img.height; if(p[0]+w<0||p[0]-w>W||h<1) return; ctx.drawImage(img,p[0]-w/2,p[1]-h,w,h); return; }
     if(o.t==='fan'){ const p=P(o.x,o.z); if(!p) return; const img=SPR.fan[o.v]; const h=p[2]*1.75, w=h*img.width/img.height; if(h<1.5) return; const near=Math.abs(o.z-meSk().z)<35, jump=Math.max(0,Math.sin(t*6+o.ph))*h*.12*(near?1:.25);
       ctx.drawImage(img,p[0]-w/2,p[1]-h-jump,w,h);
@@ -441,68 +459,134 @@ const SLALOM = (()=>{
         ctx.fillStyle='rgba(255,255,255,.9)'; ctx.beginPath(); ctx.arc((pa[0]+pb[0])/2,pa[1]-h*.72+wv*.5,Math.max(.8,(pb[0]-pa[0])*.22),0,7); ctx.fill();
         ctx.fillStyle=dark; ctx.fillRect(pa[0],pa[1]-h*.52,pb[0]-pa[0],Math.max(.5,h*.02)); });
     } else {
-      // slalom: vändstången viker sig vid träff
-      const turnFirst = Math.abs(g.a.x-g.aim.x) < Math.abs(g.b.x-g.aim.x);
-      if(g.type==='closed'){ pole(b,0); pole(a,bend*(g.aim.x>g.a.x?-1:1)); }
-      else { pole(a,turnFirst?bend*(g.b.x>g.a.x?1:-1):0); pole(b,!turnFirst?bend*(g.a.x>g.b.x?1:-1):0); }
-      [a,b].forEach(p=>{ const h=p[2]*1.8; if(h<14) return; ctx.fillStyle=col; ctx.beginPath(); ctx.moveTo(p[0],p[1]-h*.95); ctx.lineTo(p[0]+h*.2,p[1]-h*.88); ctx.lineTo(p[0],p[1]-h*.8); ctx.fill(); });
+      // slalom: ledade käppar utan flagga; vändstången viker sig vid träff
+      const tp=P(g.turn.x,g.turn.z); const away = g.type==='closed' ? (g.aim.x>g.a.x?-1:1) : (g.side||1)*-1;
+      if(g.type==='single'){ if(tp) pole(tp, bend*away); }
+      else if(g.type==='closed'){ pole(b,0); pole(a,bend*(g.aim.x>g.a.x?-1:1)); }
+      else { const tA = Math.abs(g.a.x-g.turn.x)<.01; pole(a,tA?bend*away:0); pole(b,!tA?bend*away:0); }
     }
-    if(g.pass===false){ ctx.fillStyle='rgba(239,68,68,.9)'; ctx.font=`900 ${Math.max(10,a[2]*.9)}px system-ui`; ctx.textAlign='center'; ctx.fillText('✕',(a[0]+b[0])/2,(a[1]+b[1])/2-a[2]*.6); }
+    if(g.pass===false){ const q=P(g.aim.x,g.aim.z)||a; ctx.fillStyle='rgba(239,68,68,.9)'; ctx.font=`900 ${Math.max(10,q[2]*.9)}px system-ui`; ctx.textAlign='center'; ctx.fillText('✕',q[0],q[1]-q[2]*.6); }
   }
 
-  // åkaren bakifrån: kantade skidor, höftinsättning, upprätt överkropp, stavisättning och fartställning
+  // åkaren bakifrån – en sammanhängande figur: skidor → bindning → pjäxor → ben → höft → rygg → armar → stavar → hjälm
+  const SUITS={ swe:{base:'#0b2e7a', mid:'#1d4ed8', acc:'#facc15', boot:'#f8fafc', bootAcc:'#1d4ed8', helm:'#facc15', helmAcc:'#1d4ed8', ski:'#f8fafc', skiAcc:'#1d4ed8', glove:'#0f172a', bib:'#ffffff', bibTxt:'#0b2e7a'},
+                red:{base:'#991b1b', mid:'#dc2626', acc:'#f8fafc', boot:'#111827', bootAcc:'#dc2626', helm:'#f8fafc', helmAcc:'#dc2626', ski:'#111827', skiAcc:'#dc2626', glove:'#111827', bib:'#facc15', bibTxt:'#111827'} };
+  function limb(x1,y1,x2,y2,w1,w2,col){ const dx=x2-x1, dy=y2-y1, L=Math.hypot(dx,dy)||1, nx=-dy/L, ny=dx/L;
+    ctx.fillStyle=col; ctx.beginPath(); ctx.moveTo(x1+nx*w1/2,y1+ny*w1/2); ctx.lineTo(x2+nx*w2/2,y2+ny*w2/2); ctx.lineTo(x2-nx*w2/2,y2-ny*w2/2); ctx.lineTo(x1-nx*w1/2,y1-ny*w1/2); ctx.closePath(); ctx.fill();
+    ctx.beginPath(); ctx.arc(x1,y1,w1/2,0,7); ctx.fill(); ctx.beginPath(); ctx.arc(x2,y2,w2/2,0,7); ctx.fill(); }
   function drawSkier(s, p, me){
     let x,y,sc;
     if(me){ x=W/2+(s.x-cam.x-BACK*Math.tan(cam.yaw))*F/BACK; y=H*.80; sc=F/BACK; }
     else { if(!p) return; [x,y,sc]=p; }
-    const u=sc*(me?.0145:.0128), E=clamp(s.lean,-1.2,1.2), tk=s.tuck||0, rel=s.th-cam.yaw;
-    const suit = s.k===0 ? ['#e11d48','#fb7185','#fde047'] : ['#2563eb','#60a5fa','#f8fafc'];
-    if(me && R.sk.length===1){ suit[0]='#7c3aed'; suit[1]='#22d3ee'; suit[2]='#fde047'; }
-    const dir=Math.sign(E)||1, inc=E*.62;                    // inklination av benen
+    const u=sc*(me?.0118:.0105), E=clamp(s.lean,-1.2,1.2), tk=s.tuck||0, rel=s.th-cam.yaw, dir=Math.sign(E)||1, inc=E*.6;
+    const S = (s.k===0) ? SUITS.swe : SUITS.red;
+    const t=performance.now()/1000;
     ctx.save(); ctx.translate(x,y); ctx.scale(u,u);
     // skugga
-    ctx.fillStyle='rgba(70,100,150,.25)'; ctx.beginPath(); ctx.ellipse(-E*14,4,50,10,0,0,7); ctx.fill();
-    // skidor: korta i perspektiv (de pekar bort från kameran), ytterskidan bär och innerskidan är lite lyft
-    const st=10+Math.abs(E)*3, shiftX=-E*10;                 // fötterna glider utåt i svängen
-    const tip=Math.sin(rel)*30;
-    [-1,1].forEach(side=>{ const outer = side!==dir, fx=side*st+shiftX, lift = outer?0:-3;
-      ctx.save(); ctx.translate(fx,lift);
-      ctx.fillStyle='#0f172a'; ctx.beginPath(); ctx.moveTo(-3.5,10); ctx.lineTo(3.5,10); ctx.lineTo(tip+2,-34); ctx.lineTo(tip-2,-34); ctx.closePath(); ctx.fill();
-      const ew=Math.abs(E)*4; if(ew>.6){ const sx=-dir*3.5; ctx.fillStyle=suit[1]; ctx.beginPath(); ctx.moveTo(sx,10); ctx.lineTo(sx-dir*ew,10); ctx.lineTo(tip+sx*.5-dir*ew*.5,-34); ctx.lineTo(tip+sx*.5,-34); ctx.closePath(); ctx.fill();
-        ctx.strokeStyle='rgba(255,255,255,.85)'; ctx.lineWidth=1; ctx.beginPath(); ctx.moveTo(sx-dir*ew,10); ctx.lineTo(tip+sx*.5-dir*ew*.5,-34); ctx.stroke(); }
+    ctx.fillStyle='rgba(60,90,140,.22)'; ctx.beginPath(); ctx.ellipse(-E*20,10,62,14,0,0,7); ctx.fill();
+    const st=11+Math.abs(E)*2, shiftX=-E*12, tip=Math.sin(rel)*34;
+    const feet=[-1,1].map(side=>{ const outer=side!==dir; return {side, outer, x:side*st+shiftX, y: outer?0:-4}; });
+    // 1) skidor (spets bort från kameran = uppåt i bild), med kant/sula när de kantas
+    feet.forEach(f=>{ ctx.save(); ctx.translate(f.x,f.y);
+      const ew=Math.abs(E)*5, sx=-dir*4;
+      const tl=-tip*.55;                                      // bakänden pekar åt andra hållet
+      if(ew>.6){ ctx.fillStyle='#1e293b'; ctx.beginPath(); ctx.moveTo(tl+sx,34); ctx.lineTo(tl+sx-dir*ew*1.3,34); ctx.lineTo(tip+sx*.4-dir*ew*.4,-58); ctx.lineTo(tip+sx*.4,-58); ctx.closePath(); ctx.fill();
+        ctx.strokeStyle='rgba(226,232,240,.9)'; ctx.lineWidth=1.1; ctx.beginPath(); ctx.moveTo(tl+sx-dir*ew*1.3,34); ctx.lineTo(tip+sx*.4-dir*ew*.4,-58); ctx.stroke(); }
+      ctx.fillStyle=S.ski; ctx.beginPath(); ctx.moveTo(tl-5.5,34); ctx.quadraticCurveTo(tl,36.5,tl+5.5,34); ctx.lineTo(tip+2.2,-56); ctx.quadraticCurveTo(tip,-61,tip-2.2,-56); ctx.closePath(); ctx.fill();
+      ctx.strokeStyle='rgba(15,23,42,.35)'; ctx.lineWidth=.8; ctx.stroke();
+      ctx.fillStyle=S.skiAcc; ctx.beginPath(); ctx.moveTo(tl-1.8,33); ctx.lineTo(tl+1.8,33); ctx.lineTo(tip+.7,-54); ctx.lineTo(tip-.7,-54); ctx.closePath(); ctx.fill();
+      // bindning
+      ctx.fillStyle='#94a3b8'; ctx.beginPath(); ctx.roundRect(-5.5,4,11,10,2); ctx.fill(); ctx.fillStyle='#475569'; ctx.fillRect(-5.5,12,11,2.5);
       ctx.restore(); });
-    // ben: parallella, lutade in i svängen från fötterna (höftinsättning), knäna böjda
-    const crouch = 1 - tk*.42, legL=31*crouch;
-    const hip={x:shiftX+Math.sin(inc)*legL*1.9, y:-12-legL*1.9*Math.cos(inc)};
-    [-1,1].forEach(side=>{ const outer = side!==dir, fx=side*st+shiftX, fy=outer?-10:-13;
-      const hp={x:hip.x+side*9, y:hip.y};
-      const kn={x:(fx+hp.x)/2+dir*2.5+side*tk*5, y:(fy+hp.y)/2+3-tk*4};
-      ctx.strokeStyle=suit[0]; ctx.lineCap='round'; ctx.lineJoin='round'; ctx.lineWidth=13; ctx.beginPath(); ctx.moveTo(fx,fy); ctx.lineTo(kn.x,kn.y); ctx.lineTo(hp.x,hp.y); ctx.stroke();
-      ctx.strokeStyle='rgba(0,0,0,.14)'; ctx.lineWidth=4; ctx.beginPath(); ctx.moveTo(fx+4,fy); ctx.lineTo(kn.x+4,kn.y); ctx.stroke();
-      ctx.fillStyle=suit[2]==='#f8fafc'?'#e2e8f0':'#facc15'; ctx.beginPath(); ctx.roundRect(fx-7,fy-4,14,16,4); ctx.fill(); });
-    // överkropp: mer upprätt än benen (vinkling), framåtlutad i fartställning
-    const torso=E*.22, bh=50-tk*26, bw=19+tk*4;
-    ctx.save(); ctx.translate(hip.x,hip.y); ctx.rotate(torso);
-    const g=ctx.createLinearGradient(-bw,0,bw,0); g.addColorStop(0,suit[0]); g.addColorStop(.5,suit[1]); g.addColorStop(1,suit[0]);
-    ctx.fillStyle=g; ctx.beginPath(); ctx.moveTo(-bw*.85,4); ctx.quadraticCurveTo(-bw*1.2,-bh*.55,-bw*.75,-bh); ctx.lineTo(bw*.75,-bh); ctx.quadraticCurveTo(bw*1.2,-bh*.55,bw*.85,4); ctx.closePath(); ctx.fill();
-    ctx.fillStyle='rgba(255,255,255,.85)'; ctx.font='800 12px system-ui'; ctx.textAlign='center'; ctx.fillText(s.k===0?'1':'2',0,-bh*.42);
-    // armar och stavar: utåt i svängen, stavisättning vid kantbytet, inne vid kroppen i fartställning
-    const sh=-bh*.9;
-    [-1,1].forEach(side=>{ let hx, hy, px, py;
-      if(tk>.5){ hx=side*10; hy=sh+14; px=hx+side*14; py=hy+40; }
-      else { const plant = side===dir ? s.plant : 0; hx=side*28 - E*4; hy=sh+22+plant*8; px=hx+side*6+(plant?-side*4:0); py=hy+42+plant*18; }
-      ctx.strokeStyle=suit[0]; ctx.lineWidth=8; ctx.lineCap='round'; ctx.beginPath(); ctx.moveTo(side*bw*.7,sh); ctx.lineTo(hx,hy); ctx.stroke();
-      ctx.strokeStyle='#cbd5e1'; ctx.lineWidth=2.4; ctx.beginPath(); ctx.moveTo(hx,hy); ctx.lineTo(px,py); ctx.stroke();
-      ctx.fillStyle='#111827'; ctx.beginPath(); ctx.arc(hx,hy,5,0,7); ctx.fill(); });
-    // hjälm med glasögonband
-    const hy2=sh-13+tk*6;
-    ctx.fillStyle=suit[2]; ctx.beginPath(); ctx.ellipse(0,hy2,15,16,0,0,7); ctx.fill();
-    ctx.fillStyle='rgba(255,255,255,.55)'; ctx.beginPath(); ctx.ellipse(-5,hy2-7,6,4,-.4,0,7); ctx.fill();
-    ctx.fillStyle='#111827'; ctx.fillRect(-15,hy2+1,30,5); ctx.fillStyle=suit[1]; ctx.fillRect(-6,hy2+1,12,5);
+    // 2) ben: underben från pjäxans skaft till knät, lår till höften – lutade in i svängen
+    const crouch=1-tk*.42, shin=32*crouch, thigh=34*crouch;
+    const hipC={x:shiftX+Math.sin(inc)*(shin+thigh)*.95, y:-18-(shin+thigh)*Math.cos(inc)*.95};
+    const legs=feet.map(f=>{ const top={x:f.x+Math.sin(inc)*14, y:f.y-16};              // pjäxans skaft
+      const hp={x:hipC.x+f.side*10, y:hipC.y};
+      const kn={x:(top.x+hp.x)/2+dir*3+f.side*tk*6, y:(top.y+hp.y)/2+2-tk*3};
+      return {f,top,kn,hp}; });
+    // innerbenet (bortre) först, ytterbenet sist
+    legs.sort((a,b)=>(a.f.outer?1:0)-(b.f.outer?1:0)).forEach(L=>{
+      limb(L.top.x,L.top.y,L.kn.x,L.kn.y,11,12.5,S.base);
+      limb(L.kn.x,L.kn.y,L.hp.x,L.hp.y,12.5,16,S.base);
+      // sidorand i dräkten
+      ctx.strokeStyle=S.acc; ctx.lineWidth=2.2; ctx.beginPath(); ctx.moveTo(L.top.x+L.f.side*4.5,L.top.y); ctx.lineTo(L.kn.x+L.f.side*5,L.kn.y); ctx.lineTo(L.hp.x+L.f.side*6.5,L.hp.y); ctx.stroke();
+      // pjäxa: sitter på skidan
+      const f=L.f; ctx.save(); ctx.translate(f.x,f.y); ctx.rotate(inc*.5);
+      ctx.fillStyle=S.boot; ctx.beginPath(); ctx.moveTo(-7,8); ctx.lineTo(7,8); ctx.lineTo(6.5,-17); ctx.quadraticCurveTo(0,-20,-6.5,-17); ctx.closePath(); ctx.fill();
+      ctx.fillStyle=S.bootAcc; ctx.fillRect(-7,-4,14,3); ctx.fillStyle='rgba(0,0,0,.35)'; ctx.fillRect(-6,-12,12,1.6); ctx.fillRect(-6,1,12,1.6);
+      ctx.fillStyle='#1f2937'; ctx.fillRect(-7.5,6,15,3);
+      ctx.restore(); });
+    // 3) höft och rygg (mer upprätt än benen = vinkling; framåtfälld i fartställning)
+    const torso=E*.2, bh=56-tk*30, bw=20+tk*3;
+    ctx.save(); ctx.translate(hipC.x,hipC.y); ctx.rotate(torso);
+    ctx.fillStyle=S.base; ctx.beginPath(); ctx.ellipse(0,0,bw*.95,9,0,0,7); ctx.fill();          // säte
+    const gr=ctx.createLinearGradient(-bw,0,bw,0); gr.addColorStop(0,S.base); gr.addColorStop(.5,S.mid); gr.addColorStop(1,S.base);
+    ctx.fillStyle=gr; ctx.beginPath(); ctx.moveTo(-bw*.9,2); ctx.quadraticCurveTo(-bw*1.15,-bh*.55,-bw*.8,-bh); ctx.quadraticCurveTo(0,-bh-4-tk*4,bw*.8,-bh); ctx.quadraticCurveTo(bw*1.15,-bh*.55,bw*.9,2); ctx.closePath(); ctx.fill();
+    // gula svep längs sidorna
+    ctx.strokeStyle=S.acc; ctx.lineWidth=3; [-1,1].forEach(sd=>{ ctx.beginPath(); ctx.moveTo(sd*bw*.88,0); ctx.quadraticCurveTo(sd*bw*1.08,-bh*.5,sd*bw*.72,-bh*.95); ctx.stroke(); });
+    // startnummerväst
+    if(bh>30){ ctx.fillStyle=S.bib; ctx.beginPath(); ctx.roundRect(-bw*.55,-bh*.82,bw*1.1,bh*.52,4); ctx.fill();
+      ctx.fillStyle=S.bibTxt; ctx.font=`900 ${Math.max(9,bh*.3)}px system-ui`; ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.fillText(String(s.k+1),0,-bh*.56); }
+    // 4) armar och stavar
+    const sh={y:-bh+6};
+    [-1,1].forEach(side=>{ const shX=side*bw*.78;
+      let el, hd, tipP;
+      if(tk>.5){ el={x:side*(bw-1),y:sh.y+12}; hd={x:side*8,y:sh.y+2}; tipP={x:side*(bw+24),y:sh.y-30}; }   // händerna fram, stavarna under armarna
+      else { const plant = side===dir ? s.plant : 0, swing=Math.sin(t*2.2)*1.5;
+        el={x:side*(bw+10)-E*4, y:sh.y+20}; hd={x:side*(bw+16)-E*6+swing, y:sh.y+34-plant*6};
+        tipP = plant>0 ? {x:hd.x+side*4, y:hd.y-26} : {x:hd.x+side*8, y:hd.y+40}; }
+      // stav: handtag i handen, skaft, trissa
+      ctx.strokeStyle='#cbd5e1'; ctx.lineWidth=2.6; ctx.beginPath(); ctx.moveTo(hd.x,hd.y); ctx.lineTo(tipP.x,tipP.y); ctx.stroke();
+      ctx.strokeStyle='#334155'; ctx.lineWidth=1.6; ctx.beginPath(); ctx.ellipse(tipP.x+(hd.x-tipP.x)*.1,tipP.y+(hd.y-tipP.y)*.1,4.5,1.8,0,0,7); ctx.stroke();
+      limb(shX,sh.y,el.x,el.y,10,9,S.base); limb(el.x,el.y,hd.x,hd.y,9,8,S.mid);
+      ctx.fillStyle=S.glove; ctx.beginPath(); ctx.arc(hd.x,hd.y,5.5,0,7); ctx.fill();
+      ctx.fillStyle='#ef4444'; ctx.fillRect(hd.x-2,hd.y-9,4,6);   // stavhandtag
+    });
+    // 5) nacke, hjälm och glasögonband
+    const hy=-bh-12+tk*8;
+    ctx.fillStyle=S.base; ctx.fillRect(-6,hy+6,12,8);
+    ctx.fillStyle=S.helm; ctx.beginPath(); ctx.ellipse(0,hy,15.5,16,0,0,7); ctx.fill();
+    ctx.fillStyle=S.helmAcc; ctx.beginPath(); ctx.moveTo(-3,hy-16); ctx.lineTo(3,hy-16); ctx.lineTo(4,hy+8); ctx.lineTo(-4,hy+8); ctx.closePath(); ctx.fill();
+    ctx.fillStyle='rgba(255,255,255,.5)'; ctx.beginPath(); ctx.ellipse(-6,hy-8,5,3.5,-.4,0,7); ctx.fill();
+    ctx.fillStyle='#111827'; ctx.fillRect(-15.5,hy+1,31,5.5); ctx.fillStyle=S.acc; ctx.fillRect(-7,hy+1.5,14,4.5);
     ctx.restore(); ctx.restore();
   }
+  // liten karta (banan uppifrån) och höjdprofil, ritas en gång per åk och storlek
+  function maps(){
+    const C=R.C, key=W+'x'+H+':'+R.gid; if(R.mapKey===key) return; R.mapKey=key;
+    const L=C.L+10, mw=46, mh=Math.round(Math.min(170,H*.24)), pw=Math.round(W-24), ph=30;
+    let xmin=1e9,xmax=-1e9; for(let z=0;z<L;z+=4){ const m=mid(z), h=halfAt(z); xmin=Math.min(xmin,m-h); xmax=Math.max(xmax,m+h); }
+    const zs=(mh-8)/L, xs=Math.min((mw-8)/(xmax-xmin), zs*2.2), xc=(xmin+xmax)/2;
+    const mx=x=>mw/2+(x-xc)*xs, my=z=>4+z*zs;
+    const [mc,m]=off(mw*2,mh*2); m.scale(2,2);
+    m.fillStyle='rgba(15,23,42,.55)'; m.beginPath(); m.roundRect(0,0,mw,mh,8); m.fill();
+    m.fillStyle='rgba(240,248,255,.9)'; m.beginPath(); for(let z=0;z<=L;z+=3) m.lineTo(mx(mid(z)-halfAt(z)),my(z)); for(let z=L;z>=0;z-=3) m.lineTo(mx(mid(z)+halfAt(z)),my(z)); m.closePath(); m.fill();
+    m.fillStyle='rgba(22,101,52,.55)'; for(let z=0;z<L;z+=6){ if((T.trees[z]||0)>.8){ m.fillRect(mx(mid(z)-halfAt(z))-3,my(z),2.5,6*zs+.5); m.fillRect(mx(mid(z)+halfAt(z))+.5,my(z),2.5,6*zs+.5); } }
+    C.gates.forEach(gs=>gs.forEach(g=>{ m.fillStyle=g.col==='r'?'#ef4444':'#2563eb'; m.fillRect(mx(g.turn.x)-1,my(g.turn.z)-.8,2,1.6); }));
+    m.fillStyle='#ef4444'; m.fillRect(mx(mid(C.L)-halfAt(C.L)),my(C.L)-1,(halfAt(C.L)*2)*xs,2);
+    const [pc,q]=off(pw*2,ph*2); q.scale(2,2);
+    q.fillStyle='rgba(15,23,42,.55)'; q.beginPath(); q.roundRect(0,0,pw,ph,8); q.fill();
+    const y0=T.y[0], y1=at(T.y,L), px=z=>6+z/L*(pw-12), py=y=>5+(y0-y)/(y0-y1)*(ph-10);
+    q.beginPath(); q.moveTo(px(0),ph-3); for(let z=0;z<=L;z+=2) q.lineTo(px(z),py(at(T.y,z))); q.lineTo(px(L),ph-3); q.closePath();
+    const gg=q.createLinearGradient(0,0,0,ph); gg.addColorStop(0,'rgba(240,248,255,.95)'); gg.addColorStop(1,'rgba(148,180,220,.6)'); q.fillStyle=gg; q.fill();
+    // branta partier markeras
+    q.strokeStyle='#f97316'; q.lineWidth=2; q.beginPath(); let on=false; for(let z=0;z<=L;z+=2){ const st=at(T.pitch,z)>.42; if(st){ on?q.lineTo(px(z),py(at(T.y,z))):q.moveTo(px(z),py(at(T.y,z))); on=true; } else on=false; } q.stroke();
+    q.fillStyle='#ef4444'; q.fillRect(px(C.L)-1,3,2,ph-6);
+    R.map={mc,mw,mh,mx,my,pc,pw,ph,px,py};
+  }
+  function minimap(){
+    maps(); const M=R.map, x0=W-M.mw-10, y0=R.sk.length>1?58:12, s=meSk();
+    ctx.drawImage(M.mc,x0,y0,M.mw,M.mh);
+    R.sk.forEach(o=>{ if(o!==s){ ctx.fillStyle=o.k===0?'#facc15':'#f87171'; ctx.beginPath(); ctx.arc(x0+M.mx(o.x),y0+M.my(Math.min(o.z,R.C.L)),2.6,0,7); ctx.fill(); } });
+    ctx.fillStyle='#fff'; ctx.strokeStyle='#0b2e7a'; ctx.lineWidth=1.5; ctx.beginPath(); ctx.arc(x0+M.mx(s.x),y0+M.my(Math.min(s.z,R.C.L)),3.3,0,7); ctx.fill(); ctx.stroke();
+    const px0=12, py0=H-M.ph-8; ctx.drawImage(M.pc,px0,py0,M.pw,M.ph);
+    R.sk.forEach(o=>{ const z=Math.min(o.z,R.C.L); ctx.fillStyle=o===s?'#fff':(o.k===0?'#facc15':'#f87171'); ctx.beginPath(); ctx.arc(px0+M.px(z),py0+M.py(elev(z)),o===s?3.6:2.8,0,7); ctx.fill(); if(o===s){ ctx.strokeStyle='#0b2e7a'; ctx.lineWidth=1.5; ctx.stroke(); } });
+    ctx.fillStyle='rgba(255,255,255,.85)'; ctx.font='700 10px system-ui'; ctx.textAlign='right'; ctx.textBaseline='top'; ctx.fillText(`${Math.round(at(T.pitch,s.z)*100)} %`,px0+M.pw-6,py0+3);
+  }
   function hud(){
-    const s=meSk(), C=R.C, t=R.started? (s.done? (s.finish??s.t) : s.t+s.pen) : 0, n=C.gates[s.k].length;
+    minimap();
+    const s=meSk(), C=R.C, t=R.started? (s.done? (s.finish??s.t) : s.t+s.pen) : 0, n=C.gates[s.lane].length;
     ctx.fillStyle='rgba(15,23,42,.55)'; ctx.beginPath(); ctx.roundRect(10,10,160,58,14); ctx.fill();
     ctx.fillStyle='#fff'; ctx.font='800 26px ui-monospace,monospace'; ctx.textAlign='left'; ctx.textBaseline='top'; ctx.fillText(fmt(t),20,16);
     ctx.font='600 12px system-ui'; ctx.fillStyle='#cbd5e1'; ctx.fillText(`Port ${Math.min(s.gi,n)}/${n} · ${Math.round(s.v*3.6)} km/h`,20,48);
@@ -516,8 +600,8 @@ const SLALOM = (()=>{
     else if(R.started && s.t<.8){ ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.font='900 72px system-ui'; ctx.fillStyle='#22c55e'; ctx.fillText('KÖR!',W/2,H*.42); }
   }
   const fmt=t=>{ const m=Math.floor(t/60), s=t-m*60; return (m?m+':':'')+(m?String(s.toFixed(2)).padStart(5,'0'):s.toFixed(2)); };
-  const bestKey=()=>`sl_best2_${G.disc}${G.par?'p':''}`;
-  function bestOf(){ try{ return JSON.parse(lsGet(bestKey()))||{}; }catch(e){ return {}; } }
+  const bestKey=k=>`sl_best3_${G.disc}${G.par?'p':''}_r${k}`;
+  function bestOf(k){ if(!G.std) return {}; try{ return JSON.parse(lsGet(bestKey(k==null?(G.run||1):k)))||{}; }catch(e){ return {}; } }
 
   /* ---------- slingan ---------- */
   function loop(nowMs){
@@ -545,14 +629,15 @@ const SLALOM = (()=>{
       R.cheer-=dt; const zi=Math.round(s.z)|0; if(R.cheer<=0){ R.cheer=2+Math.random()*4; if(T.crowd[zi] && Math.random()<.65 && !s.done) cheer(.05+Math.random()*.06); }
       if(mode==='online' && nowMs-sendT>66){ sendT=nowMs; send({t:'sl', g:G.id, n:G.go||0, x:+s.x.toFixed(2), z:+s.z.toFixed(2), th:+s.th.toFixed(3), l:+s.lean.toFixed(2), k:+(s.tuck||0).toFixed(2), v:+s.v.toFixed(2), gi:s.gi, d:s.done?1:0, q:s.dsq?1:0, f:s.finish!=null?+s.finish.toFixed(3):null}); }
       if(s.done && !R.sent && (s.v<.5 || s.dsq || performance.now()-(R.finishT||(R.finishT=performance.now()))>1500)){ R.sent=true; sndOff(); finishRun(s); }
-      for(const sk of R.sk) if(sk.ai && sk.done && !sk.sentAI){ sk.sentAI=true; applyAndPublish({type:'finish', seat:sk.k, ms:sk.dsq?null:Math.round(sk.finish*1000)}, sk.k); }
+      for(const sk of R.sk) if(sk.ai && sk.done && !sk.sentAI){ sk.sentAI=true; applyAndPublish({type:'finish', run:G.run, ms:sk.dsq?null:Math.round(sk.finish*1000)}, sk.k); }
     }
     draw(dt);
   }
   function finishRun(s){
     const ms = s.dsq ? null : Math.round((s.finish)*1000);
-    if(ms){ const B=bestOf(); if(!B.t||ms<B.t){ lsSet(bestKey(),JSON.stringify({t:ms,split:R.split,d:Date.now()})); if(B.t) setTimeout(()=>{ toast('🏆 Nytt personligt rekord!',2500); sparkles(30); },400); } }
-    doAct({type:'finish', seat:G.par?meSeat():0, ms, missed:s.missed});
+    if(ms && G.std){ const B=bestOf(); if(!B.t||ms<B.t){ lsSet(bestKey(G.run),JSON.stringify({...B,t:ms,split:R.split,d:Date.now()})); if(B.t) setTimeout(()=>{ toast(`🏆 Rekord i åk ${G.run}!`,2500); sparkles(24); },400); }
+      if(G.run===2){ const r1=G.res[G.par?meSeat():0][0]; if(r1>0){ const tot=r1+ms, B0=bestOf(0); if(!B0.total||tot<B0.total){ lsSet(bestKey(0),JSON.stringify({total:tot,d:Date.now()})); if(B0.total) setTimeout(()=>{ toast('🏆 Nytt rekord totalt!',2600); sparkles(40); },1400); } } } }
+    doAct({type:'finish', run:G.run, ms});
   }
   let scaleDpr=1;
   function draw(dt){ ctx.setTransform(scaleDpr,0,0,scaleDpr,0,0); ctx.save(); drawScene(dt); ctx.restore(); hud(); }
@@ -582,34 +667,47 @@ const SLALOM = (()=>{
 
   /* ---------- spelmotorn ---------- */
   GINFO.slalom={name:'Slalom', icon:'⛷️', ai:'Blixt 🤖', max:2, desc:'Storslalom och slalom i Vemdalsfjällen', grad:'linear-gradient(135deg,#60a5fa,#e0f2fe 55%,#ef4444)'};
+  // tider: res[spelare] = [åk 1, åk 2] i ms, null = ur; undefined = ej åkt
+  const okMs=x=>x===null||(Number.isInteger(x)&&x>3000&&x<900000);
+  const total=r=>!r||r.length<2||r.some(x=>x===undefined)?undefined: r.some(x=>x===null)?null: r[0]+r[1];
+  const runDone=(g,k)=>g.res.every(r=>r[k]!==undefined && r[k]!==-1);
   KIND.slalom={
-    init(){ const base=!fresh&&G&&G.kind==='slalom'?G:null; fresh=false; const o=base?{disc:base.disc,par:base.par,pen:base.pen}:pend;
-      return {disc:o.disc, par:o.par, pen:o.pen, seed:Math.floor(Math.random()*1e9), res:[null,null], go:0, cur:0}; },
-    start(g){ g.seed=Math.floor(Math.random()*1e9); g.res=g.names.map(()=>null); g.go=(g.go||0)+1; g.cur=0; if(g.names.length>1) g.par=true; },
-    valid(g){ return g.names.length>=1&&g.names.length<=2 && (g.disc==='gs'||g.disc==='sl') && typeof g.par==='boolean' && typeof g.pen==='boolean' && Number.isInteger(g.seed)
-      && Array.isArray(g.res) && g.res.every(r=>r===null||(r&&(r.ms===null||(Number.isInteger(r.ms)&&r.ms>3000&&r.ms<900000)))); },
+    init(){ const base=!fresh&&G&&G.kind==='slalom'?G:null; fresh=false; const o=base?{disc:base.disc,par:base.par,pen:base.pen,std:base.std}:pend;
+      return {disc:o.disc, par:o.par, pen:o.pen, std:!!o.std, seeds:[0,0], run:1, res:[], go:0, cur:0}; },
+    start(g){ g.seeds=[Math.floor(Math.random()*1e9),Math.floor(Math.random()*1e9)]; g.run=1; g.res=g.names.map(()=>[-1,-1]); g.go=(g.go||0)+1; g.cur=0; if(g.names.length>1) g.par=true; },
+    valid(g){ return g.names.length>=1&&g.names.length<=2 && (g.disc==='gs'||g.disc==='sl') && typeof g.par==='boolean' && typeof g.pen==='boolean'
+      && Array.isArray(g.seeds)&&g.seeds.length===2&&g.seeds.every(Number.isInteger) && (g.run===1||g.run===2)
+      && Array.isArray(g.res) && g.res.every(r=>Array.isArray(r)&&r.length===2&&r.every(x=>x===-1||okMs(x))); },
     waitingFor(){ return -1; },
-    scoreOf(g,i){ const r=g.res&&g.res[i]; return r? (r.ms===null?'ur':fmt(r.ms/1000)) : (g.started===false?'':'åker…'); },
+    scoreOf(g,i){ const r=g.res&&g.res[i]; if(!r) return ''; const f=x=>x===-1?'–':x===null?'ur':fmt(x/1000); return g.run===1? f(r[0]) : `${f(r[0])} + ${f(r[1])}`; },
     apply(g,a,seat){
-      if(a.type==='resign'){ if(g.over) return false; g.res[seat]={ms:null}; }
-      else if(a.type==='finish'){ if(g.over||g.res[seat]) return false; if(!(a.ms===null||(Number.isInteger(a.ms)&&a.ms>3000&&a.ms<900000))) return false; g.res[seat]={ms:a.ms}; g.last={t:Date.now(),seat,ms:a.ms}; }
+      const k=(g.run||1)-1;
+      if(a.type==='resign'){ if(g.over) return false; g.res[seat]=[g.res[seat][0]===-1?null:g.res[seat][0], null]; }
+      else if(a.type==='finish'){ if(g.over||g.res[seat][k]!==-1||(a.run&&a.run!==g.run)||!okMs(a.ms)) return false; g.res[seat][k]=a.ms; g.last={t:Date.now(),seat,ms:a.ms,run:g.run}; }
+      else if(a.type==='next'){ if(g.over||g.run!==1||!runDone(g,0)) return false; g.run=2; g.go=(g.go||0)+1; g.last={t:Date.now(),type:'next'}; return true; }
       else return false;
-      if(g.res.every(Boolean)){ g.over=true; const t=g.res.map(r=>r.ms===null?Infinity:r.ms); const mn=Math.min(...t);
+      if(g.res.every(r=>r[0]!==-1&&r[1]!==-1)){
+        g.over=true; const t=g.res.map(r=>{ const v=total(r); return v==null?Infinity:v; }); const mn=Math.min(...t);
         g.winner = g.names.length===1 ? (mn<Infinity?0:-2) : mn===Infinity ? -1 : t.filter(x=>x===mn).length>1 ? -1 : t.indexOf(mn); }
       return true; },
     aiSeat(){ return null; },
-    effects(prev,d){ if(d.last&&(!prev.last||prev.last.t!==d.last.t)&&d.last.seat!==meSeat()&&d.names.length>1) toast(`${bare(pname(d.last.seat))} i mål: ${d.last.ms===null?'ur 😬':fmt(d.last.ms/1000)}`,2000); },
+    effects(prev,d){ if(d.last&&(!prev.last||prev.last.t!==d.last.t)&&d.last.seat!=null&&d.last.seat!==meSeat()&&d.names.length>1) toast(`${bare(pname(d.last.seat))} i mål: ${d.last.ms===null?'ur 😬':fmt(d.last.ms/1000)}`,2000); },
     html(){
-      const g=G, me=meSeat(), B=bestOf();
+      const g=G, me=meSeat(), f=x=>x===-1||x===undefined?'–':x===null?'ur':fmt(x/1000);
       let over='';
-      if(g.over){ const rows=g.names.map((n,i)=>{ const r=g.res[i]; return `<div class="sl-res ${g.winner===i?'win':''}"><b>${esc(bare(n))}</b><span>${r&&r.ms!==null?fmt(r.ms/1000):'ur'}</span></div>`; }).join('');
-        const solo=g.names.length===1, r=g.res[0];
-        over=`<div class="sl-over"><div class="gover ${solo?(r.ms!==null?'won':'lost'):g.winner===me?'won':g.winner===-1?'tie':'lost'}"><div class="gi">${solo?(r.ms!==null?'⛷️':'😬'):g.winner===me?'🏆':g.winner===-1?'🤝':'🎿'}</div>
-          <h3>${solo?(r.ms!==null?'I mål!':'Ur!'):g.winner===me?'Du vann!':g.winner===-1?'Oavgjort':esc(bare(pname(g.winner)))+' vann'}</h3>${rows}
-          ${B.t?`<p class="sl-pb">Ditt rekord i ${DISC[g.disc].name.toLowerCase()}${g.par?' (parallell)':''}: <b>${fmt(B.t/1000)}</b></p>`:''}
-          <div class="gbtns"><button class="pri" data-g="rematch">🔄 Åk igen</button><button data-act="lobby">🏠 Lobby</button></div></div></div>`; }
+      const table=()=>g.names.map((n,i)=>{ const r=g.res[i]; return `<div class="sl-res ${g.over&&g.winner===i?'win':''}"><b>${esc(bare(n))}</b><span>${f(r[0])}${g.run===2||g.over?` · ${f(r[1])}`:''}${g.over?` = <b>${f(total(r))}</b>`:''}</span></div>`; }).join('');
+      if(g.over){ const solo=g.names.length===1, tt=total(g.res[0]);
+        const B=bestOf(0);
+        over=`<div class="sl-over"><div class="gover ${solo?(tt!=null?'won':'lost'):g.winner===me?'won':g.winner===-1?'tie':'lost'}"><div class="gi">${solo?(tt!=null?'⛷️':'😬'):g.winner===me?'🏆':g.winner===-1?'🤝':'🎿'}</div>
+          <h3>${solo?(tt!=null?'Båda åken klara!':'Ur!'):g.winner===me?'Du vann!':g.winner===-1?'Oavgjort':esc(bare(pname(g.winner)))+' vann'}</h3><p class="sl-pb">Åk 1 · åk 2 = totalt</p>${table()}
+          ${g.std&&B.total?`<p class="sl-pb">Ditt rekord på standardbanan: <b>${fmt(B.total/1000)}</b></p>`:''}
+          <div class="gbtns"><button class="pri" data-g="rematch">🔄 Ny tävling</button><button data-act="lobby">🏠 Lobby</button></div></div></div>`; }
+      else if(g.run===1 && runDone(g,0)){ const can = mode!=='online' || role==='host';
+        over=`<div class="sl-over"><div class="gover tie"><div class="gi">⏱️</div><h3>Åk 1 klart</h3>${table()}
+          <p class="sl-pb">Åk 2 har en ny bansättning${g.par?' och ni byter bana':''}.</p>
+          <div class="gbtns">${can?`<button class="pri" data-sl="next">▶️ Starta åk 2</button>`:'<p>Väntar på att värden startar åk 2…</p>'}</div></div></div>`; }
       return `<div class="sl-wrap"><div id="slHost" class="sl-host"></div>${over}</div>
-        <div class="ghint">${DISC[g.disc].name}${g.par?' · parallell':''} · Dra fingret åt sidan (eller ← →) för att svänga, släpp för att åka rakt. ${g.pen?'Missad port +3 s.':'Missad port = ur.'} ${g.over?'':KIT.resignHTML()}</div>`; },
+        <div class="ghint">${DISC[g.disc].name}${g.par?' · parallell':''} · ${g.std?'standardbana':'ny bana'} · åk ${g.run} av 2 · Dra fingret åt sidan (eller ← →) för att svänga, släpp för att åka rakt – då går du ned i fartställning. ${g.pen?'Missad port +3 s.':'Missad port = ur.'} ${g.over?'':KIT.resignHTML()}</div>`; },
     mounted(){ mount(); }
   };
 
@@ -617,14 +715,17 @@ const SLALOM = (()=>{
   let mDisc=lsGet('sl_disc')||'gs', mPen=lsGet('sl_pen')!=='0';
   const segD=()=>Object.entries(DISC).map(([k,d])=>`<button data-sl="disc" data-v="${k}" class="${mDisc===k?'sel':''}">${k==='gs'?'🚩':'🎌'} ${d.name}</button>`).join('');
   const segP=()=>`<button data-sl="pen" data-v="1" class="${mPen?'sel':''}">+3 s straff</button><button data-sl="pen" data-v="0" class="${!mPen?'sel':''}">Riktiga regler: ur</button>`;
+  let mStd=lsGet('sl_std')!=='0';
+  const segS=()=>`<button data-sl="std" data-v="1" class="${mStd?'sel':''}">📌 Standardsättning</button><button data-sl="std" data-v="0" class="${!mStd?'sel':''}">🎲 Helt ny bana</button>`;
   const lvlName={easy:'🐣 Lätt',medium:'🙂 Medel',hard:'🧠 Svår'};
   let mLvl=lsGet('sl_lvl')||'medium';
   const segL=()=>Object.entries(lvlName).map(([k,l])=>`<button data-sl="lvl" data-v="${k}" class="${mLvl===k?'sel':''}">${l}</button>`).join('');
-  function bestLine(){ const f=k=>{ try{ const b=JSON.parse(lsGet(k)); return b&&b.t?fmt(b.t/1000):'–'; }catch(e){ return '–'; } }; return `Rekord: storslalom ${f('sl_best2_gs')} · slalom ${f('sl_best2_sl')}`; }
+  function bestLine(){ const f=k=>{ try{ const b=JSON.parse(lsGet(k)); return b&&b.total?fmt(b.total/1000):'–'; }catch(e){ return '–'; } }; return `Rekord på standardbanan (två åk): storslalom ${f('sl_best3_gs_r0')} · slalom ${f('sl_best3_sl_r0')}`; }
   GINFO.slalom.menu=function(){
-    openModal(`<h3>⛷️ Slalom i Vemdalsfjällen</h3><p>Åk genom portarna så fort du kan. Dra fingret åt sidan för att svänga – ju mindre du svänger, desto snabbare går det.</p>
+    openModal(`<h3>⛷️ Slalom i Vemdalsfjällen</h3><p>Två åk med olika bansättning – lägst sammanlagd tid vinner. Dra fingret åt sidan för att svänga; släpp och åk rakt så går du ned i fartställning.</p>
       <label>Ditt namn</label><input id="nm" maxlength="14" value="${esc(lsGet('ry_name')||'')}" placeholder="Ditt namn">
       <label>Gren</label><div class="seg" id="slD">${segD()}</div>
+      <label>Bana</label><div class="seg" id="slS">${segS()}</div>
       <label>Missad port</label><div class="seg" id="slP">${segP()}</div>
       <label>Datorns nivå (parallellslalom)</label><div class="seg" id="slL">${segL()}</div>
       <div class="setnote">${bestLine()}</div>
@@ -635,11 +736,13 @@ const SLALOM = (()=>{
   document.addEventListener('click',e=>{ const b=e.target.closest('[data-sl]'); if(!b) return; const a=b.dataset.sl, nm=(document.getElementById('nm')?.value||'').trim();
     if(a==='disc'){ mDisc=b.dataset.v; lsSet('sl_disc',mDisc); document.getElementById('slD').innerHTML=segD(); sfx.bubble(); return; }
     if(a==='pen'){ mPen=b.dataset.v==='1'; lsSet('sl_pen',mPen?'1':'0'); document.getElementById('slP').innerHTML=segP(); sfx.bubble(); return; }
+    if(a==='std'){ mStd=b.dataset.v==='1'; lsSet('sl_std',mStd?'1':'0'); document.getElementById('slS').innerHTML=segS(); sfx.bubble(); return; }
+    if(a==='next'){ unlockAudio(); doAct({type:'next'}); return; }
     if(a==='lvl'){ mLvl=b.dataset.v; lsSet('sl_lvl',mLvl); document.getElementById('slL').innerHTML=segL(); sfx.bubble(); return; }
     const n=nm||'Du'; lsSet('ry_name',n); unlockAudio();
-    if(a==='solo'){ pend={disc:mDisc,par:false,pen:mPen}; fresh=true; KIT.startSolo('slalom',n); return; }
-    if(a==='ai'){ pend={disc:mDisc,par:true,pen:mPen}; fresh=true; startGameLocal('slalom',n,mLvl,1); return; }
-    if(a==='host'){ if(!nm){ toast('Skriv ditt namn 🐬'); return; } pend={disc:mDisc,par:true,pen:mPen}; fresh=true; closeModal(); hostGame(n,'free','slalom'); return; } });
+    if(a==='solo'){ pend={disc:mDisc,par:false,pen:mPen,std:mStd}; fresh=true; KIT.startSolo('slalom',n); return; }
+    if(a==='ai'){ pend={disc:mDisc,par:true,pen:mPen,std:mStd}; fresh=true; startGameLocal('slalom',n,mLvl,1); return; }
+    if(a==='host'){ if(!nm){ toast('Skriv ditt namn 🐬'); return; } pend={disc:mDisc,par:true,pen:mPen,std:mStd}; fresh=true; closeModal(); hostGame(n,'free','slalom'); return; } });
 
   const st=document.createElement('style'); st.textContent=`
 .sl-wrap{position:relative;margin:0 auto}
