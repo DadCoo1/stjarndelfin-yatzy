@@ -213,7 +213,7 @@ const PONG = (()=>{
   }
   function fit(){
     if(!cv) return; const wrap=cv.parentElement; if(!wrap) return;
-    const aw=wrap.clientWidth, ah=Math.max(300, window.innerHeight - wrap.getBoundingClientRect().top - 14);
+    const aw=wrap.clientWidth, ah=Math.max(220, window.innerHeight - wrap.getBoundingClientRect().top - 14);
     let w=Math.min(aw, ah*W/H); w=Math.max(200,w); const h=w*H/W;
     dpr=Math.min(2.5, window.devicePixelRatio||1);
     cv.style.width=w+'px'; cv.style.height=h+'px'; cv.width=Math.round(w*dpr); cv.height=Math.round(h*dpr);

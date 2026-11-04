@@ -524,7 +524,7 @@
 .of-head{display:flex;gap:6px;align-items:stretch;margin:2px 0 4px}.of-head .gp{flex:1}
 .of-bag{flex:none;display:grid;place-items:center;padding:0 10px;border-radius:16px;background:var(--glass);border:1px solid var(--line);font-weight:700;font-size:14px}
 .of-sub{min-height:22px;font-size:14.5px}.of-sub .bad{color:#fca5a5}
-.of-wrap{width:100%;max-width:min(620px,100%,calc(100dvh - 300px));margin:0 auto}
+.of-wrap{width:100%;max-width:min(620px,100%,max(320px,calc(100dvh - 300px)));margin:0 auto}
 .of-board{--cs:24px;display:grid;grid-template-columns:repeat(15,minmax(0,1fr));grid-template-rows:repeat(15,minmax(0,1fr));gap:1.5px;padding:3px;border-radius:12px;background:#0b1530;aspect-ratio:1;user-select:none;-webkit-user-select:none;touch-action:manipulation}
 .of-c{position:relative;min-width:0;min-height:0;border-radius:3px;background:#1e2a4a;display:grid;place-items:center;font-size:calc(var(--cs)*.32);font-weight:700;color:rgba(255,255,255,.8);overflow:hidden}
 .of-c span{pointer-events:none;letter-spacing:-.5px}
