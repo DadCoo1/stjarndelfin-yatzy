@@ -27,19 +27,22 @@
 .pc em{position:absolute;right:8%;bottom:6%;font-style:normal;font-size:calc(var(--w)*.62);line-height:1;opacity:.9}
 .pc.back{background:repeating-linear-gradient(45deg,#4f46e5 0 6px,#6366f1 6px 12px);border:3px solid #fff}
 .pc.back::after{content:'🐬';position:absolute;inset:0;display:grid;place-items:center;font-size:calc(var(--w)*.42);opacity:.8}
-.hand{display:flex;justify-content:center;padding:14px 6px 6px;--cw:min(58px,15vw)}
+.hand{display:flex;justify-content:center;padding:14px 6px 6px;--cw:min(58px,15vw,8.6dvh)}
 .hand .pc{margin-left:calc(var(--cw)*var(--ov,-.45));transition:transform .15s}.hand .pc:first-child{margin-left:0}
 .hand .pc.can{cursor:pointer}.hand .pc.sel{transform:translateY(-14px);box-shadow:0 0 0 3px #22d3ee,0 6px 14px rgba(0,0,0,.4)}
 .hand .pc.no{filter:brightness(.62)}
-.opps{display:flex;justify-content:center;gap:8px;flex-wrap:wrap;margin:4px 0}
+.opps{display:flex;justify-content:center;gap:6px;flex-wrap:wrap;margin:4px 0}.opps .opp{flex:1 1 0;max-width:180px}
 .opp{background:var(--glass);border:1px solid var(--line);border-radius:14px;padding:6px 10px;min-width:96px;text-align:center;font-size:13px}
 .opp.on{border-color:var(--gold);box-shadow:0 0 0 2px rgba(250,204,21,.35)}
 .opp .mini{display:flex;justify-content:center;margin-top:4px;--cw:22px}.opp .mini .pc{margin-left:-14px}.opp .mini .pc:first-child{margin-left:0}
-.table{display:flex;justify-content:center;align-items:center;gap:14px;min-height:120px;margin:6px 0;--cw:64px}
+.table{display:flex;justify-content:center;align-items:center;gap:14px;min-height:min(120px,16dvh);margin:6px 0;--cw:min(64px,9.5dvh)}
+@media (max-height:760px){.opp .mini{display:none}.opp{padding:4px 6px;min-width:0;font-size:12px}.opp small{display:block;font-size:11px;line-height:1.25}.gsub{margin:2px 0 6px}}
 .cbtns{display:flex;gap:8px;justify-content:center;flex-wrap:wrap;margin:6px 0}
 .cbtns button{padding:11px 16px;border-radius:14px;background:var(--glass2);border:1px solid var(--line);font-weight:700}
 .cbtns button.pri{background:linear-gradient(135deg,#22c55e,#0ea5e9);border:0}
 .cbtns button:disabled{opacity:.35}`);
+  // överlapp så att hela handen får plats i bredd
+  const handOv=n=>{ if(n<=1) return -.3; const app=document.getElementById('app'), W=Math.min((app&&app.clientWidth||innerWidth)-28,620), w=Math.min(58,innerWidth*.15,innerHeight*.086); return Math.max(-.8,Math.min(-.3,(W-w)/((n-1)*w)-1)).toFixed(3); };
   const opps=(g,me,extra)=>`<div class="opps">${g.names.map((n,i)=>i===me?'':`<div class="opp ${!g.over&&KIND[g.kind].waitingFor(g)===i?'on':''}"><b>${isAI(i)?'🤖 ':''}${esc(bare(n))}</b>${extra(i)}</div>`).join('')}</div>`;
   const nextIdx=(g,s)=>{ let c=s; do{ c=(c+1)%g.names.length; }while((g.out||[]).includes(c)&&c!==s); return c; };
 
@@ -107,7 +110,7 @@
         <div class="vt-pile">${top.length?top.map((c,i)=>card(c,{cls:'pl',attr:`style="--i:${i}"`})).join(''):'<div class="pc empty"></div>'}<small>${g.pile.length?`${g.pile.length} i högen`:'tom hög'}</small></div></div>`;
       const myUp=`<div class="vt-mine">${g.down[me].map((c,i)=>`<div class="vt-slot">${card(-1,{cls: z==='down'&&my?'can':'', attr:`data-vt="blind" data-i="${i}"`})}${g.up[me][i]!==undefined?card(g.up[me][i],{cls:`upc ${z==='up'&&my?(ok.has(g.up[me][i])?'can':'no'):''} ${sel.includes(g.up[me][i])?'sel':''}`,attr:`data-vt="c" data-c="${g.up[me][i]}"`}):''}</div>`).join('')}
         ${g.up[me].slice(g.down[me].length).map(c=>`<div class="vt-slot">${card(c,{cls:`upc ${z==='up'&&my?(ok.has(c)?'can':'no'):''} ${sel.includes(c)?'sel':''}`,attr:`data-vt="c" data-c="${c}"`})}</div>`).join('')}</div>`;
-      const hand=`<div class="hand" style="--ov:${g.hands[me].length>8?-.62:-.38}">${sortHand(g.hands[me]).map(c=>card(c,{cls:`${my&&z==='hand'?(ok.has(c)?'can':'no'):''} ${sel.includes(c)?'sel':''}`,attr:`data-vt="c" data-c="${c}"`})).join('')}</div>`;
+      const hand=`<div class="hand" style="--ov:${handOv(g.hands[me].length)}">${sortHand(g.hands[me]).map(c=>card(c,{cls:`${my&&z==='hand'?(ok.has(c)?'can':'no'):''} ${sel.includes(c)?'sel':''}`,attr:`data-vt="c" data-c="${c}"`})).join('')}</div>`;
       const canPlay = my && sel.length && (z==='hand'||z==='up');
       let sub; if(g.over) sub=''; else if(my) sub = z==='down' ? 'Dina sista kort ligger dolda – vänd ett och hoppas!' : groups.length ? 'Välj kort (samma valör) och tryck Lägg' : 'Inget passar – du måste ta upp högen';
       else sub=`${isAI(g.cur)?'🤖 ':''}<b>${esc(pname(g.cur))}</b> funderar…`;
@@ -127,7 +130,7 @@
   css(`.vt-deck,.vt-pile{display:flex;flex-direction:column;align-items:center;gap:4px}.vt-deck small,.vt-pile small{font-size:12px;opacity:.7}
 .vt-pile{position:relative;min-width:100px}.vt-pile .pc.pl{position:absolute;top:0;left:50%;margin-left:calc(var(--cw)*-.5 + var(--i)*14px - 14px);transform:rotate(calc(var(--i)*6deg - 6deg))}.vt-pile .pc.pl:last-of-type{position:relative;left:auto;margin-left:calc(var(--i)*14px - 14px)}
 .pc.empty{background:transparent;border:2px dashed rgba(148,163,184,.35);box-shadow:none}
-.vt-mine{display:flex;justify-content:center;gap:10px;--cw:min(52px,13vw);margin:6px 0}.vt-slot{position:relative}.vt-slot{margin-right:12px}.vt-slot .upc{position:absolute;top:-16px;left:14px}
+.vt-mine{display:flex;justify-content:center;gap:10px;--cw:min(52px,13vw,7.5dvh);margin:10px 0 6px}.vt-slot{position:relative}.vt-slot{margin-right:12px}.vt-slot .upc{position:absolute;top:-16px;left:14px}
 .vt-slot .pc.can{cursor:pointer;outline:3px solid #22d3ee}.vt-slot .pc.sel{transform:translateY(-12px);box-shadow:0 0 0 3px #22d3ee}.vt-slot .pc.no{filter:brightness(.62)}
 .vt-head{margin-bottom:0}`);
   GINFO.vandtia.menu=()=>KIT.menu('vandtia',{rules:'Alla får tre dolda kort, tre synliga ovanpå och tre på hand. Lägg lika eller högre än högen – 2 går på allt, 10 vänder bort högen. Kan du inte lägga tar du upp högen. Först av med alla kort vinner!', bots:[1,3]});
@@ -161,7 +164,9 @@
       if(got.length){ g.hands[a.to]=g.hands[a.to].filter(c=>rk(c)!==a.rank); g.hands[seat].push(...got); again=true; }
       else if(g.deck.length){ const c=g.deck.pop(); g.hands[seat].push(c); L.drew=c; L.fish=true; if(rk(c)===a.rank){ again=true; L.lucky=true; } }
       else L.fish=true;
-      L.books=FK.books(g,seat); g.deckN=g.deck.length; g.last=L;
+      L.books=FK.books(g,seat);
+      g.names.forEach((_,s2)=>{ if(!(g.out||[]).includes(s2)) FK.refill(g,s2); });   // den som blivit utan kort drar ett ur sjön direkt
+      g.deckN=g.deck.length; g.last=L;
       if(FK.done(g)){ g.over=true; const b=g.books.map(x=>x.length), mx=Math.max(...b); g.winner=b.filter(x=>x===mx).length>1?-1:b.indexOf(mx); return true; }
       if(again){ FK.refill(g,seat); if(g.hands[seat].length) return true; }
       const nx=FK.advance(g,seat); if(nx<0){ g.over=true; const b=g.books.map(x=>x.length), mx=Math.max(...b); g.winner=b.filter(x=>x===mx).length>1?-1:b.indexOf(mx); } else g.cur=nx;
@@ -188,7 +193,7 @@
       if(sel.gid!==g.id) { sel.gid=g.id; sel.r=null; sel.to=null; }
       const mineR=[...new Set(g.hands[me].map(rk))]; if(!mineR.includes(sel.r)) sel.r=null;
       const targets=g.names.map((_,i)=>i).filter(i=>i!==me&&g.hands[i].length&&!(g.out||[]).includes(i)); if(!targets.includes(sel.to)) sel.to=targets.length===1?targets[0]:null;
-      const hand=`<div class="hand" style="--ov:${g.hands[me].length>9?-.6:-.35}">${sortHand(g.hands[me]).map(c=>card(c,{cls:`${my?'can':''} ${sel.r===rk(c)?'sel':''}`,attr:`data-fk="r" data-r="${rk(c)}"`})).join('')}</div>`;
+      const hand=`<div class="hand" style="--ov:${handOv(g.hands[me].length)}">${sortHand(g.hands[me]).map(c=>card(c,{cls:`${my?'can':''} ${sel.r===rk(c)?'sel':''}`,attr:`data-fk="r" data-r="${rk(c)}"`})).join('')}</div>`;
       const books=`<div class="fk-books">${g.books.map((b,i)=>b.length?`<div><b>${i===me?'Du':esc(bare(g.names[i]))}:</b> ${b.map(r=>RN(r)).join(' ')}</div>`:'').join('')}</div>`;
       const L=g.last; const lastTxt = L ? `${L.seat===me?'Du':esc(bare(pname(L.seat)))} frågade ${L.to===me?'dig':esc(bare(pname(L.to)))} efter ${RNAME(L.rank)}: ${L.got?`fick ${L.got} st 🎉`:'finns i sjön 🐟'}${L.drew!=null&&L.seat===me?` – du drog ${RN(rk(L.drew))}${S[su(L.drew)]}`:''}` : '';
       let sub; if(g.over) sub=''; else if(my) sub = sel.r ? `Fråga ${targets.length>1&&sel.to==null?'någon':esc(bare(pname(sel.to)))} efter ${RNAME(sel.r)}` : '<b style="color:var(--gold)">Din tur</b> – välj ett kort du vill ha fler av';
@@ -282,7 +287,7 @@
       const tbl=`<div class="ht-table">${shown.map(t=>`<div class="ht-c ${pos(t.s)} ${g.trick.length?'':'gone'}">${card(t.c)}</div>`).join('')}
         ${[1,2,3].map(k=>{ const s=(me+k)%4; return `<div class="ht-n ${pos(s)} ${!g.over&&KIND.hjarter.waitingFor(g)===s?'on':''}">${isAI(s)?'🤖 ':''}${esc(bare(g.names[s]))}<small>${g.scores[s]} p · ${g.taken[s]} denna runda</small></div>`; }).join('')}</div>`;
       const passing = g.phase==='pass' && g.passes[me]===null && my;
-      const hand=`<div class="hand" style="--ov:-.55">${g.hands[me].map(c=>card(c,{cls:`${passing||myTurn?(passing||L.has(c)?'can':'no'):''} ${sel.includes(c)?'sel':''} ${(g.got&&g.got[me]||[]).includes(c)?'got':''}`,attr:`data-ht="${c}"`})).join('')}</div>`;
+      const hand=`<div class="hand" style="--ov:${handOv(g.hands[me].length)}">${g.hands[me].map(c=>card(c,{cls:`${passing||myTurn?(passing||L.has(c)?'can':'no'):''} ${sel.includes(c)?'sel':''} ${(g.got&&g.got[me]||[]).includes(c)?'got':''}`,attr:`data-ht="${c}"`})).join('')}</div>`;
       let sub; if(g.over) sub='';
       else if(g.phase==='pass') sub = g.passes[me]===null ? `Välj tre kort att ge bort ${PASSNAME[g.round%4]}` : 'Väntar på att de andra väljer kort…';
       else sub = myTurn ? (g.trick.length? `<b style="color:var(--gold)">Din tur</b> – följ färg om du kan` : g.tricksDone===0 ? '<b style="color:var(--gold)">Din tur</b> – spela ut klöver 2' : '<b style="color:var(--gold)">Din tur</b> – spela ut') : `${isAI(g.cur)?'🤖 ':''}<b>${esc(pname(g.cur))}</b> funderar…`;
@@ -297,10 +302,10 @@
     const c=+v; if(G.phase==='pass'){ if(G.passes[me]!==null) return; if(sel.includes(c)) sel.splice(sel.indexOf(c),1); else if(sel.length<3) sel.push(c); sfx.bubble(); render(); return; }
     if(G.cur!==me) return; if(!hLegal(G,me).includes(c)){ toast(G.trick.length?'Du måste följa färg':'Det kortet får du inte spela ut än',1600); return; } doAct({type:'card',c}); });
   css(`.ht-table{position:relative;height:min(300px,40dvh);max-width:440px;margin:6px auto;border-radius:50%/40%;background:radial-gradient(ellipse at center,#166534,#14532d 70%);box-shadow:inset 0 0 30px rgba(0,0,0,.5),0 8px 24px rgba(0,0,0,.4);--cw:min(54px,13vw)}
-.ht-c{position:absolute;transition:opacity .4s}.ht-c.me{left:50%;bottom:14%;transform:translateX(-50%)}.ht-c.top{left:50%;top:12%;transform:translateX(-50%)}
+.ht-c{position:absolute;transition:opacity .4s}.ht-c.me{left:50%;bottom:14%;transform:translateX(-50%)}.ht-c.top{left:50%;top:22%;transform:translateX(-50%)}
 .ht-c.left{left:16%;top:50%;transform:translateY(-50%) rotate(-8deg)}.ht-c.right{right:16%;top:50%;transform:translateY(-50%) rotate(8deg)}.ht-c.gone{opacity:.55}
 .ht-n{position:absolute;font-size:12.5px;text-align:center;background:rgba(0,0,0,.35);padding:3px 8px;border-radius:10px;line-height:1.25}.ht-n small{display:block;opacity:.75;font-size:11px}
-.ht-n.on{box-shadow:0 0 0 2px var(--gold)}.ht-n.top{left:50%;top:-6px;transform:translateX(-50%)}.ht-n.left{left:-4px;top:12%}.ht-n.right{right:-4px;top:12%}
+.ht-n.on{box-shadow:0 0 0 2px var(--gold)}.ht-n.top{left:50%;top:6px;transform:translateX(-50%)}.ht-n.left{left:2px;top:12%}.ht-n.right{right:2px;top:12%}
 .ht-me{text-align:center;font-size:13.5px;opacity:.85}.hand .pc.got{box-shadow:0 0 0 3px #a855f7}`);
   GINFO.hjarter.menu=()=>KIT.menu('hjarter',{rules:'Fyra spelare. Följ färg om du kan och försök slippa sticken med hjärter (1 poäng) och spader dam (13). Varje runda ger ni bort tre kort först. Lägst poäng när någon når 50 vinner. Online fylls tomma platser med datorspelare.', bots:[3,3]});
 

@@ -109,7 +109,7 @@
   let fiaAuto=0;
   document.addEventListener('click',e=>{ const b=e.target.closest('[data-fia]'); if(!b||!G||G.kind!=='fia') return; const me=meSeat(); if(G.over||G.cur!==me||!canActG(me)) return;
     const v=b.dataset.fia; if(v==='roll'){ if(G.phase==='roll') doAct({type:'roll'}); return; } if(v===''||G.phase!=='move') return; const p=+v; if(legal(G,me,G.die).includes(p)){ clearTimeout(fiaAuto); doAct({type:'move',p}); } });
-  css(`.fb{display:grid;grid-template-columns:repeat(11,1fr);gap:3px;max-width:min(460px,100%,calc(100dvh - 300px));margin:8px auto;padding:8px;border-radius:18px;background:#f8f1dc;box-shadow:0 10px 30px rgba(0,0,0,.4)}
+  css(`.fb{display:grid;grid-template-columns:repeat(11,1fr);gap:3px;max-width:min(460px,100%,max(260px,calc(100dvh - 370px)));margin:8px auto;padding:8px;border-radius:18px;background:#f8f1dc;box-shadow:0 10px 30px rgba(0,0,0,.4)}
 .fc{aspect-ratio:1;border-radius:50%;background:#fff;border:2px solid #cbd5e1;display:grid;place-items:center;position:relative}
 .fc.start.s0,.fc.lane.s0,.fc.nest.s0{background:#fecaca;border-color:#ef4444}.fc.start.s1,.fc.lane.s1,.fc.nest.s1{background:#bfdbfe;border-color:#3b82f6}
 .fc.start.s2,.fc.lane.s2,.fc.nest.s2{background:#fef08a;border-color:#eab308}.fc.start.s3,.fc.lane.s3,.fc.nest.s3{background:#bbf7d0;border-color:#22c55e}
@@ -117,6 +117,7 @@
 .fgoal{font-size:7px;line-height:1;text-align:center;display:flex;flex-direction:column;filter:drop-shadow(0 0 1px #fff)}
 .fp{position:absolute;inset:10%;border-radius:50%;background:radial-gradient(circle at 35% 30%,#fff9,transparent 50%),var(--pc);box-shadow:0 2px 4px rgba(0,0,0,.5);border:1.5px solid rgba(0,0,0,.35)}
 .fp.can{animation:fpc .7s ease-in-out infinite alternate;cursor:pointer;outline:3px solid #fff;outline-offset:1px}@keyframes fpc{to{transform:scale(1.18)}}
+@media (max-height:720px){.fdie{width:60px;height:60px;font-size:40px;border-radius:14px}.fctl{margin:2px 0}}
 .fp.moved{box-shadow:0 0 0 3px #facc15,0 2px 4px rgba(0,0,0,.5)}
 .fctl{display:flex;justify-content:center;margin:6px 0}
 .fdie{font-size:56px;line-height:1;width:84px;height:84px;border-radius:20px;background:#fff;color:var(--pc);border:4px solid var(--pc);display:grid;place-items:center}
@@ -179,7 +180,7 @@
   };
   document.addEventListener('click',e=>{ const b=e.target.closest('[data-mem]'); if(!b||!G||G.kind!=='memory') return; const me=meSeat(); if(G.over||G.cur!==me||!canActG(me)) return;
     const i=+b.dataset.mem; if(G.owner[i]>=0||(!G.hideNext&&G.open.includes(i))) return; doAct({type:'flip',i}); });
-  css(`.mg{display:grid;grid-template-columns:repeat(var(--cols),1fr);gap:8px;max-width:min(520px,100%,calc((100dvh - 270px)*var(--cols)/var(--rows)));margin:10px auto;perspective:800px}
+  css(`.mg{display:grid;grid-template-columns:repeat(var(--cols),1fr);gap:8px;max-width:min(520px,100%,max(300px,calc((100dvh - 270px)*var(--cols)/var(--rows))));margin:10px auto;perspective:800px}
 .mc{aspect-ratio:1;position:relative;border:0;padding:0;background:none;transform-style:preserve-3d;transition:transform .35s;cursor:pointer}
 .mc.up{transform:rotateY(180deg)}
 .mb,.mf{position:absolute;inset:0;border-radius:14px;backface-visibility:hidden;display:grid;place-items:center}

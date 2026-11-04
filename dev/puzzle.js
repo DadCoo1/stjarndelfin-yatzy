@@ -42,7 +42,8 @@
       const g=G, rows=[]; const L=WL[g.lang];
       for(let r=0;r<6;r++){ const w=g.guesses[r], m=g.marks[r]; let cells='';
         for(let i=0;i<5;i++){ const ch = w ? w[i] : (r===g.guesses.length&&!g.over ? (wdInput[i]||'') : '');
-          cells+=`<div class="wd-c ${m?m[i]:''} ${ch&&!m?'typed':''}" style="--d:${i*.12}s">${ch.toUpperCase()}</div>`; }
+          const anim = m && r===g.guesses.length-1 && g.last && now()-g.last.t<1500;   // bara den nyss gissade raden vänds
+          cells+=`<div class="wd-c ${m?m[i]:''} ${anim?'anim':''} ${ch&&!m?'typed':''} ${ch&&!m&&i===wdInput.length-1?'new':''}" style="--d:${i*.12}s">${ch.toUpperCase()}</div>`; }
         rows.push(`<div class="wd-r ${r===g.guesses.length&&wdShake?'shake':''}">${cells}</div>`); }
       const best={}; g.guesses.forEach((w,r)=>[...w].forEach((ch,i)=>{ const m=g.marks[r][i], o=best[ch]; if(m==='g'||(m==='y'&&o!=='g')||(!o)) best[ch]= m==='g'?'g': m==='y'&&o!=='g'?'y': o||m; }));
       const kb=L.keys.map(row=>`<div class="wd-kr">${[...row].map(k=>`<button class="wd-k ${best[k]||''} ${k==='⏎'||k==='⌫'?'wide':''}" data-wd="${k}">${k==='⏎'?'ENTER':k.toUpperCase()}</button>`).join('')}</div>`).join('');
@@ -82,11 +83,11 @@
       <div class="btns" style="flex-direction:column"><button class="pri" data-wd="daily">📅 Dagens ord</button><button class="pri" data-wd="free" style="background:linear-gradient(135deg,#22d3ee,#6366f1)">🔁 Öva med ett slumpat ord</button><button data-act="close">Avbryt</button></div>`,'wdmenu');
     if(window.ORDLISTA) ORDLISTA.load(wdLang).catch(()=>{}); };
   GINFO.wordle.menu=()=>showWordleMenu();
-  css(`.wd-b{display:grid;gap:6px;max-width:min(330px,calc((100dvh - 420px)*5/6));margin:8px auto}
+  css(`.wd-b{display:grid;gap:6px;max-width:min(330px,100%,max(230px,calc((100dvh - 420px)*5/6)));margin:8px auto}
 .wd-r{display:grid;grid-template-columns:repeat(5,1fr);gap:6px}.wd-r.shake{animation:wdsh .4s}@keyframes wdsh{20%,60%{transform:translateX(-8px)}40%,80%{transform:translateX(8px)}}
 .wd-c{aspect-ratio:1;border:2px solid rgba(148,163,184,.4);border-radius:8px;display:grid;place-items:center;font-size:clamp(20px,7vw,32px);font-weight:800;text-transform:uppercase}
-.wd-c.typed{border-color:#cbd5e1;animation:wdp .12s}@keyframes wdp{50%{transform:scale(1.08)}}
-.wd-c.g,.wd-c.y,.wd-c.b{border:0;animation:wdf .5s var(--d) both}@keyframes wdf{0%{transform:rotateX(0)}50%{transform:rotateX(90deg)}100%{transform:rotateX(0)}}
+.wd-c.typed{border-color:#cbd5e1}.wd-c.new{animation:wdp .12s}@keyframes wdp{50%{transform:scale(1.08)}}
+.wd-c.g,.wd-c.y,.wd-c.b{border:0}.wd-c.anim{animation:wdf .5s var(--d) both}@keyframes wdf{0%{transform:rotateX(0)}50%{transform:rotateX(90deg)}100%{transform:rotateX(0)}}
 .wd-c.g{background:#16a34a}.wd-c.y{background:#ca8a04}.wd-c.b{background:#334155}
 .wd-kb{max-width:520px;margin:10px auto 0;display:flex;flex-direction:column;gap:6px;padding:0 2px}.wd-kr{display:flex;gap:4px;justify-content:center}
 .wd-k{flex:1;min-width:0;max-width:44px;height:52px;border-radius:7px;background:#64748b;font-weight:700;font-size:16px;padding:0;text-transform:uppercase}
@@ -182,7 +183,7 @@
       ${B[sdLevel]?`<div class="setnote">Bästa tid: ${f(B[sdLevel])}${today?` · dagens: ${f(today)} ✅`:''}</div>`:''}
       <div class="btns" style="flex-direction:column"><button class="pri" data-sd="daily">📅 Dagens sudoku</button><button class="pri" data-sd="start" style="background:linear-gradient(135deg,#22d3ee,#6366f1)">🎲 Nytt slumpat pussel</button><button data-act="close">Avbryt</button></div>`,'sdmenu'); };
   GINFO.sudoku.menu=()=>showSudokuMenu();
-  css(`.sd-b{display:grid;grid-template-columns:repeat(9,1fr);max-width:min(460px,100%,calc(100dvh - 330px));margin:8px auto;border:3px solid #cbd5e1;border-radius:10px;overflow:hidden;background:#0f172a;container-type:inline-size}
+  css(`.sd-b{display:grid;grid-template-columns:repeat(9,1fr);max-width:min(460px,100%,max(300px,calc(100dvh - 330px)));margin:8px auto;border:3px solid #cbd5e1;border-radius:10px;overflow:hidden;background:#0f172a;container-type:inline-size}
 .sd-c{aspect-ratio:1;border:0;border-right:1px solid #475569;border-bottom:1px solid #475569;background:#f8fafc;color:#1d4ed8;font-size:calc(100cqw/9*.58);font-weight:700;padding:0;display:grid;place-items:center;position:relative}
 .sd-c.br{border-right:3px solid #0f172a}.sd-c.bb{border-bottom:3px solid #0f172a}
 .sd-c.giv{color:#0f172a;font-weight:800}.sd-c.hl{background:#e0f2fe}.sd-c.same{background:#bae6fd}.sd-c.sel{background:#7dd3fc}.sd-c.bad{color:#dc2626;background:#fee2e2}

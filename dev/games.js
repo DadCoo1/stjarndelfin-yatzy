@@ -122,8 +122,8 @@ function otherStatsHTML(){
 function gHeadHTML(sub){
   const me=meSeat();
   const pl=G.names.map((n,i)=>{ const on=!G.over && G.cur===i && (!KIND[G.kind].waitingFor || KIND[G.kind].waitingFor(G)===i); const isMe = mode==='online' ? i===mySeat : !isAI(i);
-    return `<div class="gp ${on?'on':''} ${G.over&&G.winner===i?'win':''}"><span>${G.over&&G.winner===i?'👑 ':''}${esc(n)}${isMe&&mode==='online'?' <em>du</em>':''}</span><b>${KIND[G.kind].scoreOf?KIND[G.kind].scoreOf(G,i):''}</b></div>`; }).join('<div class="gvs">vs</div>');
-  return `<div class="ghead">${pl}</div>${sub?`<div class="gsub">${sub}</div>`:''}`;
+    return `<div class="gp ${on?'on':''} ${G.over&&G.winner===i?'win':''}"><span>${G.over&&G.winner===i?'👑 ':''}${esc(n)}${isMe&&mode==='online'?' <em>du</em>':''}</span><b>${KIND[G.kind].scoreOf?KIND[G.kind].scoreOf(G,i):''}</b></div>`; }).join(G.names.length>2?'':'<div class="gvs">vs</div>');
+  return `<div class="ghead ${G.names.length>2?'multi':''}">${pl}</div>${sub?`<div class="gsub">${sub}</div>`:''}`;
 }
 function gOverHTML(text){
   const me=meSeat(), won=G.winner===me, tie=G.winner===-1;
@@ -595,6 +595,7 @@ document.addEventListener('click',e=>{
 .gp b{font-size:13px;color:var(--dim);font-weight:500}
 .gp.on{background:linear-gradient(135deg,rgba(34,211,238,.28),rgba(168,85,247,.28));border-color:rgba(125,249,255,.7);box-shadow:0 0 18px rgba(62,230,255,.3)}
 .gp.win{border-color:var(--gold);box-shadow:0 0 18px rgba(255,211,110,.45)}
+.ghead.multi{display:grid;grid-template-columns:1fr 1fr;gap:6px}.ghead.multi .gp{padding:6px 10px;flex-direction:row;justify-content:space-between;align-items:center;gap:6px}.ghead.multi .gp b{white-space:nowrap}
 .gvs{align-self:center;font-size:12px;color:var(--dim);font-weight:700}
 .gsub{text-align:center;font-size:15px;margin:4px 0 12px;color:#dff6ff;min-height:22px}
 .gwait{text-align:center;padding:22px 12px;border-radius:20px;background:var(--glass);border:1px dashed var(--line);margin-bottom:12px}
