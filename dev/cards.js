@@ -300,7 +300,7 @@
 .ht-c{position:absolute;transition:opacity .4s}.ht-c.me{left:50%;bottom:14%;transform:translateX(-50%)}.ht-c.top{left:50%;top:12%;transform:translateX(-50%)}
 .ht-c.left{left:16%;top:50%;transform:translateY(-50%) rotate(-8deg)}.ht-c.right{right:16%;top:50%;transform:translateY(-50%) rotate(8deg)}.ht-c.gone{opacity:.55}
 .ht-n{position:absolute;font-size:12.5px;text-align:center;background:rgba(0,0,0,.35);padding:3px 8px;border-radius:10px;line-height:1.25}.ht-n small{display:block;opacity:.75;font-size:11px}
-.ht-n.on{box-shadow:0 0 0 2px var(--gold)}.ht-n.top{left:50%;top:-6px;transform:translateX(-50%)}.ht-n.left{left:-4px;top:50%;transform:translateY(-50%)}.ht-n.right{right:-4px;top:50%;transform:translateY(-50%)}
+.ht-n.on{box-shadow:0 0 0 2px var(--gold)}.ht-n.top{left:50%;top:-6px;transform:translateX(-50%)}.ht-n.left{left:-4px;top:12%}.ht-n.right{right:-4px;top:12%}
 .ht-me{text-align:center;font-size:13.5px;opacity:.85}.hand .pc.got{box-shadow:0 0 0 3px #a855f7}`);
   GINFO.hjarter.menu=()=>KIT.menu('hjarter',{rules:'Fyra spelare. Följ färg om du kan och försök slippa sticken med hjärter (1 poäng) och spader dam (13). Varje runda ger ni bort tre kort först. Lägst poäng när någon når 50 vinner. Online fylls tomma platser med datorspelare.', bots:[3,3]});
 
