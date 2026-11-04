@@ -6,7 +6,7 @@
   if(!same || !/[?&]bot=1/.test(location.search)){ document.documentElement.innerHTML=''; throw new Error('Inramning blockerad'); }
 })();
 /* ================= Version & utvecklingsläge ================= */
-const APP_VERSION='2026.11.04.7-dev';
+const APP_VERSION='2026.11.04.8-dev';
 const DEV = /\/dev(\/|$)/.test(location.pathname);      // testversionen ligger i mappen /dev/
 const BOT = DEV && /[?&]bot=1/.test(location.search) && window.parent!==window;   // osynlig testkompis i en ram (bara dev)
 const LSP = DEV ? (BOT ? 'dev:bot:' : 'dev:') : '';    // egen sparad data i testversionen
@@ -1961,7 +1961,7 @@ function render(){
   if(!G){ app.innerHTML=topbar()+`<div class="loading">${DOLPHIN('ld')}<p>Simmar till spelet <b>${esc(gameId||'')}</b>…</p><p style="font-size:14px">${netText()}</p><button class="bigbtn alt" data-act="lobby" style="max-width:260px;margin:20px auto">Avbryt</button></div>`; dock.innerHTML=''; return; }
   if(isKind()){
     app.innerHTML = topbar() + (ready() ? KIND[G.kind].html() : waitingHTML());
-    dock.innerHTML = ready() && G.kind!=='pong' ? reactDockHTML() : '';
+    dock.innerHTML = ready() && G.kind!=='pong' && G.names.length>1 ? reactDockHTML() : '';
     if(ready() && KIND[G.kind].mounted) KIND[G.kind].mounted();
     freshCell=null; fitDock(); return;
   }
@@ -2295,6 +2295,8 @@ document.addEventListener('DOMContentLoaded',()=>{
 });
 spHandleRedirect();
 }
+// spelen i egna filer (kit.js, strat.js …) laddas efter app.js – rita lobbyn igen när allt finns
+document.addEventListener('DOMContentLoaded',()=>{ if(view==='lobby') render(); });
 window.addEventListener('storage',e=>{ if(e.key==='ry_spauth'){ spUser=null; spLists=null; if(spOpen) spInit(); spRefreshChrome(); } });
 document.addEventListener('visibilitychange',()=>{ if(document.visibilityState==='visible' && spAuth() && spOpen && !spUser) spInit(); });
 (function(){ const h=(location.hash||'').replace('#','').toUpperCase(); if(/^[A-Z0-9]{4}$/.test(h)) showJoin(h); })();
