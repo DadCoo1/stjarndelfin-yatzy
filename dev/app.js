@@ -6,7 +6,7 @@
   if(!same || !/[?&]bot=1/.test(location.search)){ document.documentElement.innerHTML=''; throw new Error('Inramning blockerad'); }
 })();
 /* ================= Version & utvecklingsläge ================= */
-const APP_VERSION='2026.11.04.17-dev';
+const APP_VERSION='2026.11.04.18-dev';
 const DEV = /\/dev(\/|$)/.test(location.pathname);      // testversionen ligger i mappen /dev/
 const BOT = DEV && /[?&]bot=1/.test(location.search) && window.parent!==window;   // osynlig testkompis i en ram (bara dev)
 const LSP = DEV ? (BOT ? 'dev:bot:' : 'dev:') : '';    // egen sparad data i testversionen
@@ -994,13 +994,17 @@ function startBubbles(){
 function stopBubbles(){ clearInterval(bubT); bubT=null; const l=BL(); if(l) l.innerHTML=''; }
 function spawnBubble(){
   const L=BL(); if(!L || document.hidden || L.children.length>16) return;
-  const b=document.createElement('div'), sz=30+Math.random()*46, r=Math.random();
-  const kind = r<.05 ? 'gold' : r<.10 ? 'pink' : '';
+  const r=Math.random(), kind = r<.012 ? 'heart' : r<.06 ? 'gold' : r<.11 ? 'pink' : '';   // hjärtbubbla: ungefär var 80:e
+  const b=document.createElement('div'), sz = kind==='heart' ? 72+Math.random()*6 : 30+Math.random()*46;
   b.className='pbub '+kind; b.style.width=b.style.height=sz+'px';
   b.style.left=(Math.random()*92)+'%';
   const dur=7+Math.random()*7; b.style.animationDuration=dur+'s';
   b.style.setProperty('--sway',(Math.random()*70-35)+'px');
   if(kind==='gold') b.innerHTML='<i>⭐</i>'; else if(kind==='pink') b.innerHTML='<i>🐬</i>';
+  else if(kind==='heart'){ const id='hg'+Math.random().toString(36).slice(2,8);   // genomskinligt hjärta, lika bubbligt som de andra
+    b.innerHTML=`<svg viewBox="0 0 100 92" aria-hidden="true"><defs><radialGradient id="${id}" cx="32%" cy="28%" r="80%"><stop offset="0" stop-color="#fff" stop-opacity=".8"/><stop offset=".35" stop-color="#ff5c7a" stop-opacity=".3"/><stop offset="1" stop-color="#e11d48" stop-opacity=".14"/></radialGradient></defs>
+      <path d="M50 88 C20 66 3 48 3 28 C3 13 15 3 28 3 C38 3 46 9 50 18 C54 9 62 3 72 3 C85 3 97 13 97 28 C97 48 80 66 50 88Z" fill="url(#${id})" stroke="rgba(255,90,120,.85)" stroke-width="3"/>
+      <ellipse cx="27" cy="24" rx="9" ry="6" fill="#fff" opacity=".55" transform="rotate(-30 27 24)"/></svg>`; }
   b.addEventListener('pointerdown',e=>{ e.preventDefault(); e.stopPropagation(); popBubble(b,kind,sz); });
   L.appendChild(b); setTimeout(()=>b.remove(), dur*1000+200);
 }
@@ -1019,12 +1023,27 @@ function popBubble(b,kind,sz){
   const f=900+(76-sz)*22+Math.random()*120;
   tone(f,.07,'sine',.16,0,f*1.8); tone(f*2.2,.05,'triangle',.05,.02);
   buzz(8);
-  const pts = kind==='gold' ? 10 : kind==='pink' ? 5 : 1;
+  if(kind==='heart') heartRain(cx,cy);
+  const pts = kind==='heart' ? 100 : kind==='gold' ? 10 : kind==='pink' ? 5 : 1;
   popCount+=pts; lsSet('ry_pops',String(popCount));
-  if(kind==='gold'){ toast('Guldbubbla! +10 ⭐'); sparkles(10); }
+  if(kind==='heart'){ toast('Hjärtbubbla! +100 ❤️',2400); [784,988,1175,1568].forEach((f2,i)=>tone(f2,.22,'sine',.09,.05+i*.08)); buzz([15,40,15]); }
+  else if(kind==='gold'){ toast('Guldbubbla! +10 ⭐'); sparkles(10); }
   else if(kind==='pink') toast('Delfinbubbla! +5 🐬');
   if(pts===1 && popCount%100===0){ toast(`${popCount} poppade bubblor! 🫧🎉`); sparkles(16); }
   const c=document.getElementById('popc'); if(c){ c.textContent='🫧 '+popCount; c.classList.remove('bump'); void c.offsetWidth; c.classList.add('bump'); }
+}
+
+// stänkregn av små hjärtan
+function heartRain(cx,cy){
+  const party=document.getElementById('party'); if(!party) return;
+  for(let i=0;i<34;i++){
+    const h=document.createElement('div'); h.className='hrain'; h.textContent=['❤️','💗','💖','❤️','💕'][i%5];
+    const a=Math.random()*Math.PI*2, v=60+Math.random()*190;
+    h.style.left=cx+'px'; h.style.top=cy+'px'; h.style.fontSize=(10+Math.random()*14)+'px';
+    h.style.setProperty('--dx',Math.cos(a)*v+'px'); h.style.setProperty('--dy',Math.sin(a)*v-40+'px'); h.style.setProperty('--fall',(120+Math.random()*160)+'px');
+    h.style.setProperty('--rot',(Math.random()*120-60)+'deg'); h.style.animationDuration=(1+Math.random()*.7)+'s';
+    party.appendChild(h); setTimeout(()=>h.remove(),1800);
+  }
 }
 
 /* ================= Spotify i utfällbar sidopanel ================= */

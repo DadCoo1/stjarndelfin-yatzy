@@ -219,6 +219,13 @@ body:not(.desk):not(.ingame) #app .lob-menu{pointer-events:none}
 .pbub i{font-style:normal;font-size:55%;filter:drop-shadow(0 0 4px rgba(255,255,255,.6))}
 .pbub.gold{border-color:rgba(255,215,120,.95);background:radial-gradient(circle at 30% 26%,rgba(255,255,255,.85),rgba(255,211,110,.35) 40%,rgba(255,170,60,.12) 72%);box-shadow:0 0 22px rgba(255,211,110,.6)}
 .pbub.pink{border-color:rgba(249,168,212,.9);background:radial-gradient(circle at 30% 26%,rgba(255,255,255,.8),rgba(249,168,212,.3) 40%,rgba(167,139,250,.12) 72%);box-shadow:0 0 18px rgba(249,168,212,.5)}
+/* hjärtbubblan: själva bubblan osynlig, hjärtat är formen */
+.pbub.heart{border:0;background:none;box-shadow:none;border-radius:0;filter:drop-shadow(0 0 10px rgba(255,92,122,.45))}
+.pbub.heart svg{width:100%;height:100%;overflow:visible;animation:hbeat 1.3s ease-in-out infinite}
+@keyframes hbeat{0%,100%{transform:scale(1)}12%{transform:scale(1.08)}24%{transform:scale(1)}36%{transform:scale(1.05)}}
+.hrain{position:fixed;transform:translate(-50%,-50%);pointer-events:none;z-index:60;animation:hrain ease-out forwards}
+@keyframes hrain{0%{transform:translate(-50%,-50%) scale(.4);opacity:1}35%{transform:translate(calc(-50% + var(--dx)),calc(-50% + var(--dy))) scale(1) rotate(calc(var(--rot)*.5));opacity:1}
+  100%{transform:translate(calc(-50% + var(--dx)*1.2),calc(-50% + var(--dy) + var(--fall))) scale(.7) rotate(var(--rot));opacity:0}}
 @keyframes pbrise{0%{transform:translate(0,0)}25%{transform:translate(var(--sway),-30vh)}50%{transform:translate(calc(var(--sway)*-1),-60vh)}75%{transform:translate(var(--sway),-90vh)}100%{transform:translate(0,-125vh)}}
 .popring{position:fixed;transform:translate(-50%,-50%);border-radius:50%;border:3px solid rgba(200,248,255,.9);animation:pr .42s ease-out forwards;pointer-events:none}
 @keyframes pr{from{transform:translate(-50%,-50%) scale(.8);opacity:1}to{transform:translate(-50%,-50%) scale(1.7);opacity:0}}
