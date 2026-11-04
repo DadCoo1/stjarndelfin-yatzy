@@ -29,3 +29,9 @@ Betydelser och synonymer hämtas vid behov från svenska respektive norska
 Wiktionary (https://sv.wiktionary.org, https://no.wiktionary.org,
 https://nn.wiktionary.org), CC BY-SA 4.0. SAOL (Svenska Akademiens ordlista)
 och Ordbøkene (Språkrådet/UiB) länkas men ingår inte i appen.
+
+Wordle – listan med svarsord
+  De vanligaste orden på fem bokstäver (som också finns i ordlistorna ovan) är
+  utvalda med hjälp av ordfrekvenser från FrequencyWords av Hermit Dave
+  (https://github.com/hermitdave/FrequencyWords, OpenSubtitles 2018),
+  innehåll under CC BY-SA 4.0. Grova ord är bortsorterade.
