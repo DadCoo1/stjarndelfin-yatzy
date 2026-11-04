@@ -93,7 +93,7 @@ function gFinish(d){
     const others=d.names.map((n,i)=>i).filter(i=>i!==me);
     const lvl = x => ({hard:'svår',medium:'medel'})[x]||'lätt';
     const oppName = i => isAI(i) ? `${bare(d.names[i])} 🤖 ${lvl(d.ai[i])}` : d.names[i];
-    const opp = others.length===1 ? oppName(others[0]) : others.every(i=>isAI(i)) ? `${others.length} datorspelare (${lvl(d.ai[others[0]])})` : others.map(i=>bare(d.names[i])).join(', ');
+    const opp = !others.length ? 'ensam' : others.length===1 ? oppName(others[0]) : others.every(i=>isAI(i)) ? `${others.length} datorspelare (${lvl(d.ai[others[0]])})` : others.map(i=>bare(d.names[i])).join(', ');
     st.games.push({id:d.id, kind:d.kind, d:Date.now(), me:d.names[me], opp, res, mode});
     if(st.games.length>500) st.games=st.games.slice(-500);
     lsSet('ry_stats2', JSON.stringify(st));

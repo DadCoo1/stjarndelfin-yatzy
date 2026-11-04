@@ -566,5 +566,9 @@
 body.desk .of-wrap{max-width:min(640px,100%,calc(100vh - 360px))}
 `; document.head.appendChild(st);
 
+  // ordlistorna för andra spel (Wordle): ORDLISTA.load('sv').then(()=>ORDLISTA.has('sv','katt'))
+  window.ORDLISTA = { langs:LANGS, load:loadDict,
+    has(code,w){ const L=LANGS[code]; const Dd=L&&DICTS[L.dict]; if(!Dd) return false; const li={}; [...L.alpha].forEach((c,i)=>li[c]=i+1);
+      let node=1, term=false; for(const ch of w){ const x=li[ch]; if(!x||!node) return false; let e=node, f=-1; while(true){ const v=Dd[e]; if((v&31)===x){ f=e; break; } if(v&64) break; e++; } if(f<0) return false; term=!!(Dd[f]&32); node=Dd[f]>>>7; } return term; } };
   window.__ofTest = (typeof DEV!=='undefined' && DEV) ? {randomPrem, crude, useLang, loadDict, inDawg, isWord, evaluate, genMoves, aiMove, PREM, C} : undefined;
 })();
