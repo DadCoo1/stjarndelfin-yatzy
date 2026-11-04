@@ -39,7 +39,7 @@ function startGameLocal(kind, name, level, bots=1){
 }
 function gStartOnline(){
   const prev=clone(G); G.started=true; G.cur=G.starter=0; Object.assign(G, KIND[G.kind].init()); KIND[G.kind].start(G);
-  G.seq=(G.seq||0)+1; saveNet(); hostBroadcast({t:'state',state:G}); gOnChange(prev,G); render();
+  G.seq=(G.seq||0)+1; saveNet(); hostBroadcast({t:'state',state:G}); gOnChange(prev,G); render(); gMaybeAI();
 }
 // ett drag från den här enheten
 function doAct(a){
@@ -77,10 +77,12 @@ function gOnChange(prev,d){
 }
 function gMaybeAI(){
   clearTimeout(aiTimer);
-  if(mode!=='local' || !isKind() || G.over) return;
+  // datorspelare: lokalt, eller hos värden när ett onlinespel fyllts ut med datorspelare (t.ex. Hjärter)
+  const hostBots = () => mode==='online' && role==='host' && G && G.started!==false && Array.isArray(G.ai) && G.ai.some(Boolean);
+  if((mode!=='local' && !hostBots()) || !isKind() || G.over) return;
   const k=KIND[G.kind], seat=k.aiSeat ? k.aiSeat(G) : (isAI(G.cur)?G.cur:null);
   if(seat===null || seat===undefined) return;
-  aiTimer=setTimeout(()=>{ if(!isKind()||G.over||mode!=='local') return; const a=k.ai(G,seat); if(a) applyAndPublish(a,seat); }, k.aiDelay ? k.aiDelay(G) : 1000);
+  aiTimer=setTimeout(()=>{ if(!isKind()||G.over||(mode!=='local' && !hostBots())) return; const a=k.ai(G,seat); if(a) applyAndPublish(a,seat); }, k.aiDelay ? k.aiDelay(G) : 1000);
 }
 /* ---------- resultat & statistik ---------- */
 function stats2(){ try{ return JSON.parse(lsGet('ry_stats2'))||{games:[]} }catch(e){ return {games:[]} } }
