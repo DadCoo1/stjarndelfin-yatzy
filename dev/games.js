@@ -561,6 +561,7 @@ let gLevel='easy';
 function showGameMenu(kind){
   if(kind==='kina' && typeof showKinaMenu==='function') return showKinaMenu();
   if(kind==='ordfajt' && typeof showOrdfajtMenu==='function') return showOrdfajtMenu();
+  if(kind==='pong' && typeof showPongMenu==='function') return showPongMenu();
   const info=GINFO[kind];
   const rules={ships:'Placera fem skepp i hemlighet och turas om att skjuta. Träff = skjut igen. Den som först sänker hela flottan vinner.',
     mm:'Den ena hittar på en hemlig kod med fyra färger, den andra gissar rad för rad. Två rundor – den som knäcker koden på minst gissningar vinner.',
