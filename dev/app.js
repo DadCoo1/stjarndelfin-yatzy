@@ -6,7 +6,7 @@
   if(!same || !/[?&]bot=1/.test(location.search)){ document.documentElement.innerHTML=''; throw new Error('Inramning blockerad'); }
 })();
 /* ================= Version & utvecklingsläge ================= */
-const APP_VERSION='2026.11.04.2-dev';
+const APP_VERSION='2026.11.04.4-dev';
 const DEV = /\/dev(\/|$)/.test(location.pathname);      // testversionen ligger i mappen /dev/
 const BOT = DEV && /[?&]bot=1/.test(location.search) && window.parent!==window;   // osynlig testkompis i en ram (bara dev)
 const LSP = DEV ? (BOT ? 'dev:bot:' : 'dev:') : '';    // egen sparad data i testversionen
@@ -571,6 +571,7 @@ function onHostMsg(m,c){
     return;
   }
   if(m.t==='act'){ if(isKind()) applyAndPublish(m.a, c._seat); return; }
+  if(m.t==='pg'){ if(typeof PONG!=='undefined') PONG.net(m, c._seat); return; }   // Pong: gästens racket
   if(typeof m.t==='string' && m.t.startsWith('fr') && typeof FR!=='undefined'){ FR.onMsg(m, x=>sendTo(c,x)); return; }   // önskelistan
   if(m.t==='chat'){                                   // krypterat chattmeddelande via spelet: till mig eller vidare till en annan spelare
     if(typeof m.to!=='string' || !/^[0-9a-f]{16}$/.test(m.to) || !m.env || typeof m.env!=='object') return;
@@ -641,6 +642,7 @@ function onGuestMsg(m){
   }
   if(m.t==='state'){ if(validState(m.state) && (!G || (m.state.seq||0)>(G.seq||0) || (m.force && JSON.stringify(m.state)!==JSON.stringify(G)))) onGameData(JSON.parse(JSON.stringify(m.state))); return; }
   if(m.t==='cards'){ if(Array.isArray(m.cards)){ gameCardIds=m.cards.slice(0,8).map(c=>c&&c.id).filter(id=>typeof id==='string'&&/^[0-9a-f]{16}$/.test(id)); if(typeof CHAT!=='undefined') CHAT.seenCards(m.cards,'ett spel'); } return; }
+  if(m.t==='pg'){ if(typeof PONG!=='undefined') PONG.net(m, 0); return; }   // Pong: bollen från värden
   if(m.t==='chat'){ if(typeof CHAT!=='undefined' && m.env && typeof m.env==='object') CHAT.bridgeIn(m.env); return; }
   if(typeof m.t==='string' && m.t.startsWith('fr') && typeof FR!=='undefined'){ FR.onMsg(m, x=>sendTo(conn,x)); return; }
   if(m.t==='emoji' || m.t==='poke') onSocial(m);
@@ -1959,7 +1961,7 @@ function render(){
   if(!G){ app.innerHTML=topbar()+`<div class="loading">${DOLPHIN('ld')}<p>Simmar till spelet <b>${esc(gameId||'')}</b>…</p><p style="font-size:14px">${netText()}</p><button class="bigbtn alt" data-act="lobby" style="max-width:260px;margin:20px auto">Avbryt</button></div>`; dock.innerHTML=''; return; }
   if(isKind()){
     app.innerHTML = topbar() + (ready() ? KIND[G.kind].html() : waitingHTML());
-    dock.innerHTML = ready() ? reactDockHTML() : '';
+    dock.innerHTML = ready() && G.kind!=='pong' ? reactDockHTML() : '';
     if(ready() && KIND[G.kind].mounted) KIND[G.kind].mounted();
     freshCell=null; fitDock(); return;
   }
@@ -2013,6 +2015,7 @@ function lobbyHTML(){
       <button class="tile" style="--tg:linear-gradient(135deg,#f59e0b,#ef4444)" data-act="gmenu" data-k="hang"><span class="ti">🪢</span><b>Hänga gubbe</b><small>Gissa ordet innan gubben hängs</small></button>
       <button class="tile" style="--tg:linear-gradient(135deg,#f43f5e,#f59e0b 55%,#22c55e)" data-act="gmenu" data-k="kina"><span class="ti">⭐</span><b>Kinaschack</b><small>2–6 spelare · online eller mot datorn</small></button>
       <button class="tile" style="--tg:linear-gradient(135deg,#0ea5e9,#22c55e 55%,#facc15)" data-act="gmenu" data-k="ordfajt"><span class="ti">🔤</span><b>Ordfajt</b><small>Ordspel · svenska, norska, jamska</small></button>
+      <button class="tile" style="--tg:linear-gradient(135deg,#22d3ee,#6366f1 55%,#f472b6)" data-act="gmenu" data-k="pong"><span class="ti">🏓</span><b>Pong</b><small>Mot datorn, två på en skärm eller online</small></button>
       <button class="tile" style="--tg:linear-gradient(135deg,#16a34a,#0f172a 75%)" data-act="openinv"><span class="ti">👾</span><b>Space Invaders</b><small>Ensam · 100+ nivåer</small>${invS.best?`<span class="badge">🏆 ${invS.best}</span>`:''}</button>
     </div>
     <div class="chipsrow"><button class="bigbtn chatbtn" data-act="openchat">💬 Chatt <small>🔒 krypterad</small>${(typeof CHAT!=='undefined'&&CHAT.unread())?`<span class="badge">${CHAT.unread()}</span>`:''}</button></div>

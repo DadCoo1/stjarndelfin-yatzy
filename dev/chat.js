@@ -545,7 +545,7 @@ const CHAT = (()=>{
     if(c.unread){ c.unread=0; } saveConvs(); }
 
   /* ---------- spelinbjudningar ---------- */
-  const GAMES=[['yatzy','🎲','Yatzy'],['ships','🚢','Sänka skepp'],['mm','🔮','Mastermind'],['hang','🪢','Hänga gubbe'],['kina','⭐','Kinaschack'],['ordfajt','🔤','Ordfajt']];
+  const GAMES=[['yatzy','🎲','Yatzy'],['ships','🚢','Sänka skepp'],['mm','🔮','Mastermind'],['hang','🪢','Hänga gubbe'],['kina','⭐','Kinaschack'],['ordfajt','🔤','Ordfajt'],['pong','🏓','Pong']];
   function inviteToGame(cid, kind){
     closeModal(); const name=lsGet('ry_name')||ME.name; const g=GAMES.find(x=>x[0]===kind);
     hostGame(name,'free', kind==='yatzy'?undefined:kind);
