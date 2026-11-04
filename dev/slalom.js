@@ -124,9 +124,9 @@ const SLALOM = (()=>{
           // stängda portar längs fallinjen: åkaren korsar linjen fram och tillbaka
           const type=plan[i]; let n=0; while(plan[i+n]===type) n++;
           z+=9.5; const L=5.4, gap=type==='h'?1:.9;
-          const cx=fx(z,0);
+          const cx=fx(z,0); let from=prevTurn ? (Math.sign(prevTurn.x-cx)||1) : -side;
           for(let k=0;k<n;k++){ const za=z+k*(L+gap), zb=za+L;
-            const gt=mkGate({x:cx,z:za},{x:cx,z:zb},col,'closed',{x:cx,z:(za+zb)/2}); gt.turn={x:cx,z:(za+zb)/2}; out[0].push(gt);
+            const gt=mkGate({x:cx,z:za},{x:cx,z:zb},col,'closed',{x:cx,z:(za+zb)/2}); gt.turn={x:cx,z:(za+zb)/2}; gt.from=from; from=-from; out[0].push(gt);
             col=col==='r'?'b':'r'; }
           z+=n*(L+gap)-gap; prevTurn={x:cx,z};
           side = (n%2===0) ? side : -side;     // efter ett udda antal korsningar fortsätter rytmen åt andra hållet
@@ -399,10 +399,15 @@ const SLALOM = (()=>{
       // stollift längs öppna ytor
       if(T.kind[zi]==='open' && zi%40===0) objs.push({z, t:'lift', x:m+hw+22});
     }
-    C.gates.forEach((gs,k)=>gs.forEach((g,i)=>{ if(g.zmax>zA-1&&g.zmin<zB) objs.push({z:g.zmax, t:'gate', g, i, k}); }));
+    C.gates.forEach((gs,k)=>gs.forEach((g,i)=>{ if(!(g.zmax>zA-1&&g.zmin<zB)) return;
+      if(g.type==='closed'){ objs.push({z:g.zmin, t:'gate', g, i, k, pole:'a'}, {z:g.zmax, t:'gate', g, i, k, pole:'b'});
+        const me=meSk(); if(k===me.lane && i===me.gi) objs.push({z:(g.zmin+g.zmax)/2-.02, t:'arrow', g}); }
+      else objs.push({z:g.zmax, t:'gate', g, i, k}); }));
     // spår från tidigare åkare genom portarnas idealpassager
     C.gates.forEach(gs=>{ for(let i=1;i<gs.length;i++){ const a=gs[i-1].aim, b=gs[i].aim; if(b.z>zA&&a.z<zB) objs.push({z:b.z, t:'rut', a, b}); } });
     // blå färg sprayad i snön: in- och utgång vid varje sväng
+    C.gates.forEach(gs=>gs.forEach(g=>{ if(g.type!=='closed'||g.zmax<zA||g.zmin>zB) return; const zm=(g.zmin+g.zmax)/2, f=g.from||1;
+      objs.push({z:zm+.01, t:'dye', p:{x:g.a.x+f*2.4,z:zm-2.2}, a:{x:g.a.x,z:zm}, n:{x:g.a.x-f*2.4,z:zm+2.2}}); }));
     C.gates.forEach(gs=>gs.forEach((g,i)=>{ if(g.type==='closed'||g.aim.z<zA||g.aim.z>zB) return; const pv=gs[i-1], nx=gs[i+1];
       const dirTo=(q,len)=>{ if(!q) return null; const dx=q.aim.x-g.aim.x, dz=q.aim.z-g.aim.z, L=Math.hypot(dx,dz)||1; return {x:g.aim.x+dx/L*len, z:g.aim.z+dz/L*len}; };
       objs.push({z:g.aim.z+.01, t:'dye', p:dirTo(pv,3.6), a:{x:g.aim.x+(g.side||0)*.35,z:g.aim.z}, n:dirTo(nx,3)}); }));
@@ -416,8 +421,8 @@ const SLALOM = (()=>{
     const C=R.C, t=now();
     if(o.t==='rut'){ const a=P(o.a.x,o.a.z), b=P(o.b.x,o.b.z); if(!a||!b) return; ctx.strokeStyle='rgba(140,162,196,.32)'; ctx.lineWidth=Math.max(.6,b[2]*.06);
       const mx=(o.a.x+o.b.x)/2+(o.b.x-o.a.x)*.0, mz=(o.a.z+o.b.z)/2, c=P(mx-(o.b.x-o.a.x)*.18,mz); ctx.beginPath(); ctx.moveTo(a[0],a[1]); if(c) ctx.quadraticCurveTo(c[0],c[1],b[0],b[1]); else ctx.lineTo(b[0],b[1]); ctx.stroke(); return; }
-    if(o.t==='dye'){ const a=P(o.a.x,o.a.z); if(!a) return; ctx.strokeStyle='rgba(29,78,216,.5)'; ctx.lineCap='round'; ctx.setLineDash([a[2]*.6,a[2]*.35]);
-      ctx.lineWidth=Math.max(1,a[2]*.16); ctx.beginPath(); const p=o.p&&P(o.p.x,o.p.z), n=o.n&&P(o.n.x,o.n.z);
+    if(o.t==='dye'){ const a=P(o.a.x,o.a.z); if(!a) return; ctx.strokeStyle='rgba(29,78,216,.5)'; ctx.lineCap='round'; const dl=Math.min(a[2],40); ctx.setLineDash([dl*.6,dl*.35]);
+      ctx.lineWidth=clamp(a[2]*.16,1,7); ctx.beginPath(); const p=o.p&&P(o.p.x,o.p.z), n=o.n&&P(o.n.x,o.n.z);
       if(p){ ctx.moveTo(p[0],p[1]); ctx.lineTo(a[0],a[1]); } else ctx.moveTo(a[0],a[1]); if(n) ctx.lineTo(n[0],n[1]); ctx.stroke(); ctx.setLineDash([]); return; }
     if(o.t==='tree'){ const p=P(o.x,o.z); if(!p) return; const img=SPR.tree[o.v]; const h=p[2]*8*o.s, w=h*img.width/img.height; if(p[0]+w<0||p[0]-w>W||h<1) return; ctx.drawImage(img,p[0]-w/2,p[1]-h,w,h); return; }
     if(o.t==='fan'){ const p=P(o.x,o.z); if(!p) return; const img=SPR.fan[o.v]; const h=p[2]*1.75, w=h*img.width/img.height; if(h<1.5) return; const near=Math.abs(o.z-meSk().z)<35, jump=Math.max(0,Math.sin(t*6+o.ph))*h*.12*(near?1:.25);
@@ -441,11 +446,15 @@ const SLALOM = (()=>{
       ctx.fillStyle='#1e3a8a'; ctx.fillRect(a[0]-a[2]*.3,a[1]-h,a[2]*.6,h); ctx.fillRect(b[0]-b[2]*.3,b[1]-h,b[2]*.6,h);
       const g=ctx.createLinearGradient(0,a[1]-h,0,a[1]-h*.7); g.addColorStop(0,'#ef4444'); g.addColorStop(1,'#b91c1c'); ctx.fillStyle=g; ctx.fillRect(a[0],a[1]-h,b[0]-a[0],h*.28);
       if(h>10){ ctx.fillStyle='#fff'; ctx.font=`900 ${h*.18}px system-ui`; ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.fillText('MÅL · VEMDALEN',(a[0]+b[0])/2,a[1]-h*.86); } return; }
-    if(o.t==='gate'){ drawGate(o.g,o.i); return; }
+    if(o.t==='gate'){ drawGate(o.g,o.i,o.pole); return; }
+    if(o.t==='arrow'){ const g=o.g, zm=(g.zmin+g.zmax)/2, f=g.from||1, p0=P(g.a.x+f*1.6,zm), p1=P(g.a.x-f*1.6,zm); if(!p0||!p1) return;   // pil på snön: åt vilket håll man korsar nästa stängda port
+      const sz=clamp(p0[2]*.5,3,18), d=Math.sign(p1[0]-p0[0])||-f; ctx.fillStyle=`rgba(250,204,21,${.8+.2*Math.sin(t*6)})`; ctx.strokeStyle='rgba(30,58,138,.85)'; ctx.lineWidth=1.6;
+      ctx.beginPath(); ctx.moveTo(p0[0],p0[1]-sz*.38); ctx.lineTo(p1[0]-d*sz,p1[1]-sz*.38); ctx.lineTo(p1[0]-d*sz,p1[1]-sz*.95); ctx.lineTo(p1[0],p1[1]); ctx.lineTo(p1[0]-d*sz,p1[1]+sz*.95); ctx.lineTo(p1[0]-d*sz,p1[1]+sz*.38); ctx.lineTo(p0[0],p0[1]+sz*.38); ctx.closePath(); ctx.fill(); ctx.stroke(); return; }
     if(o.t==='skier'){ drawSkier(o.sk, P(o.sk.x,o.sk.z), false); return; }
   }
   function drawGate(g,i){
-    const C=R.C, a=P(g.a.x,g.a.z), b=P(g.b.x,g.b.z); if(!a||!b) return;
+    const C=R.C, a=P(g.a.x,g.a.z), b=P(g.b.x,g.b.z), only=arguments[2];
+    if(g.type==='closed'){ if(only==='a'&&!a || only==='b'&&!b) return; } else if(!a||!b) return;
     const col = g.col==='r' ? '#ef4444' : '#2563eb', dark = g.col==='r' ? '#991b1b' : '#1e3a8a', t=now();
     const bend = g.hit ? Math.max(0,1-(performance.now()-(g.hitT||0))/600)*.55 : 0;
     const pole=(p,bnd)=>{ const h=p[2]*1.8, pw=Math.max(1,p[2]*.045); ctx.strokeStyle=col; ctx.lineWidth=pw*2; ctx.lineCap='round'; ctx.beginPath(); ctx.moveTo(p[0],p[1]); ctx.quadraticCurveTo(p[0]+bnd*h*.3,p[1]-h*.5,p[0]+bnd*h*.6,p[1]-h*.95); ctx.stroke();
@@ -462,10 +471,10 @@ const SLALOM = (()=>{
       // slalom: ledade käppar utan flagga; vändstången viker sig vid träff
       const tp=P(g.turn.x,g.turn.z); const away = g.type==='closed' ? (g.aim.x>g.a.x?-1:1) : (g.side||1)*-1;
       if(g.type==='single'){ if(tp) pole(tp, bend*away); }
-      else if(g.type==='closed'){ pole(b,0); pole(a,bend*(g.aim.x>g.a.x?-1:1)); }
+      else if(g.type==='closed'){ if(only==='b') pole(b,0); else pole(a,bend*(g.aim.x>g.a.x?-1:1)); }
       else { const tA = Math.abs(g.a.x-g.turn.x)<.01; pole(a,tA?bend*away:0); pole(b,!tA?bend*away:0); }
     }
-    if(g.pass===false){ const q=P(g.aim.x,g.aim.z)||a; ctx.fillStyle='rgba(239,68,68,.9)'; ctx.font=`900 ${Math.max(10,q[2]*.9)}px system-ui`; ctx.textAlign='center'; ctx.fillText('✕',q[0],q[1]-q[2]*.6); }
+    if(g.pass===false && only!=='b'){ const q=P(g.aim.x,g.aim.z)||a||b; if(!q) return; ctx.fillStyle='rgba(239,68,68,.9)'; ctx.font=`900 ${Math.max(10,q[2]*.9)}px system-ui`; ctx.textAlign='center'; ctx.fillText('✕',q[0],q[1]-q[2]*.6); }
   }
 
   // åkaren bakifrån – en sammanhängande figur: skidor → bindning → pjäxor → ben → höft → rygg → armar → stavar → hjälm
@@ -616,7 +625,7 @@ const SLALOM = (()=>{
     else {
       const lv=G.ai||[];
       for(const sk of R.sk){
-        if(sk===s) physics(sk,dt,inp);
+        if(sk===s) physics(sk,dt, DEV&&window.__slAuto ? aiInput(sk,'hard',dt) : inp);   // autopilot bara för tester i dev
         else if(sk.ai) physics(sk,dt,aiInput(sk,lv[sk.k],dt));
         else if(R.remote){ const r=R.remote; sk.x+=(r.x-sk.x)*Math.min(1,dt*10); sk.z+=(r.z+(r.v||0)*Math.min(.15,(nowMs-r.at)/1000)-sk.z)*Math.min(1,dt*10); sk.th=r.th; sk.lean=r.l||0; sk.tuck=r.k||0; sk.v=r.v; sk.done=!!r.d; sk.dsq=!!r.q; sk.finish=r.f; sk.gi=r.gi||sk.gi; }
       }
