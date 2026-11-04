@@ -149,12 +149,13 @@
         const hl = sdSel>=0 && (Math.floor(i/9)===sr||i%9===sc||BOX(i)===sb), same = selV && v===selV;
         cells+=`<button class="sd-c ${given?'giv':''} ${wrong?'bad':''} ${i===sdSel?'sel':''} ${hl?'hl':''} ${same?'same':''} ${i%9%3===2&&i%9!==8?'br':''} ${Math.floor(i/9)%3===2&&i<72?'bb':''}" data-sd="c" data-i="${i}">${v?v:g.notes[i]?`<span class="sd-n">${[1,2,3,4,5,6,7,8,9].map(n=>`<i>${g.notes[i]&(1<<n)?n:''}</i>`).join('')}</span>`:''}</button>`; }
       const left=n=>9-g.val.filter((v,i)=>v===n&&v===g.sol[i]).length;
-      const pad=[1,2,3,4,5,6,7,8,9].map(n=>`<button class="sd-k ${left(n)?'':'done'}" data-sd="n" data-v="${n}">${n}<small>${left(n)||'✓'}</small></button>`).join('');
+      const pad=[1,2,3,4,5,6,7,8,9].map(n=>`<button class="sd-k ${left(n)?'':'done'} ${sdNotes?'note':''}" data-sd="n" data-v="${n}">${n}<small>${sdNotes?'✏️':left(n)||'✓'}</small></button>`).join('');
       const lv={easy:'Lätt',medium:'Medel',hard:'Svår'}[g.level];
       if(g.over) return `<div class="gsub">${g.daily?`Dagens sudoku ${dayStr(g.day)} · `:''}${lv}</div><div class="sd-b">${cells}</div><div class="wd-end"><h3>${g.winner===0?'Klart! 🎉':'Avslutat'}</h3>
         ${g.winner===0?`<p>Tid <b>${fmt(g)}</b> · ${g.mist} fel · ${g.hints} tips</p>`:''}<div class="cbtns"><button class="pri" data-sd="again">🔁 Nytt pussel</button><button data-act="lobby">🏠 Lobby</button></div></div>`;
       return `<div class="gsub">${g.daily?`📅 ${dayStr(g.day)} · `:''}${lv} · ⏱️ <span id="sdTime">${fmt(g)}</span> · ${g.mist} fel</div><div class="sd-b">${cells}</div>
-        <div class="sd-tools"><button data-sd="erase">⌫ Sudda</button><button data-sd="notes" class="${sdNotes?'on':''}">✏️ Anteckna ${sdNotes?'PÅ':'AV'}</button><button data-sd="hint">💡 Tips</button></div>
+        <div class="sd-tools"><button data-sd="notes" class="${sdNotes?'on':''}">✏️ ${sdNotes?'Anteckningar PÅ':'Anteckna'}</button><button data-sd="hint">💡 Tips</button><button data-sd="erase">⌫ Sudda</button></div>
+        ${sdNotes?'<div class="sd-noteinfo">✏️ Anteckningsläge: siffrorna blir små minnesanteckningar. Tryck på ✏️ igen för vanliga siffror.</div>':''}
         <div class="sd-pad">${pad}</div><div class="ghint">Varje rad, kolumn och 3×3-ruta ska ha 1–9 en gång. ${KIT.resignHTML()}</div>`; },
     mounted(){ clearInterval(sdTick); if(!G.over) sdTick=setInterval(()=>{ const el=document.getElementById('sdTime'); if(!el||!G||G.kind!=='sudoku'){ clearInterval(sdTick); return; } el.textContent=fmt(G); },1000); }
   };
@@ -188,7 +189,9 @@
 .sd-c.br{border-right:3px solid #0f172a}.sd-c.bb{border-bottom:3px solid #0f172a}
 .sd-c.giv{color:#0f172a;font-weight:800}.sd-c.hl{background:#e0f2fe}.sd-c.same{background:#bae6fd}.sd-c.sel{background:#7dd3fc}.sd-c.bad{color:#dc2626;background:#fee2e2}
 .sd-n{position:absolute;inset:2px;display:grid;grid-template-columns:repeat(3,1fr);font-size:calc(100cqw/9*.24);color:#475569;font-weight:600}.sd-n i{font-style:normal;display:grid;place-items:center}
-.sd-tools{display:flex;gap:8px;justify-content:center;margin:6px 0}.sd-tools button{padding:9px 12px;border-radius:12px;background:var(--glass2);border:1px solid var(--line);font-size:14px}.sd-tools button.on{border-color:#facc15;background:rgba(250,204,21,.2)}
+.sd-tools{display:flex;gap:8px;justify-content:center;margin:6px 0}.sd-tools button{padding:9px 12px;border-radius:12px;background:var(--glass2);border:1px solid var(--line);font-size:14px}.sd-tools button.on{border-color:#facc15;background:#facc15;color:#1e293b;font-weight:800;box-shadow:0 0 14px rgba(250,204,21,.6)}
+.sd-noteinfo{text-align:center;font-size:12.5px;color:#fde68a;margin:2px 8px 4px}
+.sd-k.note{background:linear-gradient(160deg,#a16207,#713f12);font-style:italic}
 .sd-pad{display:grid;grid-template-columns:repeat(9,1fr);gap:4px;max-width:460px;margin:4px auto}.sd-k{aspect-ratio:.8;border-radius:10px;background:linear-gradient(160deg,#334155,#1e293b);font-size:22px;font-weight:800;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:0}
 .sd-k small{font-size:10px;opacity:.6;font-weight:600}.sd-k.done{opacity:.35}`);
 
