@@ -328,7 +328,7 @@ const SLALOM = (()=>{
 
   /* ---------- projektion med höjd ---------- */
   const HZ=.30, VB=.09, CAMH=2.9, BACK=5.2, ZMAX=200;
-  let cam={x:0,z:0,y:0,yaw:0,roll:0,pitch:.3}, F=500, YA=400;
+  let cam={x:0,z:0,y:0,yaw:0,roll:0,pitch:.3}, F=500, YA=400, back=5.2, camD=0, camMode=lsGet('sl_cam')||'rider';
   function P(x,z,h=0){ const dz=z-cam.z; if(dz<.3) return null; const xs=x-cam.x-dz*Math.tan(cam.yaw);
     return [W/2 + xs*F/dz, YA + F*((cam.y-(elev(z)+h))/dz - Math.tan(cam.pitch)), F/dz]; }
 
@@ -337,14 +337,17 @@ const SLALOM = (()=>{
   const now=()=>performance.now()/1000;
   function drawScene(dt){
     const s=meSk(), C=R.C;
-    const tx=s.x-Math.sin(s.th)*1.8, tz=s.z-BACK;
-    cam.x += (tx-cam.x)*Math.min(1,dt*6); cam.z=tz;
-    cam.yaw += (s.th*.4-cam.yaw)*Math.min(1,dt*4); cam.roll += (-s.lean*.06-cam.roll)*Math.min(1,dt*5);
-    const ahead=Math.atan(pitchAt(s.z+6)); cam.pitch += (ahead-cam.pitch)*Math.min(1,dt*2.2);
-    cam.y = elev(cam.z)+CAMH;
-    F=Math.min(W,H)*1.05;
-    // åkaren alltid på 80 % av höjden
-    YA = H*.80 - F*((cam.y-elev(s.z))/BACK - Math.tan(cam.pitch));
+    // drönarvyn: kameran glider upp och bakåt, tittar ned över åkaren och svävar mjukt i sidled
+    camD += ((camMode==='drone'?1:0)-camD)*Math.min(1,dt*1.6); const D=smooth(clamp(camD,0,1)), tt=now();
+    back=lerp(BACK,13,D); const camh=lerp(CAMH,11.5+Math.sin(tt*.31)*1.5*D,D);
+    const tx=s.x-Math.sin(s.th)*1.8*(1-D)+D*Math.sin(tt*.21)*5.5, tz=s.z-back;
+    cam.x += (tx-cam.x)*Math.min(1,dt*(6-3.5*D)); cam.z=tz;
+    cam.yaw += (s.th*.4*(1-D*.7)+D*Math.sin(tt*.21)*-.12-cam.yaw)*Math.min(1,dt*(4-2*D)); cam.roll += (-s.lean*.06*(1-D)-cam.roll)*Math.min(1,dt*5);
+    const ahead=Math.atan(pitchAt(s.z+6))+D*.36; cam.pitch += (ahead-cam.pitch)*Math.min(1,dt*2.2);
+    cam.y = elev(cam.z)+camh;
+    F=Math.min(W,H)*1.05*(1+D*.15);
+    // åkaren på 80 % av höjden (lite högre upp i drönarvyn)
+    YA = H*lerp(.80,.62,D) - F*((cam.y-elev(s.z))/back - Math.tan(cam.pitch));
     const sh=R.shake>0?(Math.random()-.5)*R.shake*8:0;
     ctx.translate(W/2+sh,H*.6); ctx.rotate(cam.roll); ctx.translate(-W/2,-H*.6);
     // himmel, fjäll och dal: den sanna horisonten flyttar sig med kamerans lutning
@@ -485,7 +488,7 @@ const SLALOM = (()=>{
     ctx.beginPath(); ctx.arc(x1,y1,w1/2,0,7); ctx.fill(); ctx.beginPath(); ctx.arc(x2,y2,w2/2,0,7); ctx.fill(); }
   function drawSkier(s, p, me){
     let x,y,sc;
-    if(me){ x=W/2+(s.x-cam.x-BACK*Math.tan(cam.yaw))*F/BACK; y=H*.80; sc=F/BACK; }
+    if(me){ x=W/2+(s.x-cam.x-back*Math.tan(cam.yaw))*F/back; y=YA+F*((cam.y-elev(s.z))/back-Math.tan(cam.pitch)); sc=F/back; }
     else { if(!p) return; [x,y,sc]=p; }
     const u=sc*(me?.0118:.0105), E=clamp(s.lean,-1.2,1.2), tk=s.tuck||0, rel=s.th-cam.yaw, dir=Math.sign(E)||1, inc=E*.6;
     const S = (s.k===0) ? SUITS.swe : SUITS.red;
@@ -665,6 +668,8 @@ const SLALOM = (()=>{
   }
   document.addEventListener('keydown',e=>{ if(G&&G.kind==='slalom'&&view==='game'&&['ArrowLeft','ArrowRight'].includes(e.code)){ keys[e.code]=true; e.preventDefault(); } });
   document.addEventListener('keyup',e=>{ keys[e.code]=false; });
+  document.addEventListener('keydown',e=>{ if(G&&G.kind==='slalom'&&view==='game'&&e.code==='KeyC') toggleCam(); });
+  function toggleCam(){ camMode=camMode==='drone'?'rider':'drone'; lsSet('sl_cam',camMode); const b=document.querySelector('.sl-cam'); if(b) b.textContent=camMode==='drone'?'⛷️ Åkarvy':'🚁 Drönarvy'; sfx.bubble(); }
   document.addEventListener('visibilitychange',()=>{ if(document.hidden) sndOff(); });
 
   /* ---------- nätet ---------- */
@@ -715,7 +720,7 @@ const SLALOM = (()=>{
         over=`<div class="sl-over"><div class="gover tie"><div class="gi">⏱️</div><h3>Åk 1 klart</h3>${table()}
           <p class="sl-pb">Åk 2 har en ny bansättning${g.par?' och ni byter bana':''}.</p>
           <div class="gbtns">${can?`<button class="pri" data-sl="next">▶️ Starta åk 2</button>`:'<p>Väntar på att värden startar åk 2…</p>'}</div></div></div>`; }
-      return `<div class="sl-wrap"><div id="slHost" class="sl-host"></div>${over}</div>
+      return `<div class="sl-wrap"><div id="slHost" class="sl-host"></div><button class="sl-cam" data-sl="cam">${camMode==='drone'?'⛷️ Åkarvy':'🚁 Drönarvy'}</button>${over}</div>
         <div class="ghint">${DISC[g.disc].name}${g.par?' · parallell':''} · ${g.std?'standardbana':'ny bana'} · åk ${g.run} av 2 · Dra fingret åt sidan (eller ← →) för att svänga, släpp för att åka rakt – då går du ned i fartställning. ${g.pen?'Missad port +3 s.':'Missad port = ur.'} ${g.over?'':KIT.resignHTML()}</div>`; },
     mounted(){ mount(); }
   };
@@ -747,6 +752,7 @@ const SLALOM = (()=>{
     if(a==='pen'){ mPen=b.dataset.v==='1'; lsSet('sl_pen',mPen?'1':'0'); document.getElementById('slP').innerHTML=segP(); sfx.bubble(); return; }
     if(a==='std'){ mStd=b.dataset.v==='1'; lsSet('sl_std',mStd?'1':'0'); document.getElementById('slS').innerHTML=segS(); sfx.bubble(); return; }
     if(a==='next'){ unlockAudio(); doAct({type:'next'}); return; }
+    if(a==='cam'){ toggleCam(); return; }
     if(a==='lvl'){ mLvl=b.dataset.v; lsSet('sl_lvl',mLvl); document.getElementById('slL').innerHTML=segL(); sfx.bubble(); return; }
     const n=nm||'Du'; lsSet('ry_name',n); unlockAudio();
     if(a==='solo'){ pend={disc:mDisc,par:false,pen:mPen,std:mStd}; fresh=true; KIT.startSolo('slalom',n); return; }
@@ -761,7 +767,8 @@ const SLALOM = (()=>{
 .sl-over .gover{max-width:330px;width:100%;background:rgba(11,16,40,.9);backdrop-filter:blur(6px)}
 .sl-res{display:flex;justify-content:space-between;padding:6px 12px;border-radius:10px;background:rgba(255,255,255,.06);margin:4px 0;font-variant-numeric:tabular-nums}
 .sl-res.win{background:rgba(250,204,21,.2);border:1px solid var(--gold)}
-.sl-pb{font-size:13px;opacity:.85}`; document.head.appendChild(st);
+.sl-pb{font-size:13px;opacity:.85}
+.sl-cam{position:absolute;right:12px;bottom:48px;padding:7px 11px;border-radius:12px;border:1px solid rgba(255,255,255,.35);background:rgba(15,23,42,.6);color:#fff;font-size:12.5px;font-weight:700;z-index:2}`; document.head.appendChild(st);
 
   return { net:onNet, __test:(typeof DEV!=='undefined'&&DEV)?{setCourse,physics,aiInput,DISC,run:()=>R,newRun,mid,AILV,terrain:()=>T}:undefined };
 })();
