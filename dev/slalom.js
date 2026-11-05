@@ -329,7 +329,7 @@ const SLALOM = (()=>{
   /* ---------- projektion med höjd ---------- */
   const HZ=.30, VB=.09, CAMH=2.9, BACK=5.2, ZMAX=200;
   let cam={x:0,z:0,y:0,yaw:0,roll:0,pitch:.3}, F=500, YA=400, back=5.2, camD=0, camMode=lsGet('sl_cam')||'rider';
-  const DS=DRONE.make('sl_dr'); let DM=false, DZA=0, DZB=0, VIEWK='back';
+  const DS=DRONE.make('sl_dr'); let DM=false, DZA=0, DZB=0, VIEWK='back', FLIP=false;
   function P(x,z,h=0){ if(DM) return DRONE.proj(DS.C,x,elev(z)+h,z); const dz=z-cam.z; if(dz<.3) return null; const xs=x-cam.x-dz*Math.tan(cam.yaw);
     return [W/2 + xs*F/dz, YA + F*((cam.y-(elev(z)+h))/dz - Math.tan(cam.pitch)), F/dz]; }
 
@@ -393,7 +393,7 @@ const SLALOM = (()=>{
   // drönaren: äkta 3D-kamera; marken först (utanför pisten, pisten, färg och spår), sedan allt upprätt sorterat på djup
   function drawDrone(dt){
     const s=meSk(), C=R.C, fx=(mid(s.z+6)-mid(s.z-6))/12, Cc=DRONE.solve(DS,{x:s.x,y:elev(s.z)+1,z:s.z},fx,1,dt,W,H,z=>elev(z));
-    DM=true; VIEWK=DRONE.facing(Cc,fx,1);
+    DM=true; VIEWK=DRONE.facing(Cc,fx,1); FLIP = Math.cos(Cc.yaw-Math.atan2(fx,1))<0 && Cc.pitch<1.2;
     const key=W+'x'+H; if(BDsize!==key){ BD=makeBackdrop(W,H); BDsize=key; }
     const yH=H/2-Cc.f*Math.tan(Cc.pitch), hz=Math.round(H*HZ);
     ctx.fillStyle='#5b8fd6'; ctx.fillRect(0,0,W,H);
@@ -679,6 +679,7 @@ const SLALOM = (()=>{
     const s=meSk();
     let inp=0; if(drag) inp=clamp((drag.x-drag.x0)/(W*.22),-1,1);
     const kx=(keys.ArrowRight?1:0)-(keys.ArrowLeft?1:0); if(kx) steer+=(kx-steer)*Math.min(1,dt*6); else steer*=Math.pow(.02,dt); if(!drag) inp=steer;
+    if(DS.on && FLIP) inp=-inp;   // kameran tittar mot åkaren: styr efter skärmen, inte efter åkarens höger/vänster
     if(!R.started){ R.cd-=dt; const n=Math.ceil(R.cd); if(n!==R.beeped && n>=1 && n<=3){ R.beeped=n; tone(660,.12,'sine',.12); } if(R.cd<=0){ R.started=true; tone(1320,.35,'sine',.13); sndInit(); cheer(.12); } }
     else {
       const lv=G.ai||[];
