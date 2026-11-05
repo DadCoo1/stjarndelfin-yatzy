@@ -81,6 +81,10 @@ T('fisk finns i sjön: man väljer kort i sjön',()=>{ const g=fk([C(9,2),C(3,3)
 T('fisk valt kort i sjön byter tur',()=>{ const g=fk([C(9,2),C(3,3)]); ap(g,{type:'ask',to:1,rank:5},0); ap(g,{type:'fish',i:0},0); return g.cur===1&&g.hands[0].includes(C(9,2))&&g.deck.length===1&&g.lake.length===1&&!g.fish; });
 T('fisk fiskar upp rätt = fortsätter',()=>{ const g=fk([C(9,2),C(5,3)]); ap(g,{type:'ask',to:1,rank:5},0); ap(g,{type:'fish',i:1},0); return g.cur===0&&g.last.lucky; });
 T('fisk bara den som fiskar får välja',()=>{ const g=fk([C(9,2),C(5,3)]); ap(g,{type:'ask',to:1,rank:5},0); return ap(g,{type:'fish',i:0},1)===false&&ap(g,{type:'fish',i:7},0)===false; });
+T('skidskytte mål och vinnare',()=>{ const g=mk('skidskytte',['A','B']); g.fmt='sprint'; return ap(g,{type:'finish',ms:300000,sh:[0,1]},0)&&!g.over&&ap(g,{type:'finish',ms:290000,sh:[2,0]},1)&&g.over&&g.winner===1; });
+T('skidskytte fel antal skjutningar avvisas',()=>{ const g=mk('skidskytte',['A','B']); g.fmt='sprint'; return ap(g,{type:'finish',ms:300000,sh:[0]},0)===false&&ap(g,{type:'finish',ms:300000,sh:[0,6]},0)===false; });
+T('skidskytte bryter = sist',()=>{ const g=mk('skidskytte',['A','B']); g.fmt='kort'; ap(g,{type:'resign'},0); ap(g,{type:'finish',ms:400000,sh:[3]},1); return g.over&&g.winner===1&&KIND.skidskytte.valid(g); });
+T('skidskytte bara en målgång per spelare',()=>{ const g=mk('skidskytte',['A','B']); g.fmt='kort'; ap(g,{type:'finish',ms:200000,sh:[0]},0); return ap(g,{type:'finish',ms:100000,sh:[0]},0)===false; });
 T('fisk sjön är utspridd: en plats per kort',()=>{ const g=mk('fisk'); return g.lake.length===g.deck.length&&KIND.fisk.valid(g); });
 T('fisk gäst ser inte korten i sjön eller det fiskade kortet',()=>{ const g=fk([C(9,2),C(3,3)]); ap(g,{type:'ask',to:1,rank:5},0); ap(g,{type:'fish',i:0},0); const r=gRedact(g,1); return r.last.drew===undefined&&r.hands[0].every(c=>c===-1)&&r.deck.every(c=>c===-1)&&r.lake.length===1; });
 T('fisk datorn fiskar i sjön',()=>{ const g=fk([C(9,2),C(3,3)]); ap(g,{type:'ask',to:1,rank:5},0); const a=KIND.fisk.ai(Object.assign(g,{ai:[1,1]}),0); return a&&a.type==='fish'&&ap(g,a,0); });
