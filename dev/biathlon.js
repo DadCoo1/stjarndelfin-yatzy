@@ -328,24 +328,20 @@ const BIATHLON = (()=>{
       ctx.fillStyle='#eef3fa'; ctx.fillRect(0,top+BD.c.height-1,W,H); }
     else { ctx.fillStyle='#eef3fa'; ctx.fillRect(0,0,W,H); }
     DZA=z-120; DZB=z+220;
-    const off=[], pist=[]; let prev=null;
-    for(let zz=DZA; zz<=DZB; zz+=Math.max(1.2,Math.abs(zz-z)*.05)){
-      const m=mid(zz), hw=halfAt(zz), e={z:zz, pL:P(m-hw,zz), pR:P(m+hw,zz), oL:P(m-hw-80,zz), oR:P(m+hw+80,zz)};
-      if(prev){ const zc=(zz+prev.z)/2, c=P(mid(zc),zc); if(c){ const tr=T.trees[Math.round(wrap(zc,T.N))]||0, band=(Math.floor(zz/4)%2)*2, line=!pen&&wrap(zc,LP)>LINE-.6&&wrap(zc,LP)<LINE+.6;
-          const oc=`rgb(${226-tr*14},${234-tr*8},246)`;
-          if(prev.oL&&prev.pL&&e.pL&&e.oL) off.push({Z:c[3], q:[prev.oL,prev.pL,e.pL,e.oL], c:oc});
-          if(prev.pR&&prev.oR&&e.oR&&e.pR) off.push({Z:c[3], q:[prev.pR,prev.oR,e.oR,e.pR], c:oc});
-          if(prev.pL&&prev.pR&&e.pR&&e.pL) pist.push({Z:c[3], q:[prev.pL,prev.pR,e.pR,e.pL], c: line?'rgba(239,68,68,.85)':`rgb(${247-band},${250-band},255)`}); } }
+    const L=[], BANDS=[[0,6],[6,22],[22,80]]; let prev=null;
+    for(let zz=DZA; zz<=DZB; zz+=Math.max(.8,Math.abs(zz-D.C.z)*.03)){
+      const m=mid(zz), hw=halfAt(zz), e={z:zz, m, hw};
+      if(prev){ const zc=(zz+prev.z)/2, tr=T.trees[Math.round(wrap(zc,T.N))]||0, band=(Math.floor(zz/4)%2)*2, line=!pen&&wrap(zc,LP)>LINE-.6&&wrap(zc,LP)<LINE+.6;
+        const pc=P(mid(zc),zc), q=[P(prev.m-prev.hw,prev.z),P(prev.m+prev.hw,prev.z),P(m+hw,zz),P(m-hw,zz)];
+        if(pc&&q.every(Boolean)){ const col=line?'rgba(239,68,68,.85)':`rgb(${247-band},${250-band},255)`; L.push({Z:pc[3]+.8, d:()=>{ ctx.fillStyle=col; quad(...q); }}); }
+        const oc=`rgb(${226-tr*14},${234-tr*8},246)`;
+        for(const sd of [-1,1]) for(const [b0,b1] of BANDS){ const cc=P(mid(zc)+sd*(halfAt(zc)+(b0+b1)/2),zc), qq=[P(prev.m+sd*(prev.hw+b0),prev.z),P(prev.m+sd*(prev.hw+b1),prev.z),P(m+sd*(hw+b1),zz),P(m+sd*(hw+b0),zz)];
+          if(cc&&qq.every(Boolean)) L.push({Z:cc[3]+.8, d:()=>{ ctx.fillStyle=oc; quad(...qq); }}); } }
       prev=e; }
-    off.sort((p,q)=>q.Z-p.Z); pist.sort((p,q)=>q.Z-p.Z);
-    for(const g of off){ ctx.fillStyle=g.c; quad(...g.q); } for(const g of pist){ ctx.fillStyle=g.c; quad(...g.q); }
-    const objs=collect(z,pen), up=[];
-    for(const o of objs){ if(o.t==='mat'){ drawObj(o); continue; }
-      const x=o.x!=null?o.x : o.a ? mid(o.a.ph==='pen'?o.a.pz:o.a.z) : mid(o.z), p=P(x,o.z); if(p) up.push({Z:p[3], o}); }
-    const pm=P(mid(z),z); if(pm) up.push({Z:pm[3], me:true});
-    for(let i=up.length-1;i>=0;i--) if(!up[i].me && up[i].Z<4) up.splice(i,1);
-    up.sort((p,q)=>q.Z-p.Z);
-    for(const u of up){ if(u.me) drawSkier(a,pm[0],pm[1],pm[2],false); else drawObj(u.o); }
+    for(const o of collect(z,pen)){ const x=o.x!=null?o.x : o.a ? mid(o.a.ph==='pen'?o.a.pz:o.a.z) : mid(o.z), p=P(x,o.z); if(!p) continue;
+      const flat=o.t==='mat'; if(!flat&&p[3]<4) continue; L.push({Z:p[3]+(flat?.4:0), d:()=>drawObj(o)}); }
+    const pm=P(mid(z),z); if(pm) L.push({Z:pm[3]-.05, d:()=>drawSkier(a,pm[0],pm[1],pm[2],false)});
+    L.sort((p,q)=>q.Z-p.Z); for(const it of L) it.d();
     R.parts=R.parts.filter(p=>(p.t-=dt)>0);
     for(const p of R.parts){ p.x+=p.vx*dt; p.z+=p.vz*dt; p.y+=p.vy*dt; p.vy-=9*dt; const q=P(p.x,p.z,Math.max(0,p.y)); if(!q) continue; ctx.globalAlpha=Math.min(1,p.t*2.4); ctx.fillStyle='#fff'; ctx.beginPath(); ctx.arc(q[0],q[1],Math.max(.8,q[2]*.04*p.r),0,7); ctx.fill(); }
     ctx.globalAlpha=1; DM=false;
@@ -398,7 +394,7 @@ const BIATHLON = (()=>{
         const n=Math.max(2,Math.min(9,Math.round(a[2]*.5))); for(let k=0;k<n;k++){ const zz=o.z+(k+.5)*7/n, p=P(x-.4,zz,hgt+1.1); if(!p) continue; const img=SPR.fan[(row*5+k+Math.round(o.z))%16], hh=p[2]*1.3, ww=hh*img.width/img.height, j=Math.max(0,Math.sin(t*5+k+row))*hh*.08; ctx.drawImage(img,p[0]-ww/2,p[1]-hh-j,ww,hh); } }
       return; }
     if(o.t==='arch'){ const m=mid(o.z), hw=halfAt(o.z)+1, a=P(m-hw,o.z), b=P(m+hw,o.z), a2=P(m-hw,o.z,5.2), b2=P(m+hw,o.z,5.2), a3=P(m-hw,o.z,4.1); if(!a||!b||!a2||!b2) return;
-      ctx.fillStyle='#0b2e7a'; const pw=Math.max(2,a[2]*.6); ctx.fillRect(a[0]-pw/2,a2[1],pw,a[1]-a2[1]); ctx.fillRect(b[0]-pw/2,b2[1],pw,b[1]-b2[1]);
+      ctx.strokeStyle='#0b2e7a'; ctx.lineWidth=Math.max(2,a[2]*.6); ctx.beginPath(); ctx.moveTo(a[0],a[1]); ctx.lineTo(a2[0],a2[1]); ctx.moveTo(b[0],b[1]); ctx.lineTo(b2[0],b2[1]); ctx.stroke();
       ctx.fillStyle='#0b2e7a'; ctx.fillRect(a2[0],a2[1],b2[0]-a2[0],a3[1]-a2[1]); ctx.fillStyle='#facc15'; ctx.font=`900 ${Math.max(6,(a3[1]-a2[1])*.62)}px system-ui`; ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.fillText('ÖSTERSUND · SKIDSKYTTE',(a2[0]+b2[0])/2,(a2[1]+a3[1])/2); return; }
     if(o.t==='screen'){ const m=mid(o.z), x=m-halfAt(o.z)-16, a=P(x-4,o.z,6), b=P(x+4,o.z,6), c=P(x-4,o.z,11); if(!a||!b||!c) return; ctx.fillStyle='#111827'; ctx.fillRect(a[0],c[1],b[0]-a[0],a[1]-c[1]); ctx.fillStyle='#1e3a8a'; ctx.fillRect(a[0]+2,c[1]+2,b[0]-a[0]-4,a[1]-c[1]-4);
       const lp=P(x,o.z,0); if(lp){ ctx.fillStyle='#334155'; ctx.fillRect(lp[0]-1,a[1],2,lp[1]-a[1]); } if(b[0]-a[0]>30){ ctx.fillStyle='#fff'; ctx.font=`700 ${(a[1]-c[1])*.2}px system-ui`; ctx.textAlign='center'; ctx.textBaseline='middle'; const me=meA(); ctx.fillText(`${Math.round(me.hr)} ♥  ${fmtT(me.t)}`,(a[0]+b[0])/2,(a[1]+c[1])/2); } return; }

@@ -465,24 +465,23 @@ const SLALOM = (()=>{
       ctx.fillStyle='#dfe8f4'; ctx.fillRect(0,top+BD.height-1,W,H); }
     else { ctx.fillStyle='#dfe8f4'; ctx.fillRect(0,0,W,H); }
     DZA=Math.max(-20,s.z-130); DZB=s.z+240;
-    const off=[], pist=[];
+    // allt (mark i remsor och band, färg på snön, käppar, träd, åkare) sorteras på djup tillsammans,
+    // så att ett krön skymmer det som ligger bakom – annars ser käpparna ut att sväva
+    const L=[], BANDS=[[0,6],[6,20],[20,75]];
     let prev=null;
-    for(let z=DZA; z<=DZB; z+=Math.max(1.2,Math.abs(z-s.z)*.05)){
-      const m=mid(z), hw=halfAt(z), e={z, pL:P(m-hw,z), pR:P(m+hw,z), oL:P(m-hw-70,z), oR:P(m+hw+70,z)};
-      if(prev){ const zc=(z+prev.z)/2, c=P(mid(zc),zc); if(c){ const fo=T.trees[Math.round(zc)|0]||.3, band=(Math.floor(z/5)%2)*3, sl=pitchAt(z), sh2=clamp((sl-.25)*40,-6,10), fin=z>C.L&&z<C.L+4;
-          if(prev.oL&&prev.pL&&e.pL&&e.oL) off.push({Z:c[3], q:[prev.oL,prev.pL,e.pL,e.oL], c:`rgb(${224-fo*10},${233-fo*6},245)`});
-          if(prev.pR&&prev.oR&&e.oR&&e.pR) off.push({Z:c[3], q:[prev.pR,prev.oR,e.oR,e.pR], c:`rgb(${224-fo*10},${233-fo*6},245)`});
-          if(prev.pL&&prev.pR&&e.pR&&e.pL) pist.push({Z:c[3], q:[prev.pL,prev.pR,e.pR,e.pL], c: fin?'rgba(239,68,68,.85)':`rgb(${246-sh2-band},${250-sh2*.7-band},255)`}); } }
+    for(let z=DZA; z<=DZB; z+=Math.max(.8,Math.abs(z-D.C.z)*.03)){
+      const m=mid(z), hw=halfAt(z), e={z, m, hw};
+      if(prev){ const zc=(z+prev.z)/2, fo=T.trees[Math.round(zc)|0]||.3, band=(Math.floor(z/5)%2)*3, sl=pitchAt(z), sh2=clamp((sl-.25)*40,-6,10), fin=z>C.L&&z<C.L+4;
+        const pc=P(mid(zc),zc), q=[P(prev.m-prev.hw,prev.z),P(prev.m+prev.hw,prev.z),P(m+hw,z),P(m-hw,z)];
+        if(pc&&q.every(Boolean)){ const col=fin?'rgba(239,68,68,.85)':`rgb(${246-sh2-band},${250-sh2*.7-band},255)`; L.push({Z:pc[3]+.8, d:()=>{ ctx.fillStyle=col; quad(...q); }}); }
+        const oc=`rgb(${224-fo*10},${233-fo*6},245)`;
+        for(const sd of [-1,1]) for(const [b0,b1] of BANDS){ const cc=P(mid(zc)+sd*(halfAt(zc)+(b0+b1)/2),zc), qq=[P(prev.m+sd*(prev.hw+b0),prev.z),P(prev.m+sd*(prev.hw+b1),prev.z),P(m+sd*(hw+b1),z),P(m+sd*(hw+b0),z)];
+          if(cc&&qq.every(Boolean)) L.push({Z:cc[3]+.8, d:()=>{ ctx.fillStyle=oc; quad(...qq); }}); } }
       prev=e; }
-    off.sort((a,b)=>b.Z-a.Z); pist.sort((a,b)=>b.Z-a.Z);
-    for(const g of off){ ctx.fillStyle=g.c; quad(...g.q); } for(const g of pist){ ctx.fillStyle=g.c; quad(...g.q); }
-    const objs=collect(C,s), up=[];
-    for(const o of objs){ if(o.t==='rut'||o.t==='dye'||o.t==='arrow') { drawObj(o); continue; }
-      const x=o.x!=null?o.x : o.sk? o.sk.x : o.g? (o.g.a.x+o.g.b.x)/2 : mid(o.z), p=P(x,o.z); if(p) up.push({Z:p[3], o}); }
-    const pm=P(s.x,s.z); if(pm) up.push({Z:pm[3], me:true});
-    for(let i=up.length-1;i>=0;i--) if(!up[i].me && up[i].Z<4) up.splice(i,1);   // inget som skymmer precis framför kameran
-    up.sort((a,b)=>b.Z-a.Z);
-    for(const u of up){ if(u.me) drawSkier(s,pm,false); else drawObj(u.o); }
+    for(const o of collect(C,s)){ const x=o.x!=null?o.x : o.sk? o.sk.x : o.g? (o.g.a.x+o.g.b.x)/2 : mid(o.z), p=P(x,o.z); if(!p) continue;
+      const flat=o.t==='rut'||o.t==='dye'||o.t==='arrow'; if(!flat&&p[3]<4) continue; L.push({Z:p[3]+(flat?.4:0), d:()=>drawObj(o)}); }
+    const pm=P(s.x,s.z); if(pm) L.push({Z:pm[3]-.05, d:()=>drawSkier(s,pm,false)});
+    L.sort((a,b)=>b.Z-a.Z); for(const it of L) it.d();
     R.parts=R.parts.filter(p=>(p.t-=dt)>0);
     for(const p of R.parts){ p.x+=p.vx*dt; p.z+=p.vz*dt; p.y+=p.vy*dt; p.vy-=9*dt; const q=P(p.x,p.z,Math.max(0,p.y)); if(!q) continue; ctx.globalAlpha=Math.min(1,p.t*2.2); ctx.fillStyle='#fff'; ctx.beginPath(); ctx.arc(q[0],q[1],Math.max(1,q[2]*.05*p.r),0,7); ctx.fill(); }
     ctx.globalAlpha=1; DM=false;
@@ -538,19 +537,20 @@ const SLALOM = (()=>{
       const at=DM?P(o.x,o.z,1.1):[a[0],a[1]-a[2]*1.1], bt=DM?P(x2,z2,1.1):[b[0],b[1]-b[2]*1.1]; if(!at||!bt) return;
       ctx.fillStyle='rgba(37,99,235,.55)'; ctx.beginPath(); ctx.moveTo(a[0],a[1]); ctx.lineTo(b[0],b[1]); ctx.lineTo(bt[0],bt[1]); ctx.lineTo(at[0],at[1]); ctx.closePath(); ctx.fill();
       ctx.strokeStyle='rgba(30,64,175,.8)'; ctx.lineWidth=Math.max(.5,a[2]*.05); ctx.beginPath(); ctx.moveTo(a[0],a[1]); ctx.lineTo(at[0],at[1]); ctx.stroke(); return; }
-    if(o.t==='banner'){ const z2=o.z+4, a=P(o.x,o.z), b=P(mid(z2)+o.sd*(halfAt(z2)+1.25),z2); if(!a||!b) return; const ha=a[2]*.8;
-      ctx.fillStyle='#fff'; ctx.beginPath(); ctx.moveTo(a[0],a[1]-a[2]*.15); ctx.lineTo(b[0],b[1]-b[2]*.15); ctx.lineTo(b[0],b[1]-b[2]*.95); ctx.lineTo(a[0],a[1]-a[2]*.95); ctx.closePath(); ctx.fill();
-      if(ha>6){ ctx.save(); ctx.fillStyle='#e11d48'; ctx.font=`800 ${Math.max(6,ha*.55)}px system-ui`; ctx.textAlign='center'; ctx.textBaseline='middle'; const txt=['VEMDALEN','KRYA PÅ DIG 💙','FRÖKNARNA','HEJA! 🐬'][Math.floor(o.z/45)%4];
-        ctx.translate((a[0]+b[0])/2,(a[1]+b[1])/2-ha*.55); ctx.fillText(txt,0,0); ctx.restore(); } return; }
+    if(o.t==='banner'){ const z2=o.z+4, x2=mid(z2)+o.sd*(halfAt(z2)+1.25), a1=P(o.x,o.z,.15), b1=P(x2,z2,.15), b2=P(x2,z2,.95), a2=P(o.x,o.z,.95); if(!a1||!b1||!b2||!a2) return;
+      ctx.fillStyle='#fff'; quad(a1,b1,b2,a2); const ha=Math.hypot(a2[0]-a1[0],a2[1]-a1[1]);
+      if(ha>6){ ctx.save(); ctx.fillStyle='#e11d48'; ctx.font=`800 ${Math.max(6,ha*.6)}px system-ui`; ctx.textAlign='center'; ctx.textBaseline='middle'; const txt=['VEMDALEN','KRYA PÅ DIG 💙','FRÖKNARNA','HEJA! 🐬'][Math.floor(o.z/45)%4];
+        ctx.translate((a1[0]+b1[0]+a2[0]+b2[0])/4,(a1[1]+b1[1]+a2[1]+b2[1])/4); ctx.rotate(Math.atan2(b1[1]-a1[1],b1[0]-a1[0])); ctx.fillText(txt,0,0); ctx.restore(); } return; }
     if(o.t==='lift'){ const p=P(o.x,o.z), q=P(o.x,o.z,10.5); if(!p||!q) return; const w=Math.max(1,p[2]*.35);
       ctx.fillStyle='#64748b'; ctx.fillRect(p[0]-w/2,q[1],w,p[1]-q[1]); ctx.fillRect(p[0]-p[2]*1.4,q[1],p[2]*2.8,Math.max(1,p[2]*.25));
       const n=P(o.x,o.z+40,10.5); if(n){ ctx.strokeStyle='rgba(51,65,85,.8)'; ctx.lineWidth=Math.max(.5,p[2]*.04); [-1.2,1.2].forEach(dx=>{ ctx.beginPath(); ctx.moveTo(q[0]+dx*p[2],q[1]); ctx.quadraticCurveTo((q[0]+n[0])/2+dx*(p[2]+n[2])/2,(q[1]+n[1])/2+p[2]*.6,n[0]+dx*n[2],n[1]); ctx.stroke(); });
         const f=((t*.25)%1); const cz=o.z+f*40, c=P(o.x+1.2,cz,9.2); if(c){ ctx.fillStyle='#ef4444'; ctx.fillRect(c[0]-c[2]*.5,c[1],c[2],c[2]*.6); ctx.fillStyle='#334155'; ctx.fillRect(c[0]-.5,c[1]-c[2]*1.1,1,c[2]*1.1); } }
       return; }
-    if(o.t==='finish'){ const m=mid(o.z), hw=halfAt(o.z), a=P(m-hw-1,o.z), b=P(m+hw+1,o.z); if(!a||!b) return; const h=a[2]*4.4;
-      ctx.fillStyle='#1e3a8a'; ctx.fillRect(a[0]-a[2]*.3,a[1]-h,a[2]*.6,h); ctx.fillRect(b[0]-b[2]*.3,b[1]-h,b[2]*.6,h);
-      const g=ctx.createLinearGradient(0,a[1]-h,0,a[1]-h*.7); g.addColorStop(0,'#ef4444'); g.addColorStop(1,'#b91c1c'); ctx.fillStyle=g; ctx.fillRect(a[0],a[1]-h,b[0]-a[0],h*.28);
-      if(h>10){ ctx.fillStyle='#fff'; ctx.font=`900 ${h*.18}px system-ui`; ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.fillText('MÅL · VEMDALEN',(a[0]+b[0])/2,a[1]-h*.86); } return; }
+    if(o.t==='finish'){ // målportalen räknas i 3D: stolpar från snön och upp, banderollen mellan topparna
+      const m=mid(o.z), hw=halfAt(o.z), x1=m-hw-1, x2=m+hw+1, a=P(x1,o.z), b=P(x2,o.z), at=P(x1,o.z,4.4), bt=P(x2,o.z,4.4), al=P(x1,o.z,3.2), bl=P(x2,o.z,3.2); if(!a||!b||!at||!bt||!al||!bl) return;
+      ctx.strokeStyle='#1e3a8a'; ctx.lineCap='butt'; ctx.lineWidth=Math.max(1.5,a[2]*.5); ctx.beginPath(); ctx.moveTo(a[0],a[1]); ctx.lineTo(at[0],at[1]); ctx.stroke(); ctx.lineWidth=Math.max(1.5,b[2]*.5); ctx.beginPath(); ctx.moveTo(b[0],b[1]); ctx.lineTo(bt[0],bt[1]); ctx.stroke();
+      const g=ctx.createLinearGradient(0,Math.min(at[1],bt[1]),0,Math.max(al[1],bl[1])); g.addColorStop(0,'#ef4444'); g.addColorStop(1,'#b91c1c'); ctx.fillStyle=g; quad(at,bt,bl,al);
+      const hh=Math.hypot(at[0]-al[0],at[1]-al[1]); if(hh>8){ ctx.save(); ctx.translate((at[0]+bt[0]+al[0]+bl[0])/4,(at[1]+bt[1]+al[1]+bl[1])/4); ctx.rotate(Math.atan2(bt[1]-at[1],bt[0]-at[0])); ctx.fillStyle='#fff'; ctx.font=`900 ${hh*.62}px system-ui`; ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.fillText('MÅL · VEMDALEN',0,0); ctx.restore(); } return; }
     if(o.t==='gate'){ drawGate(o.g,o.i,o.pole); return; }
     if(o.t==='arrow'){ const g=o.g, zm=(g.zmin+g.zmax)/2, f=g.from||1, p0=P(g.a.x+f*1.6,zm), p1=P(g.a.x-f*1.6,zm); if(!p0||!p1) return;   // pil på snön: åt vilket håll man korsar nästa stängda port
       const sz=clamp(p0[2]*.5,3,18), d=Math.sign(p1[0]-p0[0])||-f; ctx.fillStyle=`rgba(250,204,21,${.8+.2*Math.sin(t*6)})`; ctx.strokeStyle='rgba(30,58,138,.85)'; ctx.lineWidth=1.6;
