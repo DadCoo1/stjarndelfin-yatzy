@@ -329,16 +329,18 @@ const SLALOM = (()=>{
   /* ---------- projektion med höjd ---------- */
   const HZ=.30, VB=.09, CAMH=2.9, BACK=5.2, ZMAX=200;
   let cam={x:0,z:0,y:0,yaw:0,roll:0,pitch:.3}, F=500, YA=400, back=5.2, camD=0, camMode=lsGet('sl_cam')||'rider';
-  function P(x,z,h=0){ const dz=z-cam.z; if(dz<.3) return null; const xs=x-cam.x-dz*Math.tan(cam.yaw);
+  const DS=DRONE.make('sl_dr'); let DM=false, DZA=0, DZB=0, VIEWK='back';
+  function P(x,z,h=0){ if(DM) return DRONE.proj(DS.C,x,elev(z)+h,z); const dz=z-cam.z; if(dz<.3) return null; const xs=x-cam.x-dz*Math.tan(cam.yaw);
     return [W/2 + xs*F/dz, YA + F*((cam.y-(elev(z)+h))/dz - Math.tan(cam.pitch)), F/dz]; }
 
   /* ---------- ritning ---------- */
   let BD=null, BDsize='';
   const now=()=>performance.now()/1000;
   function drawScene(dt){
+    if(DS.on){ drawDrone(dt); return; }
     const s=meSk(), C=R.C;
     // drönarvyn: kameran glider upp och bakåt, tittar ned över åkaren och svävar mjukt i sidled
-    camD += ((camMode==='drone'?1:0)-camD)*Math.min(1,dt*1.6); const D=smooth(clamp(camD,0,1)), tt=now();
+    camD = 0; const D=smooth(clamp(camD,0,1)), tt=now();
     back=lerp(BACK,13,D); const camh=lerp(CAMH,11.5+Math.sin(tt*.31)*1.5*D,D);
     const tx=s.x-Math.sin(s.th)*1.8*(1-D)+D*Math.sin(tt*.21)*5.5, tz=s.z-back;
     cam.x += (tx-cam.x)*Math.min(1,dt*(6-3.5*D)); cam.z=tz;
@@ -388,8 +390,42 @@ const SLALOM = (()=>{
     ctx.globalAlpha=1;
     drawSkier(s,null,true);
   }
+  // drönaren: äkta 3D-kamera; marken först (utanför pisten, pisten, färg och spår), sedan allt upprätt sorterat på djup
+  function drawDrone(dt){
+    const s=meSk(), C=R.C, fx=(mid(s.z+6)-mid(s.z-6))/12, Cc=DRONE.solve(DS,{x:s.x,y:elev(s.z)+1,z:s.z},fx,1,dt,W,H,z=>elev(z));
+    DM=true; VIEWK=DRONE.facing(Cc,fx,1);
+    const key=W+'x'+H; if(BDsize!==key){ BD=makeBackdrop(W,H); BDsize=key; }
+    const yH=H/2-Cc.f*Math.tan(Cc.pitch), hz=Math.round(H*HZ);
+    ctx.fillStyle='#5b8fd6'; ctx.fillRect(0,0,W,H);
+    if(yH>0){ const bw=BD.width, per=bw*2, top=yH-hz; let x0=-(((Cc.yaw*Cc.f*.9)%per+per)%per)-bw*.25;
+      for(let k=0;k<4&&x0<W;k++,x0+=bw){ if(x0+bw<0) continue; if(k%2===0) ctx.drawImage(BD,x0,top); else { ctx.save(); ctx.translate(x0+bw,top); ctx.scale(-1,1); ctx.drawImage(BD,0,0); ctx.restore(); } }
+      ctx.fillStyle='#dfe8f4'; ctx.fillRect(0,top+BD.height-1,W,H); }
+    else { ctx.fillStyle='#dfe8f4'; ctx.fillRect(0,0,W,H); }
+    DZA=Math.max(-20,s.z-130); DZB=s.z+240;
+    const off=[], pist=[];
+    let prev=null;
+    for(let z=DZA; z<=DZB; z+=Math.max(1.2,Math.abs(z-s.z)*.05)){
+      const m=mid(z), hw=halfAt(z), e={z, pL:P(m-hw,z), pR:P(m+hw,z), oL:P(m-hw-70,z), oR:P(m+hw+70,z)};
+      if(prev){ const zc=(z+prev.z)/2, c=P(mid(zc),zc); if(c){ const fo=T.trees[Math.round(zc)|0]||.3, band=(Math.floor(z/5)%2)*3, sl=pitchAt(z), sh2=clamp((sl-.25)*40,-6,10), fin=z>C.L&&z<C.L+4;
+          if(prev.oL&&prev.pL&&e.pL&&e.oL) off.push({Z:c[3], q:[prev.oL,prev.pL,e.pL,e.oL], c:`rgb(${224-fo*10},${233-fo*6},245)`});
+          if(prev.pR&&prev.oR&&e.oR&&e.pR) off.push({Z:c[3], q:[prev.pR,prev.oR,e.oR,e.pR], c:`rgb(${224-fo*10},${233-fo*6},245)`});
+          if(prev.pL&&prev.pR&&e.pR&&e.pL) pist.push({Z:c[3], q:[prev.pL,prev.pR,e.pR,e.pL], c: fin?'rgba(239,68,68,.85)':`rgb(${246-sh2-band},${250-sh2*.7-band},255)`}); } }
+      prev=e; }
+    off.sort((a,b)=>b.Z-a.Z); pist.sort((a,b)=>b.Z-a.Z);
+    for(const g of off){ ctx.fillStyle=g.c; quad(...g.q); } for(const g of pist){ ctx.fillStyle=g.c; quad(...g.q); }
+    const objs=collect(C,s), up=[];
+    for(const o of objs){ if(o.t==='rut'||o.t==='dye'||o.t==='arrow') { drawObj(o); continue; }
+      const x=o.x!=null?o.x : o.sk? o.sk.x : o.g? (o.g.a.x+o.g.b.x)/2 : mid(o.z), p=P(x,o.z); if(p) up.push({Z:p[3], o}); }
+    const pm=P(s.x,s.z); if(pm) up.push({Z:pm[3], me:true});
+    for(let i=up.length-1;i>=0;i--) if(!up[i].me && up[i].Z<4) up.splice(i,1);   // inget som skymmer precis framför kameran
+    up.sort((a,b)=>b.Z-a.Z);
+    for(const u of up){ if(u.me) drawSkier(s,pm,false); else drawObj(u.o); }
+    R.parts=R.parts.filter(p=>(p.t-=dt)>0);
+    for(const p of R.parts){ p.x+=p.vx*dt; p.z+=p.vz*dt; p.y+=p.vy*dt; p.vy-=9*dt; const q=P(p.x,p.z,Math.max(0,p.y)); if(!q) continue; ctx.globalAlpha=Math.min(1,p.t*2.2); ctx.fillStyle='#fff'; ctx.beginPath(); ctx.arc(q[0],q[1],Math.max(1,q[2]*.05*p.r),0,7); ctx.fill(); }
+    ctx.globalAlpha=1; DM=false;
+  }
   function collect(C,s){
-    const objs=[], zA=cam.z+.8, zB=cam.z+ZMAX;
+    const objs=[], zA=DM?DZA:cam.z+.8, zB=DM?DZB:cam.z+ZMAX;
     for(let z=Math.ceil(zA/5)*5; z<zB; z+=5){ const zi=Math.round(z), m=mid(z), hw=halfAt(z), r=rng(zi*7+1), dens=T.trees[zi]||.3, cr=T.crowd[zi], nt=T.net[zi];
       for(const sd of [-1,1]){
         if(nt||cr) objs.push({z, t:'fence', x:m+sd*(hw+1.2), sd});
@@ -415,7 +451,7 @@ const SLALOM = (()=>{
       const dirTo=(q,len)=>{ if(!q) return null; const dx=q.aim.x-g.aim.x, dz=q.aim.z-g.aim.z, L=Math.hypot(dx,dz)||1; return {x:g.aim.x+dx/L*len, z:g.aim.z+dz/L*len}; };
       objs.push({z:g.aim.z+.01, t:'dye', p:dirTo(pv,3.6), a:{x:g.aim.x+(g.side||0)*.35,z:g.aim.z}, n:dirTo(nx,3)}); }));
     objs.push({z:C.L, t:'finish'});
-    R.sk.forEach(o=>{ if(o!==s && o.z>zA) objs.push({z:o.z, t:'skier', sk:o}); });
+    R.sk.forEach(o=>{ if(o!==s && o.z>zA && o.z<zB) objs.push({z:o.z, t:'skier', sk:o}); });
     objs.sort((a,b)=>b.z-a.z);
     return objs;
   }
@@ -427,6 +463,8 @@ const SLALOM = (()=>{
     if(o.t==='dye'){ const a=P(o.a.x,o.a.z); if(!a) return; ctx.strokeStyle='rgba(29,78,216,.5)'; ctx.lineCap='round'; const dl=Math.min(a[2],40); ctx.setLineDash([dl*.6,dl*.35]);
       ctx.lineWidth=clamp(a[2]*.16,1,7); ctx.beginPath(); const p=o.p&&P(o.p.x,o.p.z), n=o.n&&P(o.n.x,o.n.z);
       if(p){ ctx.moveTo(p[0],p[1]); ctx.lineTo(a[0],a[1]); } else ctx.moveTo(a[0],a[1]); if(n) ctx.lineTo(n[0],n[1]); ctx.stroke(); ctx.setLineDash([]); return; }
+    if(o.t==='tree'&&DM&&VIEWK==='top'){ const p=P(o.x,o.z); if(!p) return; const r=p[2]*(o.v===2?1.6:2.3)*o.s; if(r<.8) return; ctx.fillStyle=o.v===2?'rgba(120,110,100,.7)':'#1f4d3a'; ctx.beginPath(); ctx.arc(p[0],p[1],r,0,7); ctx.fill(); ctx.fillStyle='rgba(255,255,255,.75)'; ctx.beginPath(); ctx.arc(p[0]-r*.25,p[1]-r*.25,r*.5,0,7); ctx.fill(); return; }
+    if(o.t==='fan'&&DM&&VIEWK==='top'){ const p=P(o.x,o.z); if(!p) return; ctx.fillStyle=['#e11d48','#2563eb','#f59e0b','#16a34a'][o.v%4]; ctx.beginPath(); ctx.arc(p[0],p[1],Math.max(1,p[2]*.28),0,7); ctx.fill(); return; }
     if(o.t==='tree'){ const p=P(o.x,o.z); if(!p) return; const img=SPR.tree[o.v]; const h=p[2]*8*o.s, w=h*img.width/img.height; if(p[0]+w<0||p[0]-w>W||h<1) return; ctx.drawImage(img,p[0]-w/2,p[1]-h,w,h); return; }
     if(o.t==='fan'){ const p=P(o.x,o.z); if(!p) return; const img=SPR.fan[o.v]; const h=p[2]*1.75, w=h*img.width/img.height; if(h<1.5) return; const near=Math.abs(o.z-meSk().z)<35, jump=Math.max(0,Math.sin(t*6+o.ph))*h*.12*(near?1:.25);
       ctx.drawImage(img,p[0]-w/2,p[1]-h-jump,w,h);
@@ -445,7 +483,7 @@ const SLALOM = (()=>{
       const n=P(o.x,o.z+40,10.5); if(n){ ctx.strokeStyle='rgba(51,65,85,.8)'; ctx.lineWidth=Math.max(.5,p[2]*.04); [-1.2,1.2].forEach(dx=>{ ctx.beginPath(); ctx.moveTo(q[0]+dx*p[2],q[1]); ctx.quadraticCurveTo((q[0]+n[0])/2+dx*(p[2]+n[2])/2,(q[1]+n[1])/2+p[2]*.6,n[0]+dx*n[2],n[1]); ctx.stroke(); });
         const f=((t*.25)%1); const cz=o.z+f*40, c=P(o.x+1.2,cz,9.2); if(c){ ctx.fillStyle='#ef4444'; ctx.fillRect(c[0]-c[2]*.5,c[1],c[2],c[2]*.6); ctx.fillStyle='#334155'; ctx.fillRect(c[0]-.5,c[1]-c[2]*1.1,1,c[2]*1.1); } }
       return; }
-    if(o.t==='finish'){ const m=mid(o.z), hw=halfAt(o.z), a=P(m-hw-1,o.z), b=P(m+hw+1,o.z); if(!a) return; const h=a[2]*4.4;
+    if(o.t==='finish'){ const m=mid(o.z), hw=halfAt(o.z), a=P(m-hw-1,o.z), b=P(m+hw+1,o.z); if(!a||!b) return; const h=a[2]*4.4;
       ctx.fillStyle='#1e3a8a'; ctx.fillRect(a[0]-a[2]*.3,a[1]-h,a[2]*.6,h); ctx.fillRect(b[0]-b[2]*.3,b[1]-h,b[2]*.6,h);
       const g=ctx.createLinearGradient(0,a[1]-h,0,a[1]-h*.7); g.addColorStop(0,'#ef4444'); g.addColorStop(1,'#b91c1c'); ctx.fillStyle=g; ctx.fillRect(a[0],a[1]-h,b[0]-a[0],h*.28);
       if(h>10){ ctx.fillStyle='#fff'; ctx.font=`900 ${h*.18}px system-ui`; ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.fillText('MÅL · VEMDALEN',(a[0]+b[0])/2,a[1]-h*.86); } return; }
@@ -486,10 +524,26 @@ const SLALOM = (()=>{
   function limb(x1,y1,x2,y2,w1,w2,col){ const dx=x2-x1, dy=y2-y1, L=Math.hypot(dx,dy)||1, nx=-dy/L, ny=dx/L;
     ctx.fillStyle=col; ctx.beginPath(); ctx.moveTo(x1+nx*w1/2,y1+ny*w1/2); ctx.lineTo(x2+nx*w2/2,y2+ny*w2/2); ctx.lineTo(x2-nx*w2/2,y2-ny*w2/2); ctx.lineTo(x1-nx*w1/2,y1-ny*w1/2); ctx.closePath(); ctx.fill();
     ctx.beginPath(); ctx.arc(x1,y1,w1/2,0,7); ctx.fill(); ctx.beginPath(); ctx.arc(x2,y2,w2/2,0,7); ctx.fill(); }
+  // ovanifrån: skidor, kropp, hjälm och stavar sedda uppifrån, vridna efter åkriktningen
+  function drawSkierTop(s,x,y,sc){
+    const a=P(s.x,s.z), b=P(s.x+Math.sin(s.th),s.z+Math.cos(s.th)); if(!a||!b) return; const ang=Math.atan2(b[1]-a[1],b[0]-a[0]);
+    const S=(s.k===0)?SUITS.swe:SUITS.red, E=clamp(s.lean||0,-1.2,1.2), m=sc;
+    ctx.save(); ctx.translate(x,y); ctx.rotate(ang); ctx.scale(m,m);
+    ctx.fillStyle='rgba(60,90,140,.25)'; ctx.beginPath(); ctx.ellipse(-.1,.12,.95,.4,0,0,7); ctx.fill();
+    for(const sd of [-1,1]){ ctx.fillStyle=S.ski; ctx.beginPath(); ctx.roundRect(-.75,sd*.13-.035-E*.08,1.65,.07,.035); ctx.fill(); ctx.fillStyle=S.skiAcc; ctx.fillRect(-.7,sd*.13-.01-E*.08,1.5,.02); ctx.fillStyle=S.boot; ctx.fillRect(-.08,sd*.13-.05-E*.08,.2,.1); }
+    for(const sd of [-1,1]){ ctx.strokeStyle='#cbd5e1'; ctx.lineWidth=.025; ctx.beginPath(); ctx.moveTo(.1,sd*.32); ctx.lineTo(-.75,sd*.45); ctx.stroke(); }
+    ctx.fillStyle=S.base; ctx.beginPath(); ctx.ellipse(-.05,-E*.15,.16,.27,0,0,7); ctx.fill();
+    ctx.fillStyle=S.mid; ctx.beginPath(); ctx.ellipse(.08,-E*.18,.13,.24,0,0,7); ctx.fill();
+    for(const sd of [-1,1]){ ctx.fillStyle=S.glove; ctx.beginPath(); ctx.arc(.2,sd*.3-E*.15,.05,0,7); ctx.fill(); }
+    ctx.fillStyle=S.helm; ctx.beginPath(); ctx.arc(.14,-E*.2,.12,0,7); ctx.fill(); ctx.fillStyle=S.helmAcc; ctx.fillRect(.02,-E*.2-.025,.24,.05);
+    ctx.restore();
+  }
   function drawSkier(s, p, me){
     let x,y,sc;
     if(me){ x=W/2+(s.x-cam.x-back*Math.tan(cam.yaw))*F/back; y=YA+F*((cam.y-elev(s.z))/back-Math.tan(cam.pitch)); sc=F/back; }
     else { if(!p) return; [x,y,sc]=p; }
+    if(DM && VIEWK==='top'){ drawSkierTop(s,x,y,sc); return; }
+    const FR = DM && VIEWK==='front';
     const u=sc*(me?.0118:.0105), E=clamp(s.lean,-1.2,1.2), tk=s.tuck||0, rel=s.th-cam.yaw, dir=Math.sign(E)||1, inc=E*.6;
     const S = (s.k===0) ? SUITS.swe : SUITS.red;
     const t=performance.now()/1000;
@@ -499,7 +553,7 @@ const SLALOM = (()=>{
     const st=11+Math.abs(E)*2, shiftX=-E*12, tip=Math.sin(rel)*34;
     const feet=[-1,1].map(side=>{ const outer=side!==dir; return {side, outer, x:side*st+shiftX, y: outer?0:-4}; });
     // 1) skidor (spets bort från kameran = uppåt i bild), med kant/sula när de kantas
-    feet.forEach(f=>{ ctx.save(); ctx.translate(f.x,f.y);
+    feet.forEach(f=>{ ctx.save(); ctx.translate(f.x,f.y); if(FR) ctx.scale(1,-1);   // framifrån pekar spetsarna mot kameran
       const ew=Math.abs(E)*5, sx=-dir*4;
       const tl=-tip*.55;                                      // bakänden pekar åt andra hållet
       if(ew>.6){ ctx.fillStyle='#1e293b'; ctx.beginPath(); ctx.moveTo(tl+sx,34); ctx.lineTo(tl+sx-dir*ew*1.3,34); ctx.lineTo(tip+sx*.4-dir*ew*.4,-58); ctx.lineTo(tip+sx*.4,-58); ctx.closePath(); ctx.fill();
@@ -562,6 +616,7 @@ const SLALOM = (()=>{
     ctx.fillStyle=S.helmAcc; ctx.beginPath(); ctx.moveTo(-3,hy-16); ctx.lineTo(3,hy-16); ctx.lineTo(4,hy+8); ctx.lineTo(-4,hy+8); ctx.closePath(); ctx.fill();
     ctx.fillStyle='rgba(255,255,255,.5)'; ctx.beginPath(); ctx.ellipse(-6,hy-8,5,3.5,-.4,0,7); ctx.fill();
     ctx.fillStyle='#111827'; ctx.fillRect(-15.5,hy+1,31,5.5); ctx.fillStyle=S.acc; ctx.fillRect(-7,hy+1.5,14,4.5);
+    if(FR){ const lg=ctx.createLinearGradient(-13,0,13,0); lg.addColorStop(0,'#f97316'); lg.addColorStop(.5,'#facc15'); lg.addColorStop(1,'#a855f7'); ctx.fillStyle=lg; ctx.beginPath(); ctx.roundRect(-13,hy-3,26,11,5); ctx.fill(); ctx.fillStyle='#f1c7a5'; ctx.beginPath(); ctx.ellipse(0,hy+11,8,4,0,0,Math.PI); ctx.fill(); }
     ctx.restore(); ctx.restore();
   }
   // liten karta (banan uppifrån) och höjdprofil, ritas en gång per åk och storlek
@@ -668,7 +723,7 @@ const SLALOM = (()=>{
   }
   document.addEventListener('keydown',e=>{ if(G&&G.kind==='slalom'&&view==='game'&&['ArrowLeft','ArrowRight'].includes(e.code)){ keys[e.code]=true; e.preventDefault(); } });
   document.addEventListener('keyup',e=>{ keys[e.code]=false; });
-  document.addEventListener('keydown',e=>{ if(G&&G.kind==='slalom'&&view==='game'&&e.code==='KeyC') toggleCam(); });
+  document.addEventListener('keydown',e=>{ if(G&&G.kind==='slalom'&&view==='game'&&e.code==='KeyC') DRONE.setOn(DS,!DS.on); });
   function toggleCam(){ camMode=camMode==='drone'?'rider':'drone'; lsSet('sl_cam',camMode); const b=document.querySelector('.sl-cam'); if(b) b.textContent=camMode==='drone'?'⛷️ Åkarvy':'🚁 Drönarvy'; sfx.bubble(); }
   document.addEventListener('visibilitychange',()=>{ if(document.hidden) sndOff(); });
 
@@ -720,7 +775,7 @@ const SLALOM = (()=>{
         over=`<div class="sl-over"><div class="gover tie"><div class="gi">⏱️</div><h3>Åk 1 klart</h3>${table()}
           <p class="sl-pb">Åk 2 har en ny bansättning${g.par?' och ni byter bana':''}.</p>
           <div class="gbtns">${can?`<button class="pri" data-sl="next">▶️ Starta åk 2</button>`:'<p>Väntar på att värden startar åk 2…</p>'}</div></div></div>`; }
-      return `<div class="sl-wrap"><div id="slHost" class="sl-host"></div><button class="sl-cam" data-sl="cam">${camMode==='drone'?'⛷️ Åkarvy':'🚁 Drönarvy'}</button>${over}</div>
+      return `<div class="sl-wrap"><div id="slHost" class="sl-host"></div>${DRONE.panel(DS)}${over}</div>
         <div class="ghint">${DISC[g.disc].name}${g.par?' · parallell':''} · ${g.std?'standardbana':'ny bana'} · åk ${g.run} av 2 · Dra fingret åt sidan (eller ← →) för att svänga, släpp för att åka rakt – då går du ned i fartställning. ${g.pen?'Missad port +3 s.':'Missad port = ur.'} ${g.over?'':KIT.resignHTML()}</div>`; },
     mounted(){ mount(); }
   };
