@@ -151,7 +151,7 @@ const SLALOM = (()=>{
     const lane=k=> G.par ? ((G.run||1)===2 ? 1-k : k) : 0;     // i parallell byter man bana till åk 2
     const mkSk=(k,isAIsk)=>({k, lane:lane(k), x: mid(2)+(C.lanes[lane(k)]||0), z:2, v:0, th:0, om:0, t:0, done:false, dsq:false, missed:0, pen:0, gi:0, ai:isAIsk, lean:0, tuck:0, straight:0, plant:0, lastSign:0, trail:[]});
     const sk = G.par ? [mkSk(0,isAI(0)&&mode==='local'), mkSk(1,isAI(1)&&mode==='local')] : [mkSk(0,false)];
-    R={gid:G.id+':'+(G.go||0), C, sk, me: G.par?me:0, cd:3.2, started:false, parts:[], shake:0, finishT:0, sent:false, cheer:1.5, beeped:-1, remote:null, split:null};
+    R={gid:G.id+':'+(G.go||0), wx:WEATHER.pick(runSeed(G)), wxs:WEATHER.mkState(), C, sk, me: G.par?me:0, cd:3.2, started:false, parts:[], shake:0, finishT:0, sent:false, cheer:1.5, beeped:-1, remote:null, split:null};
   }
   const meSk = () => R.sk[R.me];
   // efter målgång: jubel eller deppighet beroende på hur det gick
@@ -182,7 +182,7 @@ const SLALOM = (()=>{
     const ev=R.rec.ev.filter(e=>e.lane===sk.lane), gate=e=>R.C.gates[e.lane][e.i]||{};
     const comb=ev.find(e=>e.pass&&gate(e).type==='closed'), hitE=ev.find(e=>e.hit&&e.t>st+3), missE=ev.find(e=>!e.pass);
     const out=[]; const add=c=>{ c.t0=clamp(c.t0,0,T); c.t1=clamp(c.t1,c.t0+.3,T); out.push(c); };
-    add({t0:st-.4, t1:st+2.6, view:'fly', z0:.2, z1:.16, rate:1, cap:`${G.disc==='gs'?'Storslalom':'Slalom'} · ${bare(pname(sk.k))}`});
+    add({t0:st-.4, t1:st+2.6, view:'fly', z0:.2, z1:.16, rate:1, cap:`${G.disc==='gs'?'Storslalom':'Slalom'} · ${bare(pname(sk.k))} · ${R.wx.icon} ${R.wx.name}`});
     if(comb) add({t0:comb.t-1.7, t1:comb.t+1.1, view:'close', z0:.13, z1:.03, a0:.3, a1:1.3, rate:.45, cap:'Rakt genom vertikalen!', slow:1});
     else if(hitE) add({t0:hitE.t-1.3, t1:hitE.t+.7, view:'close', z0:.11, z1:.02, a0:-.6, a1:.5, rate:.35, cap:'Käppen viker sig!', slow:1});
     add({t0:tv-1.6, t1:tv+1.3, view:'low', z0:.06, z1:.06, a0:-.4, a1:.4, rate:.55, cap:`Toppfart ${Math.round(vm*3.6)} km/h`, slow:1});
@@ -397,7 +397,7 @@ const SLALOM = (()=>{
     return [W/2 + xs*F/dz, YA + F*((cam.y-(elev(z)+h))/dz - Math.tan(cam.pitch)), F/dz]; }
 
   /* ---------- ritning ---------- */
-  let BD=null, BDsize='';
+  let BD=null, BDsize='', lastYH=0;
   const now=()=>performance.now()/1000;
   function drawScene(dt){
     const DD = R.camO ? DSO : DS.on ? DS : null; if(DD){ drawDrone(dt,DD); return; }
@@ -416,9 +416,9 @@ const SLALOM = (()=>{
     const sh=R.shake>0?(Math.random()-.5)*R.shake*8:0;
     ctx.translate(W/2+sh,H*.6); ctx.rotate(cam.roll); ctx.translate(-W/2,-H*.6);
     // himmel, fjäll och dal: den sanna horisonten flyttar sig med kamerans lutning
-    const key=W+'x'+H; if(BDsize!==key){ BD=makeBackdrop(W,H); BDsize=key; }
-    const yH = YA - F*Math.tan(cam.pitch), hz=Math.round(H*HZ);
-    ctx.fillStyle='#5b8fd6'; ctx.fillRect(-W,-H,W*3,H*3);
+    const key=W+'x'+H+':'+R.wx.kind+R.wx.seed; if(BDsize!==key){ BD=makeBackdrop(W,H); WEATHER.tintBackdrop(BD,Math.round(H*HZ),R.wx); BDsize=key; }
+    const yH = YA - F*Math.tan(cam.pitch), hz=Math.round(H*HZ); lastYH=yH;
+    ctx.fillStyle=WEATHER.sky(R.wx)||'#5b8fd6'; ctx.fillRect(-W,-H,W*3,H*3);
     // varannan kopia spegelvänd: kanterna möts alltid, ingen skarv i fjällen
     const bw=BD.width, per=bw*2, top=yH-hz; let x0=-(((cam.x*1.2 + cam.yaw*W*.9)%per+per)%per)-bw*.25;
     for(let k=0;k<4&&x0<W;k++,x0+=bw){ if(x0+bw<0) continue; if(k%2===0) ctx.drawImage(BD,x0,top); else { ctx.save(); ctx.translate(x0+bw,top); ctx.scale(-1,1); ctx.drawImage(BD,0,0); ctx.restore(); } }
@@ -457,9 +457,9 @@ const SLALOM = (()=>{
   function drawDrone(dt,D){ DCUR=D;
     const s=meSk(), C=R.C, fx=(mid(s.z+6)-mid(s.z-6))/12, Cc=DRONE.solve(D,{x:s.x,y:elev(s.z)+1,z:s.z},fx,1,dt,W,H,z=>elev(z));
     DM=true; VIEWK=DRONE.facing(Cc,fx,1); FLIP = Math.cos(Cc.yaw-Math.atan2(fx,1))<0 && Cc.pitch<1.2;
-    const key=W+'x'+H; if(BDsize!==key){ BD=makeBackdrop(W,H); BDsize=key; }
-    const yH=H/2-Cc.f*Math.tan(Cc.pitch), hz=Math.round(H*HZ);
-    ctx.fillStyle='#5b8fd6'; ctx.fillRect(0,0,W,H);
+    const key=W+'x'+H+':'+R.wx.kind+R.wx.seed; if(BDsize!==key){ BD=makeBackdrop(W,H); WEATHER.tintBackdrop(BD,Math.round(H*HZ),R.wx); BDsize=key; }
+    const yH=H/2-Cc.f*Math.tan(Cc.pitch), hz=Math.round(H*HZ); lastYH=yH;
+    ctx.fillStyle=WEATHER.sky(R.wx)||'#5b8fd6'; ctx.fillRect(0,0,W,H);
     if(yH>0){ const bw=BD.width, per=bw*2, top=yH-hz; let x0=-(((Cc.yaw*Cc.f*.9)%per+per)%per)-bw*.25;
       for(let k=0;k<4&&x0<W;k++,x0+=bw){ if(x0+bw<0) continue; if(k%2===0) ctx.drawImage(BD,x0,top); else { ctx.save(); ctx.translate(x0+bw,top); ctx.scale(-1,1); ctx.drawImage(BD,0,0); ctx.restore(); } }
       ctx.fillStyle='#dfe8f4'; ctx.fillRect(0,top+BD.height-1,W,H); }
@@ -599,7 +599,7 @@ const SLALOM = (()=>{
     const a=P(s.x,s.z), b=P(s.x+Math.sin(s.th),s.z+Math.cos(s.th)); if(!a||!b) return; const ang=Math.atan2(b[1]-a[1],b[0]-a[0]);
     const S=(s.k===0)?SUITS.swe:SUITS.red, E=clamp(s.lean||0,-1.2,1.2), m=sc;
     ctx.save(); ctx.translate(x,y); ctx.rotate(ang); ctx.scale(m,m);
-    ctx.fillStyle='rgba(60,90,140,.25)'; ctx.beginPath(); ctx.ellipse(-.1,.12,.95,.4,0,0,7); ctx.fill();
+    ctx.fillStyle=WEATHER.shadow(R.wx,.25); ctx.beginPath(); ctx.ellipse(-.1,.12,.95,.4,0,0,7); ctx.fill();
     for(const sd of [-1,1]){ ctx.fillStyle=S.ski; ctx.beginPath(); ctx.roundRect(-.75,sd*.13-.035-E*.08,1.65,.07,.035); ctx.fill(); ctx.fillStyle=S.skiAcc; ctx.fillRect(-.7,sd*.13-.01-E*.08,1.5,.02); ctx.fillStyle=S.boot; ctx.fillRect(-.08,sd*.13-.05-E*.08,.2,.1); }
     for(const sd of [-1,1]){ ctx.strokeStyle='#cbd5e1'; ctx.lineWidth=.025; ctx.beginPath(); ctx.moveTo(.1,sd*.32); ctx.lineTo(-.75,sd*.45); ctx.stroke(); }
     ctx.fillStyle=S.base; ctx.beginPath(); ctx.ellipse(-.05,-E*.15,.16,.27,0,0,7); ctx.fill();
@@ -621,7 +621,7 @@ const SLALOM = (()=>{
     ctx.save(); ctx.translate(x,y); ctx.scale(u,u);
     const hop = md==='cheer' ? Math.abs(Math.sin(t*6.5))*9 : 0;
     // skugga
-    ctx.fillStyle='rgba(60,90,140,.22)'; ctx.beginPath(); ctx.ellipse(-E*20,10,62,14,0,0,7); ctx.fill();
+    ctx.fillStyle=WEATHER.shadow(R.wx,.22); ctx.beginPath(); ctx.ellipse(-E*20+(R.wx.kind==='sun'?18:0),10,62,14,0,0,7); ctx.fill();
     const st=11+Math.abs(E)*2, shiftX=-E*12, tip=Math.sin(rel)*34;
     ctx.translate(0,-hop);
     const feet=[-1,1].map(side=>{ const outer=side!==dir; return {side, outer, x:side*st+shiftX, y: outer?0:-4}; });
@@ -739,7 +739,7 @@ const SLALOM = (()=>{
     const kind=T.kind[Math.round(s.z)|0];
     if(R.started && !s.done && kind==='steep' && (R.steepShown||0)<s.z-200){ R.steepShown=s.z; R.banner={txt:'⚠️ Brant!',t:1.6}; }
     if(R.banner&&R.banner.t>0){ ctx.globalAlpha=Math.min(1,R.banner.t*2); ctx.textAlign='center'; ctx.font='900 30px system-ui'; ctx.fillStyle='#fde047'; ctx.fillText(R.banner.txt,W/2,82); ctx.globalAlpha=1; }
-    if(!R.started && R.cd>0){ const n2=Math.ceil(R.cd); ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.font='900 90px system-ui'; ctx.fillStyle='#fff'; ctx.save(); ctx.shadowColor='#ef4444'; ctx.shadowBlur=25; ctx.fillText(n2>3?'':String(n2),W/2,H*.42); ctx.restore(); }
+    if(!R.started && R.cd>0){ const n2=Math.ceil(R.cd); ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.font='900 90px system-ui'; ctx.fillStyle='#fff'; ctx.save(); ctx.shadowColor='#ef4444'; ctx.shadowBlur=25; ctx.fillText(n2>3?'':String(n2),W/2,H*.42); ctx.restore(); ctx.font='800 16px system-ui'; ctx.fillStyle='#fff'; ctx.fillText(`${R.wx.icon} ${R.wx.name}`,W/2,H*.42+66); }
     else if(R.started && s.t<.8){ ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.font='900 72px system-ui'; ctx.fillStyle='#22c55e'; ctx.fillText('KÖR!',W/2,H*.42); }
   }
   const fmt=t=>{ const m=Math.floor(t/60), s=t-m*60; return (m?m+':':'')+(m?String(s.toFixed(2)).padStart(5,'0'):s.toFixed(2)); };
@@ -787,7 +787,7 @@ const SLALOM = (()=>{
     doAct({type:'finish', run:G.run, ms});
   }
   let scaleDpr=1;
-  function draw(dt){ ctx.setTransform(scaleDpr,0,0,scaleDpr,0,0); ctx.save(); drawScene(dt); ctx.restore(); const p=R.play; if(!p||p.mode!=='hl') hud();
+  function draw(dt){ ctx.setTransform(scaleDpr,0,0,scaleDpr,0,0); ctx.save(); drawScene(dt); ctx.restore(); WEATHER.post(ctx,W,H,lastYH,R.wx,R.wxs,dt,meSk().v); const p=R.play; if(!p||p.mode!=='hl') hud();
     if(p) REPLAY.overlay(ctx,W,H,{mode:p.mode, speed:p.speed, flash:p.flash, title:p.mode==='hl'?Math.max(0,1.8-p.rt):0, sub:`${G.disc==='gs'?'Storslalom':'Slalom'} · åk ${G.run||1}`, cap:p.cap, capA:p.capA, slow:p.slow&&p.playing}); }
   function fit(){ if(!cv) return; const host=cv.parentElement; const r=host.getBoundingClientRect(); const w=Math.round(Math.min(host.clientWidth, 700)), h=Math.round(Math.max(320, Math.min(window.innerHeight - r.top - 10, w*1.9)));
     const dpr=Math.min(2,window.devicePixelRatio||1); cv.style.width=w+'px'; cv.style.height=h+'px'; cv.width=Math.round(w*dpr); cv.height=Math.round(h*dpr); W=w; H=h; BDsize=''; scaleDpr=dpr; }
