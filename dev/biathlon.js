@@ -128,7 +128,7 @@ const BIATHLON = (()=>{
       a.aiDone=t+3+Math.random()*2; return; }
     const S={pos, shots:[], hits:[0,0,0,0,0], fl:[0,0,0,0,0], left:5, tStart:a.t, readyAt:a.t+(g.tv!==false?3.6:2.4), phase:'arrive',
       aim:{x:TX(0)+(Math.random()-.5)*260, y:(Math.random()-.5)*220}, P:null, pv:{x:0,y:0}, pp:{x:0,y:0}, br:Math.random()*6, hb:1, hold:0,
-      drift:Array.from({length:4},()=>Math.random()*6), trm:{x:0,y:0}, beat:0, bolt:0, rec:0, clicks:+lsGet('bs_clicks_'+pos)||0, wind:windFor(g,a), puffs:[], leaveAt:null, lastShotT:0};
+      drift:Array.from({length:4},()=>Math.random()*6), trm:{x:0,y:0}, beat:0, bolt:0, rec:0, clicks:g.wind?(+lsGet('bs_clicks_'+pos)||0):0, wind:windFor(g,a), puffs:[], leaveAt:null, lastShotT:0};
     S.P={...S.aim}; R.sc=S;
     if(g.tv!==false) R.cine={shots: pos==='L'?['drone','prone']:['drone','stand'], t0:now(), dur:[1.8,2.0], role:'arrive'};
     else R.cine=null;
@@ -809,7 +809,7 @@ const BIATHLON = (()=>{
       S.misses=misses; S.leaveT=a.t+(G.tv!==false?2.3:1.2);
     }
     if(S.phase==='leave' && a.t>=S.leaveT && !R.cine){
-      const misses=S.misses; lsSet('bs_clicks_'+S.pos,String(S.clicks));
+      const misses=S.misses; if(G.wind) lsSet('bs_clicks_'+S.pos,String(S.clicks));
       if(G.fmt==='tr'){ R.trLog.push({pos:S.pos, hits:S.hits.slice(), shots:S.shots.slice(), t:a.t-S.tStart, w:S.wind.b}); a.sh.push(misses); R.sc=null; R.trI++; R.trCard=true; showCtl(false); render(); return; }
       R.sc=null; endRange(a,misses); R.banner={txt: misses? `${misses} bom – ${misses} straffrunda${misses>1?'or':''}`:'Fullt! 🎯', t:2}; if(!misses){ sparkles(18); crowdSfx(true); }
     }
@@ -874,7 +874,7 @@ const BIATHLON = (()=>{
   }
   document.addEventListener('pointerdown',e=>{ const b=e.target.closest('[data-bs]'); if(!b||!G||G.kind!=='skidskytte'||!R) return; e.preventDefault(); const k=b.dataset.bs, S=R.sc;
     if(k==='fire'){ unlockAudio(); fire(); return; }
-    if(k==='cl'&&S){ S.clicks=clamp(S.clicks+ +b.dataset.d,-20,20); hit(0,3800,.08,.01); return; } });
+    if(k==='cl'&&S&&G.wind){ S.clicks=clamp(S.clicks+ +b.dataset.d,-20,20); hit(0,3800,.08,.01); return; } });
   document.addEventListener('click',e=>{ const b=e.target.closest('[data-bsx]'); if(!b||!G||G.kind!=='skidskytte'||!R) return; const k=b.dataset.bsx;
     if(k==='next'){ R.trCard=false; const a=meA(); if(R.trI>=TR_N){ finishTr(); return; } a.hr=G.trHr==='race'?172+Math.random()*6:84; a.st=R.trI; startRange(a); render(); }
     if(k==='end'){ finishTr(); } });
@@ -901,6 +901,12 @@ const BIATHLON = (()=>{
   /* ---------- spelmotorn ---------- */
   GINFO.skidskytte={name:'Skidskytte', icon:'🎯', ai:BOTS[0], bots:BOTS, max:4, desc:'Östersunds skidstadion · sprint, kort lopp eller träna skyttet', grad:'linear-gradient(135deg,#0b2e7a,#60a5fa 55%,#facc15)'};
   const okMs=x=>x===null||(Number.isInteger(x)&&x>3000&&x<3600000);
+  // egen avslutning: ingen "VINST!" i träning eller när man åker ensam
+  const overFx=d=>{ const solo=d.names.length===1, me=meSeat2();
+    if(d.fmt==='tr'){ const r=d.res[0], n=r.sh.length*5, h=n-r.sh.reduce((s,x)=>s+x,0), q=h/Math.max(1,n);
+      if(q>=.9){ celebrate(q>=1?'FULLT!':'TOPPKLASS!'); sfx.win(); sparkles(50); } else if(q>=.55){ sfx.pick(); sparkles(22); } else { tone(523,.18,'triangle',.08); tone(659,.22,'triangle',.08,.15); } return; }
+    if(solo){ tone(523,.2,'triangle',.09); tone(784,.3,'triangle',.09,.18); sparkles(20); return; }
+    if(d.winner===me){ celebrate('VINST!'); sfx.win(); sparkles(50); } else if(d.winner===-1){ sfx.pick(); sparkles(16); } else { tone(392,.3,'triangle',.1); tone(330,.4,'triangle',.1,.25); } };
   KIND.skidskytte={
     init(){ const base=!fresh&&G&&G.kind==='skidskytte'?G:null; fresh=false; const o=base?{fmt:base.fmt,wind:base.wind,easy:base.easy,tv:base.tv,trPos:base.trPos,trHr:base.trHr}:pend;
       return {fmt:o.fmt, wind:!!o.wind, easy:!!o.easy, tv:o.tv!==false, trPos:o.trPos||'L', trHr:o.trHr||'race', seed:0, res:[], go:0, cur:0}; },
@@ -915,9 +921,10 @@ const BIATHLON = (()=>{
         g.res[seat]={ms:a.ms,sh:a.sh.slice()}; g.last={t:Date.now(),seat,ms:a.ms,sh:a.sh.slice()}; }
       else return false;
       if(g.res.every(r=>r.ms!==-1)){ g.over=true; const t=g.res.map(r=>r.ms==null?Infinity:r.ms), mn=Math.min(...t);
-        g.winner = g.names.length===1 ? (mn<Infinity?0:-2) : mn===Infinity?-1 : t.filter(x=>x===mn).length>1?-1:t.indexOf(mn); }
+        g.winner = g.fmt==='tr' ? -2 : g.names.length===1 ? (mn<Infinity?0:-2) : mn===Infinity?-1 : t.filter(x=>x===mn).length>1?-1:t.indexOf(mn); }
       return true; },
     aiSeat(){ return null; },
+    overFx, noStats:d=>d.fmt==='tr',
     effects(prev,d){ if(d.last&&(!prev.last||prev.last.t!==d.last.t)&&d.last.seat!==meSeat2()&&d.names.length>1) toast(`${bare(pname(d.last.seat))} i mål: ${fmtT(d.last.ms/1000)} (${d.last.sh.join('+')})`,2200); },
     html(){
       const g=G, me=meSeat2(); let over='';
@@ -927,7 +934,7 @@ const BIATHLON = (()=>{
         const log = tr && R && R.trLog.length ? `<div class="bs-log">${R.trLog.map((l,i)=>`<div><span>${i+1}. ${l.pos==='L'?'Ligg':'Stå'}</span><span class="bs-dots">${l.hits.map(h=>h?'⚪':'⚫').join('')}</span><span>${fmtT(l.t)}</span></div>${targetSvg(l)}`).join('')}</div>` : '';
         over=`<div class="bs-over"><div class="gover ${solo?'won':g.winner===me?'won':g.winner===-1?'tie':'lost'}"><div class="gi">${tr?'🎯':solo?'⏱️':g.winner===me?'🏆':'🎿'}</div>
           <h3>${tr?`${hits(g.res[0])} av ${g.res[0].sh.length*5} träff`:solo?`I mål: ${fmtT(g.res[0].ms/1000)}`:g.winner===me?'Du vann!':g.winner===-1?'Oavgjort':esc(bare(pname(g.winner)))+' vann'}</h3>
-          ${tr?log:`<div class="bs-res">${rows.map((x,k)=>`<div class="${g.winner===x.i?'win':''}"><b>${k+1}. ${esc(bare(x.n))}</b><span>${x.r.ms==null?'bröt':fmtT(x.r.ms/1000)} · ${x.r.sh.join('+')}</span></div>`).join('')}</div><p class="bs-pb">Siffrorna efter tiden = bommar per skytte (straffrunda 150 m per bom)</p>`}
+          ${tr?`<p class="bs-pep">${pep(hits(g.res[0]),g.res[0].sh.length*5)}</p>`+log:`<div class="bs-res">${rows.map((x,k)=>`<div class="${g.winner===x.i?'win':''}"><b>${k+1}. ${esc(bare(x.n))}</b><span>${x.r.ms==null?'bröt':fmtT(x.r.ms/1000)} · ${x.r.sh.join('+')}</span></div>`).join('')}</div><p class="bs-pb">Siffrorna efter tiden = bommar per skytte (straffrunda 150 m per bom)</p>`}
           <div class="gbtns"><button class="pri" data-g="rematch">🔄 ${tr?'Träna igen':'Nytt lopp'}</button><button data-act="lobby">🏠 Lobby</button></div></div></div>`; }
       else if(R && R.trCard){ const l=R.trLog[R.trLog.length-1], h=l.hits.reduce((s,x)=>s+x,0);
         over=`<div class="bs-over"><div class="gover tie"><div class="gi">${h===5?'🎯':'🔫'}</div><h3>Serie ${R.trLog.length}: ${h}/5 – ${fmtT(l.t)}</h3>${targetSvg(l)}
@@ -935,11 +942,19 @@ const BIATHLON = (()=>{
           <div class="gbtns">${R.trI<TR_N?`<button class="pri" data-bsx="next">▶️ Nästa serie (${stagesOf(G)[R.trI]==='L'?'liggande':'stående'})</button>`:`<button class="pri" data-bsx="end">✅ Se resultatet</button>`}${R.trI<TR_N?'<button data-bsx="end">Avsluta</button>':''}</div></div></div>`; }
       const tr=g.fmt==='tr';
       return `<div class="bs-wrap"><div id="bsHost" class="bs-host"></div>
-        ${tr?'':DRONE.panel(DS)}<div class="bs-ctl" id="bsCtl"><button class="bs-cl" data-bs="cl" data-d="-1" aria-label="Knäpp vänster">◀ klick</button><button class="bs-fire" data-bs="fire">AVFYRA</button><button class="bs-cl" data-bs="cl" data-d="1" aria-label="Knäpp höger">klick ▶</button></div>${over}</div>
+        ${tr?'':DRONE.panel(DS)}<div class="bs-ctl" id="bsCtl">${g.wind?'<button class="bs-cl" data-bs="cl" data-d="-1" aria-label="Knäpp vänster">◀ klick</button>':''}<button class="bs-fire" data-bs="fire">AVFYRA</button>${g.wind?'<button class="bs-cl" data-bs="cl" data-d="1" aria-label="Knäpp höger">klick ▶</button>':''}</div>${over}</div>
         <div class="ghint">${tr?`Träna skytte · ${g.trPos==='L'?'liggande':g.trPos==='S'?'stående':'växla ligg/stå'} · ${g.trHr==='race'?'hög puls':'lugn puls'}`:`${FMT[g.fmt].name} · ${FMT[g.fmt].desc}`} · Skejta: tryck växelvis vänster–höger (← →). Skytte: dra för att sikta, håll kvar fingret för att hålla andan, tryck AVFYRA (mellanslag). ${g.wind?'Vinden syns på flaggorna – flytta träffläget med knäpparna.':''} ${KIT.resignHTML()}</div>`;
     },
     mounted(){ mount(); if(R&&R.sc&&meA().ph==='range'&&R.sc.phase==='aim') showCtl(true); }
   };
+  // peppande omdöme efter träningen – beröm först när det är förtjänat
+  function pep(h,n){ const r=h/Math.max(1,n);
+    if(r>=1) return 'Fullt! Världsklass – varenda skott satt! 🏆';
+    if(r>=.9) return 'Toppklass! Så skjuter de bästa i världscupen. 🎯';
+    if(r>=.75) return 'Mycket bra skjutet – nära landslagsnivå!';
+    if(r>=.55) return 'Riktigt bra! Lugn andning och mjukt avtryck lönar sig.';
+    if(r>=.3) return 'Det lossnar! Vänta tills ringen ligger stilla runt tavlan innan du trycker.';
+    return 'Bra kämpat – skytte är svårt i början! Håll kvar fingret för att hålla andan, och tryck när siktet är som lugnast. Det blir bättre för varje serie. 💪'; }
   function targetSvg(l){ const s=v=>(v/1).toFixed(1);
     const dots=l.shots.map(p=>`<circle cx="${s(p.x)}" cy="${s(-p.y)}" r="9" fill="${p.ok?'#22c55e':'#ef4444'}" stroke="#fff" stroke-width="3"/>`).join('');
     return `<svg class="bs-tsvg" viewBox="${-2*SP-120} -130 ${4*SP+240} 260"><rect x="${-2*SP-110}" y="-120" width="${4*SP+220}" height="240" rx="12" fill="#f8fafc"/>${[0,1,2,3,4].map(k=>`<circle cx="${TX(k)}" cy="0" r="${BLACK}" fill="${l.hits[k]?'#e2e8f0':'#0b0b0c'}"/>${l.pos==='L'&&!G.easy?`<circle cx="${TX(k)}" cy="0" r="22.5" fill="none" stroke="${l.hits[k]?'#94a3b8':'#475569'}" stroke-width="2"/>`:''}`).join('')}${dots}</svg>`; }
@@ -1002,7 +1017,7 @@ const BIATHLON = (()=>{
 .bs-over .gover{max-width:360px;width:100%;background:rgba(11,16,40,.92);backdrop-filter:blur(6px)}
 .bs-res>div{display:flex;justify-content:space-between;gap:10px;padding:6px 12px;border-radius:10px;background:rgba(255,255,255,.06);margin:4px 0;font-variant-numeric:tabular-nums}
 .bs-res>div.win{background:rgba(250,204,21,.2);border:1px solid var(--gold)}
-.bs-pb{font-size:12.5px;opacity:.85}.bs-tsvg{width:100%;max-width:300px;display:block;margin:6px auto}
+.bs-pb{font-size:12.5px;opacity:.85}.bs-pep{font-size:14px;font-weight:700;margin:4px 0 8px;line-height:1.35}.bs-tsvg{width:100%;max-width:300px;display:block;margin:6px auto}
 .bs-log>div:not(svg){display:flex;justify-content:space-between;font-size:13px;padding:2px 4px}.bs-dots{letter-spacing:1px}`;
   document.head.appendChild(css);
 
