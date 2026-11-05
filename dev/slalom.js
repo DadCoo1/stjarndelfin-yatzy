@@ -202,6 +202,8 @@ const SLALOM = (()=>{
   function stopPlay(){ if(!R||!R.play) return; R.play=null; R.camO=false; applyFrame(R.rec.fr[R.rec.fr.length-1].t); render(); }
   function playStep(dt){
     const p=R.play; let rate=1; p.rt+=dt; p.flash=Math.max(0,p.flash-dt*3);
+    const INTRO=PHOTO?2.6:0; if(p.mode==='hl' && p.rt<INTRO){ applyFrame(p.t); return; }
+    if(p.mode==='hl' && p.done){ p.outro=(p.outro||0)+dt; }
     if(p.mode==='hl' && p.playing){ let c=p.clips[p.ci];
       if(!c || p.t>=c.t1-1e-3){ p.ci++; c=p.clips[p.ci]; if(!c){ p.playing=false; p.done=true; p.ci=p.clips.length-1; c=p.clips[p.ci]; REPLAY.refresh('sl',p); } else { p.t=c.t0; p.flash=.9; DSO.cut=true; tone(880,.06,'sine',.05); } }
       if(c){ const u=clamp((p.t-c.t0)/Math.max(.01,c.t1-c.t0),0,1); rate=c.rate; DSO.view=c.view; DSO.zoom=lerp(c.z0,c.z1,smooth(u)); DSO.ang=lerp(c.a0||0,c.a1||0,u); DSO.k=u; DSO.fast=6; p.cap=c.cap; p.capA=Math.min(u*5,(1-u)*5,1); p.slow=!!c.slow; } }
@@ -213,7 +215,7 @@ const SLALOM = (()=>{
   }
   REPLAY.register('sl',(a,v)=>{ if(!R||!R.play) return; const p=R.play;
     if(a==='close'){ stopPlay(); return; }
-    if(a==='play'){ if(p.done){ p.done=false; p.ci=0; p.t=p.clips[0].t0; p.rt=0; DSO.cut=true; } else if(p.mode==='replay'&&p.t>=p.T-.01) p.t=0; p.playing=!p.playing||p.ci===0&&p.rt===0; }
+    if(a==='play'){ if(p.done){ p.done=false; p.ci=0; p.t=p.clips[0].t0; p.rt=0; p.outro=0; DSO.cut=true; } else if(p.mode==='replay'&&p.t>=p.T-.01) p.t=0; p.playing=!p.playing||p.ci===0&&p.rt===0; }
     if(a==='speed') p.speed={1:.5,.5:.25,.25:2,2:1}[p.speed]||1;
     if(a==='seek'){ p.t=v*p.T; }
     REPLAY.refresh('sl',p); });
@@ -590,14 +592,17 @@ const SLALOM = (()=>{
 
   // åkaren bakifrån – en sammanhängande figur: skidor → bindning → pjäxor → ben → höft → rygg → armar → stavar → hjälm
   const SUITS={ swe:{base:'#0b2e7a', mid:'#1d4ed8', acc:'#facc15', boot:'#f8fafc', bootAcc:'#1d4ed8', helm:'#facc15', helmAcc:'#1d4ed8', ski:'#f8fafc', skiAcc:'#1d4ed8', glove:'#0f172a', bib:'#ffffff', bibTxt:'#0b2e7a'},
+                own:{base:'#0b0f17', mid:'#1f2937', acc:'#93c5fd', boot:'#f8fafc', bootAcc:'#111827', helm:'#2dd4bf', helmAcc:'#0f766e', ski:'#111827', skiAcc:'#a3e635', glove:'#0b0f17', bib:'#7cb8f7', bibTxt:'#0b0f17', vest:true},
                 red:{base:'#991b1b', mid:'#dc2626', acc:'#f8fafc', boot:'#111827', bootAcc:'#dc2626', helm:'#f8fafc', helmAcc:'#dc2626', ski:'#111827', skiAcc:'#dc2626', glove:'#111827', bib:'#facc15', bibTxt:'#111827'} };
+  // min åkare får den dräkt jag valt; motståndaren får en som skiljer sig
+  function suitOf(s){ const mine=lsGet('sl_suit')||'swe', meK=R?R.sk[R.me].k:0; if(s.k===meK) return SUITS[mine]||SUITS.swe; return mine==='red'?SUITS.swe:SUITS.red; }
   function limb(x1,y1,x2,y2,w1,w2,col){ const dx=x2-x1, dy=y2-y1, L=Math.hypot(dx,dy)||1, nx=-dy/L, ny=dx/L;
     ctx.fillStyle=col; ctx.beginPath(); ctx.moveTo(x1+nx*w1/2,y1+ny*w1/2); ctx.lineTo(x2+nx*w2/2,y2+ny*w2/2); ctx.lineTo(x2-nx*w2/2,y2-ny*w2/2); ctx.lineTo(x1-nx*w1/2,y1-ny*w1/2); ctx.closePath(); ctx.fill();
     ctx.beginPath(); ctx.arc(x1,y1,w1/2,0,7); ctx.fill(); ctx.beginPath(); ctx.arc(x2,y2,w2/2,0,7); ctx.fill(); }
   // ovanifrån: skidor, kropp, hjälm och stavar sedda uppifrån, vridna efter åkriktningen
   function drawSkierTop(s,x,y,sc){
     const a=P(s.x,s.z), b=P(s.x+Math.sin(s.th),s.z+Math.cos(s.th)); if(!a||!b) return; const ang=Math.atan2(b[1]-a[1],b[0]-a[0]);
-    const S=(s.k===0)?SUITS.swe:SUITS.red, E=clamp(s.lean||0,-1.2,1.2), m=sc;
+    const S=suitOf(s), E=clamp(s.lean||0,-1.2,1.2), m=sc;
     ctx.save(); ctx.translate(x,y); ctx.rotate(ang); ctx.scale(m,m);
     ctx.fillStyle=WEATHER.shadow(R.wx,.25); ctx.beginPath(); ctx.ellipse(-.1,.12,.95,.4,0,0,7); ctx.fill();
     for(const sd of [-1,1]){ ctx.fillStyle=S.ski; ctx.beginPath(); ctx.roundRect(-.75,sd*.13-.035-E*.08,1.65,.07,.035); ctx.fill(); ctx.fillStyle=S.skiAcc; ctx.fillRect(-.7,sd*.13-.01-E*.08,1.5,.02); ctx.fillStyle=S.boot; ctx.fillRect(-.08,sd*.13-.05-E*.08,.2,.1); }
@@ -618,7 +623,7 @@ const SLALOM = (()=>{
     // i drönarvyn räknas skidornas riktning ut från hur åkriktningen syns i bild; framifrån blir åkarens vänster bildens höger
     let rel=s.th-cam.yaw; if(DM){ const p0=P(s.x,s.z), p1=P(s.x+Math.sin(s.th)*2,s.z+Math.cos(s.th)*2); if(p0&&p1) rel=clamp(Math.atan2(p1[0]-p0[0],Math.abs(p1[1]-p0[1])),-1.3,1.3); }
     const u=sc*(me?.0118:.0105), E=md?0:clamp(s.lean,-1.2,1.2)*(FR?-1:1), tk=md?0:(s.tuck||0), dir=Math.sign(E)||1, inc=E*.6;
-    const S = (s.k===0) ? SUITS.swe : SUITS.red;
+    const S = suitOf(s);
     const t=performance.now()/1000;
     ctx.save(); ctx.translate(x,y); ctx.scale(u,u);
     const hop = md==='cheer' ? Math.abs(Math.sin(t*6.5))*9 : 0;
@@ -667,7 +672,8 @@ const SLALOM = (()=>{
     // gula svep längs sidorna
     ctx.strokeStyle=S.acc; ctx.lineWidth=3; [-1,1].forEach(sd=>{ ctx.beginPath(); ctx.moveTo(sd*bw*.88,0); ctx.quadraticCurveTo(sd*bw*1.08,-bh*.5,sd*bw*.72,-bh*.95); ctx.stroke(); });
     // startnummerväst
-    if(bh>30){ ctx.fillStyle=S.bib; ctx.beginPath(); ctx.roundRect(-bw*.55,-bh*.82,bw*1.1,bh*.52,4); ctx.fill();
+    if(S.vest){ ctx.fillStyle=S.bib; ctx.beginPath(); ctx.roundRect(-bw*.86,-bh*.96,bw*1.72,bh*.7,7); ctx.fill(); ctx.fillStyle='rgba(255,255,255,.18)'; ctx.fillRect(-bw*.86,-bh*.96,bw*1.72,bh*.12); }
+    if(bh>30){ ctx.fillStyle=S.vest?'#e0f2fe':S.bib; ctx.beginPath(); ctx.roundRect(-bw*.55,-bh*.82,bw*1.1,bh*.52,4); ctx.fill();
       ctx.fillStyle=S.bibTxt; ctx.font=`900 ${Math.max(9,bh*.3)}px system-ui`; ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.fillText(String(s.k+1),0,-bh*.56); }
     // 4) armar och stavar
     const sh={y:-bh+6};
@@ -790,7 +796,10 @@ const SLALOM = (()=>{
   }
   let scaleDpr=1;
   function draw(dt){ ctx.setTransform(scaleDpr,0,0,scaleDpr,0,0); ctx.save(); drawScene(dt); ctx.restore(); WEATHER.post(ctx,W,H,lastYH,R.wx,R.wxs,dt,meSk().v); const p=R.play; if(!p||p.mode!=='hl') hud();
-    if(p) REPLAY.overlay(ctx,W,H,{mode:p.mode, speed:p.speed, flash:p.flash, title:p.mode==='hl'?Math.max(0,1.8-p.rt):0, sub:`${G.disc==='gs'?'Storslalom':'Slalom'} · åk ${G.run||1}`, cap:p.cap, capA:p.capA, slow:p.slow&&p.playing}); }
+    if(p&&p.mode==='hl'&&PHOTO){ const sk=meSk(), who=bare(pname(sk.k));
+      if(p.rt<2.6){ drawPhoto(p.rt/2.6,'🎬 Höjdpunkter',`${who} · ${G.disc==='gs'?'storslalom':'slalom'} · ${R.wx.icon} ${R.wx.name}`,Math.min(1,(2.6-p.rt)*3)); return; }
+      if(p.done&&p.outro>.6){ drawPhoto(Math.min(1,(p.outro-.6)/4),sk.dsq?'Nästa gång! 💪':`${sk.mood==='cheer'?'🏆 ':''}${fmt(sk.finish??0)}`,`${who} · åk ${G.run||1} · ${sk.missed?sk.missed+' missad'+(sk.missed>1?'e':'')+' port':'alla portar'}`,Math.min(1,(p.outro-.6)*2)); return; } }
+    if(p) REPLAY.overlay(ctx,W,H,{mode:p.mode, speed:p.speed, flash:p.flash, title:p.mode==='hl'&&!PHOTO?Math.max(0,1.8-p.rt):0, sub:`${G.disc==='gs'?'Storslalom':'Slalom'} · åk ${G.run||1}`, cap:p.cap, capA:p.capA, slow:p.slow&&p.playing}); }
   function fit(){ if(!cv) return; const host=cv.parentElement; const r=host.getBoundingClientRect(); const w=Math.round(Math.min(host.clientWidth, 700)), h=Math.round(Math.max(320, Math.min(window.innerHeight - r.top - 10, w*1.9)));
     const dpr=Math.min(2,window.devicePixelRatio||1); cv.style.width=w+'px'; cv.style.height=h+'px'; cv.width=Math.round(w*dpr); cv.height=Math.round(h*dpr); W=w; H=h; BDsize=''; scaleDpr=dpr; }
   window.addEventListener('resize',()=>{ if(G&&G.kind==='slalom'&&view==='game') fit(); });
@@ -869,9 +878,29 @@ const SLALOM = (()=>{
   const segP=()=>`<button data-sl="pen" data-v="1" class="${mPen?'sel':''}">+3 s straff</button><button data-sl="pen" data-v="0" class="${!mPen?'sel':''}">Riktiga regler: ur</button>`;
   let mStd=lsGet('sl_std')!=='0';
   const segS=()=>`<button data-sl="std" data-v="1" class="${mStd?'sel':''}">📌 Standardsättning</button><button data-sl="std" data-v="0" class="${!mStd?'sel':''}">🎲 Helt ny bana</button>`;
+  /* ---------- egen bild till höjdpunkterna – sparas bara i den här enheten ---------- */
+  let PHOTO=null; const loadPhoto=()=>{ const d=lsGet('sl_photo'); if(!d){ PHOTO=null; return; } const im=new Image(); im.onload=()=>{ PHOTO=im; }; im.src=d; }; loadPhoto();
+  function pickPhoto(){ const inp=document.createElement('input'); inp.type='file'; inp.accept='image/*';
+    inp.onchange=()=>{ const f=inp.files&&inp.files[0]; if(!f) return; const rd=new FileReader(); rd.onload=()=>{ const im=new Image(); im.onload=()=>{
+        const k=Math.min(1,1280/Math.max(im.width,im.height)), c=document.createElement('canvas'); c.width=Math.round(im.width*k); c.height=Math.round(im.height*k); c.getContext('2d').drawImage(im,0,0,c.width,c.height);
+        let q=.85, d=c.toDataURL('image/jpeg',q); while(d.length>900000&&q>.4){ q-=.1; d=c.toDataURL('image/jpeg',q); }
+        try{ lsSet('sl_photo',d); loadPhoto(); toast('📷 Bilden sparad i den här enheten'); }catch(e){ toast('Bilden var för stor att spara'); }
+        const t=document.getElementById('slPh'); if(t) t.innerHTML=photoHTML(); }; im.src=rd.result; }; rd.readAsDataURL(f); };
+    inp.click(); }
+  const photoHTML=()=>{ const d=lsGet('sl_photo'); return d?`<img src="${d}" alt="" class="sl-ph"><button data-sl="phx">🗑 Ta bort</button><button data-sl="ph">📷 Byt</button>`:`<button data-sl="ph">📷 Välj en bild</button>`; };
+  // bilden med långsam inzoomning (Ken Burns), som inledning och avslutning på höjdpunkterna
+  function drawPhoto(k,title,sub,a){
+    if(!PHOTO) return; const iw=PHOTO.width, ih=PHOTO.height, sc=Math.max(W/iw,H/ih)*(1+k*.08), fx=.45, fy=.5;
+    const dw=iw*sc, dh=ih*sc, x=clamp(W/2-fx*dw,W-dw,0), y=clamp(H/2-fy*dh,H-dh,0);
+    ctx.save(); ctx.globalAlpha=a; ctx.fillStyle='#000'; ctx.fillRect(0,0,W,H); ctx.drawImage(PHOTO,x,y,dw,dh);
+    const bar=H*.06, g=ctx.createLinearGradient(0,bar,0,bar+150); g.addColorStop(0,'rgba(2,6,23,.85)'); g.addColorStop(1,'rgba(2,6,23,0)'); ctx.fillStyle=g; ctx.fillRect(0,bar,W,150);
+    ctx.fillStyle='#000'; ctx.fillRect(0,0,W,bar); ctx.fillRect(0,H-bar,W,bar);
+    ctx.fillStyle='#facc15'; ctx.fillRect(22,bar+18,52,5); ctx.fillStyle='#fff'; ctx.font='900 26px system-ui'; ctx.textAlign='left'; ctx.textBaseline='alphabetic'; ctx.fillText(title,22,bar+54);
+    ctx.font='700 14px system-ui'; ctx.fillStyle='#e2e8f0'; ctx.fillText(sub,22,bar+78); ctx.restore(); }
   const lvlName={easy:'🐣 Lätt',medium:'🙂 Medel',hard:'🧠 Svår'};
   let mLvl=lsGet('sl_lvl')||'medium';
   const segL=()=>Object.entries(lvlName).map(([k,l])=>`<button data-sl="lvl" data-v="${k}" class="${mLvl===k?'sel':''}">${l}</button>`).join('');
+  const segU=()=>[['swe','🇸🇪 Team Sweden'],['own','🖤 Svart · turkos hjälm'],['red','❤️ Röd']].map(([k,l])=>`<button data-sl="suit" data-v="${k}" class="${(lsGet('sl_suit')||'swe')===k?'sel':''}">${l}</button>`).join('');
   function bestLine(){ const f=k=>{ try{ const b=JSON.parse(lsGet(k)); return b&&b.total?fmt(b.total/1000):'–'; }catch(e){ return '–'; } }; return `Rekord på standardbanan (två åk): storslalom ${f('sl_best3_gs_r0')} · slalom ${f('sl_best3_sl_r0')}`; }
   GINFO.slalom.menu=function(){
     openModal(`<h3>⛷️ Slalom i Vemdalsfjällen</h3><p>Två åk med olika bansättning – lägst sammanlagd tid vinner. Dra fingret åt sidan för att svänga; släpp och åk rakt så går du ned i fartställning.</p>
@@ -880,12 +909,17 @@ const SLALOM = (()=>{
       <label>Bana</label><div class="seg" id="slS">${segS()}</div>
       <label>Missad port</label><div class="seg" id="slP">${segP()}</div>
       <label>Datorns nivå (parallellslalom)</label><div class="seg" id="slL">${segL()}</div>
+      <label>Din dräkt</label><div class="seg" id="slU">${segU()}</div>
+      <label>Egen bild till höjdpunkterna</label><div class="sl-phrow" id="slPh">${photoHTML()}</div><div class="setnote">Bilden sparas bara i den här enheten – den laddas aldrig upp eller skickas till någon.</div>
       <div class="setnote">${bestLine()}</div>
       <div class="btns" style="flex-direction:column"><button class="pri" data-sl="solo">⏱️ Åk ensam mot klockan</button>
         <button class="pri" data-sl="ai" style="background:linear-gradient(135deg,#ef4444,#2563eb)">🤖 Parallellslalom mot datorn</button>
         <button class="pri" data-sl="host" style="background:linear-gradient(135deg,#f472b6,#a855f7)">🚀 Parallellslalom mot en kompis</button>
         <button data-act="close">Avbryt</button></div>`,'slmenu'); };
   document.addEventListener('click',e=>{ const b=e.target.closest('[data-sl]'); if(!b) return; const a=b.dataset.sl, nm=(document.getElementById('nm')?.value||'').trim();
+    if(a==='suit'){ lsSet('sl_suit',b.dataset.v); document.getElementById('slU').innerHTML=segU(); sfx.bubble(); return; }
+    if(a==='ph'){ pickPhoto(); return; }
+    if(a==='phx'){ try{ localStorage.removeItem((typeof DEV!=='undefined'&&DEV?'dev:':'')+'sl_photo'); }catch(e){} lsSet('sl_photo',''); loadPhoto(); document.getElementById('slPh').innerHTML=photoHTML(); return; }
     if(a==='disc'){ mDisc=b.dataset.v; lsSet('sl_disc',mDisc); document.getElementById('slD').innerHTML=segD(); sfx.bubble(); return; }
     if(a==='pen'){ mPen=b.dataset.v==='1'; lsSet('sl_pen',mPen?'1':'0'); document.getElementById('slP').innerHTML=segP(); sfx.bubble(); return; }
     if(a==='std'){ mStd=b.dataset.v==='1'; lsSet('sl_std',mStd?'1':'0'); document.getElementById('slS').innerHTML=segS(); sfx.bubble(); return; }
@@ -907,6 +941,7 @@ const SLALOM = (()=>{
 .sl-res{display:flex;justify-content:space-between;padding:6px 12px;border-radius:10px;background:rgba(255,255,255,.06);margin:4px 0;font-variant-numeric:tabular-nums}
 .sl-res.win{background:rgba(250,204,21,.2);border:1px solid var(--gold)}
 .sl-pb{font-size:13px;opacity:.85}
+.sl-phrow{display:flex;align-items:center;gap:8px;flex-wrap:wrap}.sl-ph{width:64px;height:48px;object-fit:cover;border-radius:8px;border:1px solid rgba(255,255,255,.3)}
 .sl-cam{position:absolute;right:12px;bottom:48px;padding:7px 11px;border-radius:12px;border:1px solid rgba(255,255,255,.35);background:rgba(15,23,42,.6);color:#fff;font-size:12.5px;font-weight:700;z-index:2}`; document.head.appendChild(st);
 
   return { net:onNet, __test:(typeof DEV!=='undefined'&&DEV)?{setCourse,physics,aiInput,DISC,run:()=>R,newRun,mid,AILV,terrain:()=>T}:undefined };
