@@ -814,7 +814,7 @@ const BIATHLON = (()=>{
       R.sc=null; endRange(a,misses); R.banner={txt: misses? `${misses} bom – ${misses} straffrunda${misses>1?'or':''}`:'Fullt! 🎯', t:2}; if(!misses){ sparkles(18); crowdSfx(true); }
     }
   }
-  function moodOf(x){ const before=R.A.filter(o=>o!==x&&o.done).length, miss=x.sh.reduce((p,q)=>p+q,0); return R.A.length>1 ? (before===0?'cheer':'sad') : (miss<=2?'cheer':'sad'); }
+  function moodOf(x){ const shots=x.sh.length*5, miss=x.sh.reduce((p,q)=>p+q,0); return shots && miss>=shots*.5 ? 'sad' : 'cheer'; }   // grunden är jubel – depp bara om minst hälften av skotten bommats
   function remoteStep(x){ const r=R.remote[x.k]; if(!r) return; x.z+=(r.z-x.z)*.25; x.pz=r.pz; x.v=r.v; x.hr=r.hr; x.ph=r.ph; x.lap=r.lap; x.sh=r.sh||x.sh; x.t=r.t; x.lastSide=r.ls; x.stride=r.st; x.tuck=r.tk; if(r.f!=null){ if(!x.done) x.mood=moodOf(x); x.done=true; x.ph='done'; x.finish=r.f; } }
   /* ---------- inspelning, repris och höjdpunkter ---------- */
   const PHC=['ski','pen','range','done'];
