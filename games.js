@@ -632,7 +632,7 @@ body.desk .sboard{max-width:520px} body.desk .sboard.small{max-width:400px}
 .sc.ship.sunk{background:linear-gradient(180deg,#57534e,#1c1917)}
 .sc.hit{background:radial-gradient(circle,#fb923c,#b91c1c 70%)}
 .sc.ship.hit{background:radial-gradient(circle,#fb923c,#7f1d1d 75%)}
-.sc i{font-style:normal;font-size:calc(100cqw/10*.55);line-height:1;display:block}
+.sc i{font-style:normal;font-size:calc(min(92vw,460px)/10*.55);font-size:calc(100cqw/10*.55);line-height:1;display:block}
 .sc .dot{width:28%;height:28%;border-radius:50%;background:#e0f2fe;opacity:.85;box-shadow:0 0 6px #7dd3fc}
 .sc.near{background:rgba(14,116,144,.08)}
 .sc.near::after{content:'';width:18%;height:18%;border-radius:50%;background:rgba(224,242,254,.3)}
@@ -640,7 +640,7 @@ body.desk .sboard{max-width:520px} body.desk .sboard.small{max-width:400px}
 .sc.pv-bad{background:rgba(248,113,113,.55)!important}
 .sc.fx-boom{animation:boom .6s ease}
 @keyframes boom{0%{transform:scale(.4);filter:brightness(3)}40%{transform:scale(1.5)}100%{transform:scale(1)}}
-.sc.fx-splash::before{content:'';position:absolute;inset:-30%;border-radius:50%;border:2px solid #e0f2fe;animation:splash .7s ease-out forwards}
+.sc.fx-splash::before{content:'';position:absolute;top:-30%;right:-30%;bottom:-30%;left:-30%;border-radius:50%;border:2px solid #e0f2fe;animation:splash .7s ease-out forwards}
 @keyframes splash{from{transform:scale(.2);opacity:1}to{transform:scale(1.6);opacity:0}}
 .sboard.shake{animation:shake .35s ease}
 .ember{position:fixed;width:6px;height:6px;margin:-3px;border-radius:50%;pointer-events:none;z-index:50;animation:dr .65s ease-out forwards}
@@ -659,7 +659,7 @@ body.desk .sboard{max-width:520px} body.desk .sboard.small{max-width:400px}
 .mrow.win{background:rgba(74,222,128,.18)}
 .mn{font-size:12px;color:#c4b5fd;text-align:right}
 .mpegs{display:flex;gap:8px;justify-content:center}
-.peg{width:30px;height:30px;border-radius:50%;display:inline-grid;place-items:center;background:radial-gradient(circle at 32% 28%,#fff 0 8%,var(--pc) 34%,color-mix(in srgb,var(--pc) 55%,#000) 100%);box-shadow:0 3px 6px rgba(0,0,0,.45),inset 0 -2px 4px rgba(0,0,0,.3)}
+.peg{width:30px;height:30px;border-radius:50%;display:inline-grid;place-items:center;background:radial-gradient(circle at 32% 28%,#fff 0 8%,rgba(255,255,255,0) 34%),radial-gradient(circle at 50% 50%,rgba(0,0,0,0) 40%,rgba(0,0,0,.45) 100%),var(--pc);box-shadow:0 3px 6px rgba(0,0,0,.45),inset 0 -2px 4px rgba(0,0,0,.3)}
 .peg.empty{background:radial-gradient(circle,rgba(0,0,0,.55),rgba(0,0,0,.25));box-shadow:inset 0 2px 4px rgba(0,0,0,.6)}
 .peg.hidden{background:linear-gradient(135deg,#64748b,#334155);color:#e2e8f0;font-weight:700}
 .peg.pdrop{animation:pegdrop .35s cubic-bezier(.3,1.6,.5,1) both}

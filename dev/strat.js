@@ -69,10 +69,10 @@
         + (g.over? gOverHTML(g.winner===-1?'Brädet är fullt.':'Fyra i rad!') : `<div class="ghint">${KIT.resignHTML()}</div>`); }
   };
   document.addEventListener('click',e=>{ const b=e.target.closest('[data-c4]'); if(!b||!G||G.kind!=='c4') return; const me=meSeat(); if(G.over||G.cur!==me||!canActG(me)) return; doAct({type:'drop',c:+b.dataset.c4}); });
-  css(`.c4b{display:grid;grid-template-columns:repeat(7,1fr);gap:5px;padding:8px;border-radius:18px;background:linear-gradient(160deg,#1d4ed8,#1e3a8a);max-width:min(470px,100%,max(300px,calc((100dvh - 260px)*7/6)));margin:8px auto;box-shadow:0 10px 30px rgba(0,0,0,.4),inset 0 2px 0 rgba(255,255,255,.15)}
+  css(`.c4b{display:grid;grid-template-columns:repeat(7,1fr);gap:5px;padding:8px;border-radius:18px;background:linear-gradient(160deg,#1d4ed8,#1e3a8a);max-width:min(470px,100%,max(300px,calc((100vh - 260px)*7/6)));max-width:min(470px,100%,max(300px,calc((100dvh - 260px)*7/6)));margin:8px auto;box-shadow:0 10px 30px rgba(0,0,0,.4),inset 0 2px 0 rgba(255,255,255,.15)}
 .c4c{aspect-ratio:1;border-radius:50%;background:#0b1530;box-shadow:inset 0 3px 6px rgba(0,0,0,.6);position:relative;cursor:pointer}
 .c4b.my .c4c:hover{background:#14224a}
-.c4p{position:absolute;inset:3px;border-radius:50%;background:radial-gradient(circle at 35% 30%,#fff8,transparent 45%),var(--pc);box-shadow:inset 0 -3px 6px rgba(0,0,0,.35)}
+.c4p{position:absolute;top:3px;right:3px;bottom:3px;left:3px;border-radius:50%;background:radial-gradient(circle at 35% 30%,#fff8,transparent 45%),var(--pc);box-shadow:inset 0 -3px 6px rgba(0,0,0,.35)}
 .c4p.c4drop{animation:c4d .45s cubic-bezier(.5,0,.75,1.3)}@keyframes c4d{from{transform:translateY(calc(var(--r)*-118%))}}
 .c4p.win{animation:c4w 1s ease-in-out infinite alternate;box-shadow:0 0 0 3px #fff,0 0 18px var(--pc)}@keyframes c4w{to{transform:scale(.86)}}
 .c4dot{display:inline-block;width:16px;height:16px;border-radius:50%;vertical-align:middle;box-shadow:inset 0 -2px 3px rgba(0,0,0,.3)}`);
@@ -128,9 +128,9 @@
       return gHeadHTML(KIT.turnText(g,'tryck på en ruta')) + `<div class="gmb">${cells}</div>` + (g.over? gOverHTML(g.winner===-1?'Rutnätet är fullt.':'Fem i rad!') : `<div class="ghint">Få fem i rad – vågrätt, lodrätt eller snett. ${KIT.resignHTML()}</div>`); }
   };
   document.addEventListener('click',e=>{ const b=e.target.closest('[data-gm]'); if(!b||!G||G.kind!=='gomoku') return; const me=meSeat(); if(G.over||G.cur!==me||!canActG(me)) return; const i=+b.dataset.gm; if(G.board[i]>=0) return; doAct({type:'put',i}); });
-  css(`.gmb{display:grid;grid-template-columns:repeat(15,minmax(0,1fr));grid-template-rows:repeat(15,minmax(0,1fr));gap:1px;background:#3b4b7a;padding:1px;border-radius:10px;aspect-ratio:1;max-width:min(560px,100%,max(320px,calc(100dvh - 250px)));margin:8px auto;container-type:inline-size}
+  css(`.gmb{display:grid;grid-template-columns:repeat(15,minmax(0,1fr));grid-template-rows:repeat(15,minmax(0,1fr));gap:1px;background:#3b4b7a;padding:1px;border-radius:10px;aspect-ratio:1;max-width:min(560px,100%,max(320px,calc(100vh - 250px)));max-width:min(560px,100%,max(320px,calc(100dvh - 250px)));margin:8px auto;container-type:inline-size}
 .gmc{background:#f8f1dc;display:grid;place-items:center;cursor:pointer;min-width:0;min-height:0}
-.gmc b{font-size:calc(100cqw/15*.72);line-height:1;font-weight:900}.gm-s0{color:#e11d48}.gm-s1{color:#2563eb}
+.gmc b{font-size:calc(min(92vw,460px)/15*.72);font-size:calc(100cqw/15*.72);line-height:1;font-weight:900}.gm-s0{color:#e11d48}.gm-s1{color:#2563eb}
 .gmc.last{background:#fde68a}.gmc.win{background:#86efac}`);
   GINFO.gomoku.menu=()=>KIT.menu('gomoku',{rules:'Turas om att sätta kryss och ringar. Den som först får fem i rad – vågrätt, lodrätt eller snett – vinner.'});
 
@@ -187,10 +187,10 @@
         + (g.over? gOverHTML(`${n0} – ${n1}`) : `<div class="ghint">Lägg så att du stänger in motståndarens brickor – de vänds till din färg. Prickarna visar var du kan lägga. ${KIT.resignHTML()}</div>`); }
   };
   document.addEventListener('click',e=>{ const b=e.target.closest('[data-oth]'); if(!b||!G||G.kind!=='othello') return; const me=meSeat(); if(G.over||G.cur!==me||!canActG(me)) return; const i=+b.dataset.oth; if(!flips(G.board,i,me).length) return; doAct({type:'put',i}); });
-  css(`.ob{display:grid;grid-template-columns:repeat(8,1fr);gap:3px;padding:6px;border-radius:14px;background:#0f3d24;max-width:min(480px,100%,max(300px,calc(100dvh - 260px)));margin:8px auto;box-shadow:0 10px 30px rgba(0,0,0,.4)}
+  css(`.ob{display:grid;grid-template-columns:repeat(8,1fr);gap:3px;padding:6px;border-radius:14px;background:#0f3d24;max-width:min(480px,100%,max(300px,calc(100vh - 260px)));max-width:min(480px,100%,max(300px,calc(100dvh - 260px)));margin:8px auto;box-shadow:0 10px 30px rgba(0,0,0,.4)}
 .oc{aspect-ratio:1;background:#15803d;border-radius:4px;position:relative;cursor:pointer}
-.oc.ok::after{content:'';position:absolute;inset:38%;border-radius:50%;background:rgba(255,255,255,.35)}
-.op{position:absolute;inset:8%;border-radius:50%;background:radial-gradient(circle at 35% 30%,#fff5,transparent 50%),var(--pc);box-shadow:0 3px 6px rgba(0,0,0,.45)}
+.oc.ok::after{content:'';position:absolute;top:38%;right:38%;bottom:38%;left:38%;border-radius:50%;background:rgba(255,255,255,.35)}
+.op{position:absolute;top:8%;right:8%;bottom:8%;left:8%;border-radius:50%;background:radial-gradient(circle at 35% 30%,#fff5,transparent 50%),var(--pc);box-shadow:0 3px 6px rgba(0,0,0,.45)}
 .op.flip{animation:ofl .5s ease}@keyframes ofl{0%{transform:rotateY(0)}50%{transform:rotateY(90deg)}100%{transform:rotateY(0)}}
 .op.new{box-shadow:0 0 0 3px #facc15,0 3px 6px rgba(0,0,0,.45)}
 .odot{display:inline-block;width:14px;height:14px;border-radius:50%;vertical-align:middle;border:1px solid #94a3b8}`);

@@ -15,18 +15,18 @@
   const okCards=(a,max)=>Array.isArray(a)&&a.length<=max&&a.every(x=>isInt(x,-1,51));
   const sortHand=h=>h.slice().sort((a,b)=>rk(a)-rk(b)||su(a)-su(b));
   const BOTS=['Blixt 🤖','Stjärna 🤖','Komet 🤖'];
-  const st=document.createElement('style'); document.head.appendChild(st); const css=s=>{ st.textContent+=s; };
+  const st=document.createElement('style'); document.head.appendChild(st); const DVH=!!(window.CSS&&CSS.supports&&CSS.supports('height','1dvh')); const css=s=>{ st.textContent+=DVH?s:s.replace(/dvh/g,'vh'); };
   function card(id,o={}){
     if(id<0||id==null) return `<div class="pc back ${o.cls||''}" ${o.attr||''}></div>`;
     const r=rk(id), s=su(id); return `<div class="pc ${s===1||s===2?'red':''} ${o.cls||''}" ${o.attr||''}><b>${RN(r)}</b><i>${S[s]}</i><em>${S[s]}</em></div>`;
   }
-  css(`.pc{--w:var(--cw,54px);width:var(--w);height:calc(var(--w)*1.42);border-radius:calc(var(--w)*.12);background:linear-gradient(160deg,#fff,#eef4ff);color:#16213e;position:relative;flex:none;box-shadow:0 3px 8px rgba(0,0,0,.35);border:1px solid #cbd5e1;user-select:none;-webkit-user-select:none}
+  css(`.pc{--w:var(--cw,54px);width:var(--w);height:calc(var(--w)*1.42);border-radius:calc(var(--w)*.12);background:linear-gradient(160deg,#fff,#eef4ff);color:#16213e;position:relative;flex:none;box-shadow:0 3px 8px rgba(0,0,0,.35);border:1px solid #cbd5e1;-webkit-user-select:none;user-select:none}
 .pc.red{color:#dc2626}
 .pc b{position:absolute;left:8%;top:4%;font-size:calc(var(--w)*.34);font-weight:800;line-height:1}
 .pc i{position:absolute;left:9%;top:30%;font-style:normal;font-size:calc(var(--w)*.26);line-height:1}
 .pc em{position:absolute;right:8%;bottom:6%;font-style:normal;font-size:calc(var(--w)*.62);line-height:1;opacity:.9}
 .pc.back{background:repeating-linear-gradient(45deg,#4f46e5 0 6px,#6366f1 6px 12px);border:3px solid #fff}
-.pc.back::after{content:'🐬';position:absolute;inset:0;display:grid;place-items:center;font-size:calc(var(--w)*.42);opacity:.8}
+.pc.back::after{content:'🐬';position:absolute;top:0;right:0;bottom:0;left:0;display:grid;place-items:center;font-size:calc(var(--w)*.42);opacity:.8}
 .hand{display:flex;justify-content:center;padding:14px 6px 6px;--cw:min(58px,15vw,8.6dvh)}
 .hand .pc{margin-left:calc(var(--cw)*var(--ov,-.45));transition:transform .15s}.hand .pc:first-child{margin-left:0}
 .hand .pc.can{cursor:pointer}.hand .pc.sel{transform:translateY(-14px);box-shadow:0 0 0 3px #22d3ee,0 6px 14px rgba(0,0,0,.4)}
@@ -35,7 +35,7 @@
 .opp{background:var(--glass);border:1px solid var(--line);border-radius:14px;padding:6px 10px;min-width:96px;text-align:center;font-size:13px}
 .opp.on{border-color:var(--gold);box-shadow:0 0 0 2px rgba(250,204,21,.35)}
 .opp .mini{display:flex;justify-content:center;margin-top:4px;--cw:22px}.opp .mini .pc{margin-left:-14px}.opp .mini .pc:first-child{margin-left:0}
-.table{display:flex;justify-content:center;align-items:center;gap:14px;min-height:min(120px,16dvh);margin:6px 0;--cw:min(64px,9.5dvh)}
+.table{display:flex;justify-content:center;align-items:center;gap:14px;min-height:min(120px,16vh);min-height:min(120px,16dvh);margin:6px 0;--cw:min(64px,9.5dvh)}
 @media (max-height:760px){.opp .mini{display:none}.opp{padding:4px 6px;min-width:0;font-size:12px}.opp small{display:block;font-size:11px;line-height:1.25}.gsub{margin:2px 0 6px}}
 .cbtns{display:flex;gap:8px;justify-content:center;flex-wrap:wrap;margin:6px 0}
 .cbtns button{padding:11px 16px;border-radius:14px;background:var(--glass2);border:1px solid var(--line);font-weight:700}
@@ -322,7 +322,7 @@
     if(a==='ask'&&fkSel.r&&fkSel.to!=null){ doAct({type:'ask',to:fkSel.to,rank:fkSel.r}); } });
   css(`.fk-last{max-width:200px;font-size:13.5px;line-height:1.4;opacity:.9}.fk-books{display:flex;flex-wrap:wrap;gap:4px 14px;justify-content:center;font-size:13px;margin:4px 0}
 .fk-lastw{max-width:none;text-align:center;min-height:19px;margin:2px 10px}
-.fk-lake{position:relative;height:min(170px,22dvh);margin:6px 18px 16px;border-radius:50%/42%;background:radial-gradient(ellipse at 40% 35%,#38bdf8,#0369a1 70%,#0c4a6e);box-shadow:inset 0 0 26px rgba(0,0,0,.45),0 0 0 6px rgba(20,184,166,.25);--cw:min(30px,8vw,4.4dvh)}
+.fk-lake{position:relative;height:min(170px,22vh);height:min(170px,22dvh);margin:6px 18px 16px;border-radius:50%/42%;background:radial-gradient(ellipse at 40% 35%,#38bdf8,#0369a1 70%,#0c4a6e);box-shadow:inset 0 0 26px rgba(0,0,0,.45),0 0 0 6px rgba(20,184,166,.25);--cw:min(30px,8vw,4.4dvh)}
 .fk-lake.go{animation:fklake 1.6s ease-in-out infinite alternate}@keyframes fklake{to{box-shadow:inset 0 0 26px rgba(0,0,0,.45),0 0 0 9px rgba(34,211,238,.6)}}
 .fk-lake small{position:absolute;left:50%;bottom:-18px;transform:translateX(-50%);font-size:12px;opacity:.75;white-space:nowrap}
 .fk-lc{position:absolute;transform:translate(-50%,-50%) rotate(var(--rot));transition:transform .15s}
@@ -422,7 +422,7 @@
     if(v==='pass'){ if(sel.length===3) doAct({type:'pass',cards:sel.slice()}); return; }
     const c=+v; if(G.phase==='pass'){ if(G.passes[me]!==null) return; if(sel.includes(c)) sel.splice(sel.indexOf(c),1); else if(sel.length<3) sel.push(c); sfx.bubble(); render(); return; }
     if(G.cur!==me) return; if(!hLegal(G,me).includes(c)){ toast(G.trick.length?'Du måste följa färg':'Det kortet får du inte spela ut än',1600); return; } doAct({type:'card',c}); });
-  css(`.ht-table{position:relative;height:min(300px,40dvh);max-width:440px;margin:6px auto;border-radius:50%/40%;background:radial-gradient(ellipse at center,#166534,#14532d 70%);box-shadow:inset 0 0 30px rgba(0,0,0,.5),0 8px 24px rgba(0,0,0,.4);--cw:min(54px,13vw)}
+  css(`.ht-table{position:relative;height:min(300px,40vh);height:min(300px,40dvh);max-width:440px;margin:6px auto;border-radius:50%/40%;background:radial-gradient(ellipse at center,#166534,#14532d 70%);box-shadow:inset 0 0 30px rgba(0,0,0,.5),0 8px 24px rgba(0,0,0,.4);--cw:min(54px,13vw)}
 .ht-c{position:absolute;transition:opacity .4s}.ht-c.me{left:50%;bottom:14%;transform:translateX(-50%)}.ht-c.top{left:50%;top:22%;transform:translateX(-50%)}
 .ht-c.left{left:16%;top:50%;transform:translateY(-50%) rotate(-8deg)}.ht-c.right{right:16%;top:50%;transform:translateY(-50%) rotate(8deg)}.ht-c.gone{opacity:.55}
 .ht-n{position:absolute;font-size:12.5px;text-align:center;background:rgba(0,0,0,.35);padding:3px 8px;border-radius:10px;line-height:1.25}.ht-n small{display:block;opacity:.75;font-size:11px}

@@ -933,9 +933,9 @@ const SLALOM = (()=>{
   const st=document.createElement('style'); st.textContent=`
 .sl-wrap{position:relative;margin:0 auto}
 .sl-host{display:flex;justify-content:center}
-.sl-cv{display:block;border-radius:16px;touch-action:none;user-select:none;-webkit-user-select:none;box-shadow:0 10px 30px rgba(0,0,0,.4)}
-.sl-over{position:absolute;inset:0;display:grid;place-items:center;padding:14px;background:rgba(15,23,42,.25)}
-.sl-over .gover{max-width:330px;width:100%;background:rgba(11,16,40,.9);backdrop-filter:blur(6px)}
+.sl-cv{display:block;border-radius:16px;touch-action:none;-webkit-user-select:none;user-select:none;box-shadow:0 10px 30px rgba(0,0,0,.4)}
+.sl-over{position:absolute;top:0;right:0;bottom:0;left:0;display:grid;place-items:center;padding:14px;background:rgba(15,23,42,.25)}
+.sl-over .gover{max-width:330px;width:100%;background:rgba(11,16,40,.9);-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px)}
 .sl-res{display:flex;justify-content:space-between;padding:6px 12px;border-radius:10px;background:rgba(255,255,255,.06);margin:4px 0;font-variant-numeric:tabular-nums}
 .sl-res.win{background:rgba(250,204,21,.2);border:1px solid var(--gold)}
 .sl-pb{font-size:13px;opacity:.85}

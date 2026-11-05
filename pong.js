@@ -303,9 +303,9 @@ const PONG = (()=>{
   const st=document.createElement('style'); st.textContent=`
 .pg-wrap{position:relative;display:flex;justify-content:center;margin:4px auto 0}
 .pg-host{display:flex;justify-content:center;width:100%}
-.pg-cv{display:block;border-radius:18px;border:1px solid rgba(148,163,255,.25);box-shadow:0 0 40px rgba(99,102,241,.25);touch-action:none;user-select:none;-webkit-user-select:none}
-.pg-over{position:absolute;inset:0;display:grid;place-items:center;padding:16px}
-.pg-over .gover{max-width:320px;background:rgba(11,16,40,.88);backdrop-filter:blur(6px)}
+.pg-cv{display:block;border-radius:18px;border:1px solid rgba(148,163,255,.25);box-shadow:0 0 40px rgba(99,102,241,.25);touch-action:none;-webkit-user-select:none;user-select:none}
+.pg-over{position:absolute;top:0;right:0;bottom:0;left:0;display:grid;place-items:center;padding:16px}
+.pg-over .gover{max-width:320px;background:rgba(11,16,40,.88);-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px)}
 .pg-hint{margin-top:8px}
 `; document.head.appendChild(st);
 
