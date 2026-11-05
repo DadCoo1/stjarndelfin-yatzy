@@ -384,9 +384,11 @@ const BIATHLON = (()=>{
     if(o.t==='fan'&&DM&&VIEWK==='top'){ const p=P(o.x,o.z); if(!p) return; ctx.fillStyle=JACK[o.v%JACK.length]; ctx.beginPath(); ctx.arc(p[0],p[1],Math.max(1,p[2]*.28),0,7); ctx.fill(); return; }
     if(o.t==='tree'){ const p=P(o.x,o.z); if(!p) return; const img=SPR.tree[o.v], h=p[2]*8*o.s, w=h*img.width/img.height; if(p[0]+w<0||p[0]-w>W||h<1) return; ctx.drawImage(img,p[0]-w/2,p[1]-h,w,h); return; }
     if(o.t==='fan'){ const p=P(o.x,o.z); if(!p) return; const img=SPR.fan[o.v], h=p[2]*1.75, w=h*img.width/img.height; if(h<1.5) return; const j=Math.max(0,Math.sin(t*6+o.ph))*h*.1; ctx.drawImage(img,p[0]-w/2,p[1]-h-j,w,h); return; }
-    if(o.t==='fence'){ const z2=o.z+5, a=P(o.x,o.z), b=P(mid(z2)+o.sd*(halfAt(z2)+1.3),z2); if(!a||!b) return; const ha=a[2]*1, hb=b[2]*1;
-      ctx.fillStyle='rgba(30,64,175,.6)'; ctx.beginPath(); ctx.moveTo(a[0],a[1]); ctx.lineTo(b[0],b[1]); ctx.lineTo(b[0],b[1]-hb); ctx.lineTo(a[0],a[1]-ha); ctx.closePath(); ctx.fill();
-      ctx.fillStyle='rgba(250,204,21,.9)'; ctx.beginPath(); ctx.moveTo(a[0],a[1]-ha*.62); ctx.lineTo(b[0],b[1]-hb*.62); ctx.lineTo(b[0],b[1]-hb*.48); ctx.lineTo(a[0],a[1]-ha*.48); ctx.closePath(); ctx.fill(); return; }
+    if(o.t==='fence'){ const z2=o.z+5, x2=mid(z2)+o.sd*(halfAt(z2)+1.3), a=P(o.x,o.z), b=P(x2,z2); if(!a||!b) return;
+      const at=DM?P(o.x,o.z,1):[a[0],a[1]-a[2]], bt=DM?P(x2,z2,1):[b[0],b[1]-b[2]]; if(!at||!bt) return; const L=(p,q,f)=>[p[0]+(q[0]-p[0])*f,p[1]+(q[1]-p[1])*f];
+      ctx.fillStyle='rgba(30,64,175,.6)'; ctx.beginPath(); ctx.moveTo(a[0],a[1]); ctx.lineTo(b[0],b[1]); ctx.lineTo(bt[0],bt[1]); ctx.lineTo(at[0],at[1]); ctx.closePath(); ctx.fill();
+      const a1=L(a,at,.62), b1=L(b,bt,.62), b2=L(b,bt,.48), a2=L(a,at,.48);
+      ctx.fillStyle='rgba(250,204,21,.9)'; ctx.beginPath(); ctx.moveTo(a1[0],a1[1]); ctx.lineTo(b1[0],b1[1]); ctx.lineTo(b2[0],b2[1]); ctx.lineTo(a2[0],a2[1]); ctx.closePath(); ctx.fill(); return; }
     if(o.t==='flag'){ const m=mid(o.z), x=m+o.sd*(halfAt(o.z)+3.5), p=P(x,o.z); if(!p||p[2]<1) return; const h=p[2]*5; ctx.strokeStyle='#cbd5e1'; ctx.lineWidth=Math.max(1,p[2]*.06); ctx.beginPath(); ctx.moveTo(p[0],p[1]); ctx.lineTo(p[0],p[1]-h); ctx.stroke();
       const fw=p[2]*1.6, fh=p[2]*1, wv=Math.sin(t*4+o.ph)*fh*.15; ctx.fillStyle='#006aa7'; ctx.beginPath(); ctx.moveTo(p[0],p[1]-h); ctx.quadraticCurveTo(p[0]+fw/2,p[1]-h+wv,p[0]+fw,p[1]-h); ctx.lineTo(p[0]+fw,p[1]-h+fh); ctx.quadraticCurveTo(p[0]+fw/2,p[1]-h+fh+wv,p[0],p[1]-h+fh); ctx.fill();
       ctx.fillStyle='#fecc00'; ctx.fillRect(p[0]+fw*.3,p[1]-h,fw*.13,fh); ctx.fillRect(p[0],p[1]-h+fh*.42,fw,fh*.16); return; }

@@ -471,9 +471,10 @@ const SLALOM = (()=>{
       if(o.v%4===2 && h>8){ ctx.fillStyle=o.v%8===2?'#006aa7':'#e11d48'; const fx=p[0]+w*.45, fy=p[1]-h*1.15-jump; ctx.fillRect(fx,fy,1,h*.5); ctx.beginPath(); ctx.moveTo(fx,fy); ctx.quadraticCurveTo(fx+h*.25,fy+h*.08+Math.sin(t*8+o.ph)*h*.05,fx+h*.42,fy+h*.05); ctx.lineTo(fx+h*.42,fy+h*.25); ctx.quadraticCurveTo(fx+h*.2,fy+h*.3,fx,fy+h*.22); ctx.fill();
         if(o.v%8===2){ ctx.fillStyle='#fecc00'; ctx.fillRect(fx+h*.1,fy+h*.04,h*.06,h*.22); ctx.fillRect(fx,fy+h*.11,h*.42,h*.05); } }
       return; }
-    if(o.t==='fence'){ const z2=o.z+5, a=P(o.x,o.z), b=P(mid(z2)+o.sd*(halfAt(z2)+1.2),z2); if(!a||!b) return; const ha=a[2]*1.1, hb=b[2]*1.1;
-      ctx.fillStyle='rgba(37,99,235,.55)'; ctx.beginPath(); ctx.moveTo(a[0],a[1]); ctx.lineTo(b[0],b[1]); ctx.lineTo(b[0],b[1]-hb); ctx.lineTo(a[0],a[1]-ha); ctx.closePath(); ctx.fill();
-      ctx.strokeStyle='rgba(30,64,175,.8)'; ctx.lineWidth=Math.max(.5,a[2]*.05); ctx.beginPath(); ctx.moveTo(a[0],a[1]); ctx.lineTo(a[0],a[1]-ha); ctx.stroke(); return; }
+    if(o.t==='fence'){ const z2=o.z+5, x2=mid(z2)+o.sd*(halfAt(z2)+1.2), a=P(o.x,o.z), b=P(x2,z2); if(!a||!b) return;
+      const at=DM?P(o.x,o.z,1.1):[a[0],a[1]-a[2]*1.1], bt=DM?P(x2,z2,1.1):[b[0],b[1]-b[2]*1.1]; if(!at||!bt) return;
+      ctx.fillStyle='rgba(37,99,235,.55)'; ctx.beginPath(); ctx.moveTo(a[0],a[1]); ctx.lineTo(b[0],b[1]); ctx.lineTo(bt[0],bt[1]); ctx.lineTo(at[0],at[1]); ctx.closePath(); ctx.fill();
+      ctx.strokeStyle='rgba(30,64,175,.8)'; ctx.lineWidth=Math.max(.5,a[2]*.05); ctx.beginPath(); ctx.moveTo(a[0],a[1]); ctx.lineTo(at[0],at[1]); ctx.stroke(); return; }
     if(o.t==='banner'){ const z2=o.z+4, a=P(o.x,o.z), b=P(mid(z2)+o.sd*(halfAt(z2)+1.25),z2); if(!a||!b) return; const ha=a[2]*.8;
       ctx.fillStyle='#fff'; ctx.beginPath(); ctx.moveTo(a[0],a[1]-a[2]*.15); ctx.lineTo(b[0],b[1]-b[2]*.15); ctx.lineTo(b[0],b[1]-b[2]*.95); ctx.lineTo(a[0],a[1]-a[2]*.95); ctx.closePath(); ctx.fill();
       if(ha>6){ ctx.save(); ctx.fillStyle='#e11d48'; ctx.font=`800 ${Math.max(6,ha*.55)}px system-ui`; ctx.textAlign='center'; ctx.textBaseline='middle'; const txt=['VEMDALEN','KRYA PÅ DIG 💙','FRÖKNARNA','HEJA! 🐬'][Math.floor(o.z/45)%4];
@@ -498,22 +499,28 @@ const SLALOM = (()=>{
     if(g.type==='closed'){ if(only==='a'&&!a || only==='b'&&!b) return; } else if(!a||!b) return;
     const col = g.col==='r' ? '#ef4444' : '#2563eb', dark = g.col==='r' ? '#991b1b' : '#1e3a8a', t=now();
     const bend = g.hit ? Math.max(0,1-(performance.now()-(g.hitT||0))/600)*.55 : 0;
-    const pole=(p,bnd)=>{ const h=p[2]*1.8, pw=Math.max(1,p[2]*.045); ctx.strokeStyle=col; ctx.lineWidth=pw*2; ctx.lineCap='round'; ctx.beginPath(); ctx.moveTo(p[0],p[1]); ctx.quadraticCurveTo(p[0]+bnd*h*.3,p[1]-h*.5,p[0]+bnd*h*.6,p[1]-h*.95); ctx.stroke();
-      ctx.strokeStyle='rgba(255,255,255,.6)'; ctx.lineWidth=pw*.6; ctx.beginPath(); ctx.moveTo(p[0]-pw*.4,p[1]-h*.1); ctx.lineTo(p[0]-pw*.4+bnd*h*.5,p[1]-h*.85); ctx.stroke();
+    // käppen står lodrätt i världen: i drönarvyn räknas toppen ut i 3D, annars rakt upp i bild
+    const up=(p,wx,wz)=>{ const q=DM&&wx!=null?P(wx,wz,1.8):null; return q?[q[0]-p[0],q[1]-p[1]]:[0,-p[2]*1.8]; };
+    const pole=(p,bnd,wx,wz)=>{ const v=up(p,wx,wz), h=Math.hypot(v[0],v[1]), pw=Math.max(1,p[2]*.045); ctx.strokeStyle=col; ctx.lineWidth=pw*2; ctx.lineCap='round'; ctx.beginPath(); ctx.moveTo(p[0],p[1]); ctx.quadraticCurveTo(p[0]+v[0]*.5+bnd*h*.3,p[1]+v[1]*.5,p[0]+v[0]*.95+bnd*h*.6,p[1]+v[1]*.95); ctx.stroke();
+      ctx.strokeStyle='rgba(255,255,255,.6)'; ctx.lineWidth=pw*.6; ctx.beginPath(); ctx.moveTo(p[0]-pw*.4+v[0]*.1,p[1]+v[1]*.1); ctx.lineTo(p[0]-pw*.4+v[0]*.85+bnd*h*.5,p[1]+v[1]*.85); ctx.stroke();
       ctx.fillStyle='rgba(80,110,160,.18)'; ctx.beginPath(); ctx.ellipse(p[0]+p[2]*.4,p[1]+1,p[2]*.35,p[2]*.08,0,0,7); ctx.fill(); };
     if(g.type==='gs'){ // ett stångpar med flagga på var sida om porten
       const wv=Math.sin(t*3+i)*a[2]*.05;
-      [[g.a.x-.75,g.a.x],[g.b.x,g.b.x+.75]].forEach(([xa,xb])=>{ const pa=P(xa,g.a.z), pb=P(xb,g.a.z); if(!pa||!pb) return; const h=pa[2]*1.8;
-        pole(pa,0); pole(pb,0);
+      [[g.a.x-.75,g.a.x],[g.b.x,g.b.x+.75]].forEach(([xa,xb])=>{ const pa0=P(xa,g.a.z), pb0=P(xb,g.a.z); if(!pa0||!pb0) return;
+        pole(pa0,0,xa,g.a.z); pole(pb0,0,xb,g.a.z);
+        // flaggan mellan käpparna: i drönarvyn följer den käpparnas riktning, annars som förut
+        const va=up(pa0,xa,g.a.z), vb=up(pb0,xb,g.a.z), h=Math.hypot(va[0],va[1]), k=-va[1]/(h||1);
+        const pa=[pa0[0]+va[0]-0,pa0[1]+va[1]+h,pa0[2]], pb=[pb0[0]+vb[0],pb0[1]+vb[1]+Math.hypot(vb[0],vb[1]),pb0[2]];
+        if(DM && h<pa0[2]*.6) return;      // rakt ovanifrån syns flaggan inte
         ctx.fillStyle=col; ctx.beginPath(); ctx.moveTo(pa[0],pa[1]-h*.95); ctx.quadraticCurveTo((pa[0]+pb[0])/2,pa[1]-h*.95+wv,pb[0],pb[1]-h*.95); ctx.lineTo(pb[0],pb[1]-h*.5); ctx.quadraticCurveTo((pa[0]+pb[0])/2,pa[1]-h*.5+wv,pa[0],pa[1]-h*.5); ctx.closePath(); ctx.fill();
         ctx.fillStyle='rgba(255,255,255,.9)'; ctx.beginPath(); ctx.arc((pa[0]+pb[0])/2,pa[1]-h*.72+wv*.5,Math.max(.8,(pb[0]-pa[0])*.22),0,7); ctx.fill();
         ctx.fillStyle=dark; ctx.fillRect(pa[0],pa[1]-h*.52,pb[0]-pa[0],Math.max(.5,h*.02)); });
     } else {
       // slalom: ledade käppar utan flagga; vändstången viker sig vid träff
       const tp=P(g.turn.x,g.turn.z); const away = g.type==='closed' ? (g.aim.x>g.a.x?-1:1) : (g.side||1)*-1;
-      if(g.type==='single'){ if(tp) pole(tp, bend*away); }
-      else if(g.type==='closed'){ if(only==='b') pole(b,0); else pole(a,bend*(g.aim.x>g.a.x?-1:1)); }
-      else { const tA = Math.abs(g.a.x-g.turn.x)<.01; pole(a,tA?bend*away:0); pole(b,!tA?bend*away:0); }
+      if(g.type==='single'){ if(tp) pole(tp, bend*away, g.turn.x, g.turn.z); }
+      else if(g.type==='closed'){ if(only==='b') pole(b,0,g.b.x,g.b.z); else pole(a,bend*(g.aim.x>g.a.x?-1:1),g.a.x,g.a.z); }
+      else { const tA = Math.abs(g.a.x-g.turn.x)<.01; pole(a,tA?bend*away:0,g.a.x,g.a.z); pole(b,!tA?bend*away:0,g.b.x,g.b.z); }
     }
     if(g.pass===false && only!=='b'){ const q=P(g.aim.x,g.aim.z)||a||b; if(!q) return; ctx.fillStyle='rgba(239,68,68,.9)'; ctx.font=`900 ${Math.max(10,q[2]*.9)}px system-ui`; ctx.textAlign='center'; ctx.fillText('✕',q[0],q[1]-q[2]*.6); }
   }
