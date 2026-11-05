@@ -124,12 +124,12 @@ const SLALOM = (()=>{
           // stängda portar längs fallinjen: åkaren korsar linjen fram och tillbaka
           const type=plan[i]; let n=0; while(plan[i+n]===type) n++;
           z+=9.5; const L=5.4, gap=type==='h'?1:.9;
-          const cx=fx(z,0); let from=prevTurn ? (Math.sign(prevTurn.x-cx)||1) : -side;
+          const cx=fx(z,0); let from=prevTurn ? -(Math.sign(prevTurn.x-cx)||1) : side;   // efter förra vändstången korsar man fallinjen och svänger tillbaka in i första porten
           for(let k=0;k<n;k++){ const za=z+k*(L+gap), zb=za+L;
             const gt=mkGate({x:cx,z:za},{x:cx,z:zb},col,'closed',{x:cx,z:(za+zb)/2}); gt.turn={x:cx,z:(za+zb)/2}; gt.from=from; from=-from; out[0].push(gt);
             col=col==='r'?'b':'r'; }
           z+=n*(L+gap)-gap; prevTurn={x:cx,z};
-          side = (n%2===0) ? side : -side;     // efter ett udda antal korsningar fortsätter rytmen åt andra hållet
+          side = (n%2===0) ? -side : side;     // man går ut ur kombinationen på den sida man gick in: nästa öppna port ligger på motsatt sida
           i+=n;
         }
       }
