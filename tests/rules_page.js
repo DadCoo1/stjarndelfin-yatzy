@@ -76,9 +76,14 @@ T('vändtia gäst ser inte dolda/andras',()=>{ const g=mk('vandtia'); const r=gR
 T('fisk fråga och få',()=>{ const g=mk('fisk'); g.hands[0]=[C(5),C(9)]; g.hands[1]=[C(5,1),C(5,2),C(8)]; g.cur=0; ap(g,{type:'ask',to:1,rank:5},0); return g.hands[0].filter(c=>rk(c)===5).length===3&&g.cur===0; });
 T('fisk fyrtal läggs ut',()=>{ const g=mk('fisk'); g.hands[0]=[C(5),C(5,3),C(9)]; g.hands[1]=[C(5,1),C(5,2),C(8)]; g.cur=0; ap(g,{type:'ask',to:1,rank:5},0); return g.books[0].includes(5)&&!g.hands[0].some(c=>rk(c)===5); });
 T('fisk fråga om valör man inte har',()=>{ const g=mk('fisk'); g.hands[0]=[C(5)]; g.cur=0; return ap(g,{type:'ask',to:1,rank:9},0)===false; });
-T('fisk finns i sjön byter tur',()=>{ const g=mk('fisk'); g.hands[0]=[C(5)]; g.hands[1]=[C(8)]; g.deck=[C(9,2),C(3,3)]; g.cur=0; ap(g,{type:'ask',to:1,rank:5},0); return g.cur===1&&g.hands[0].length===2; });
-T('fisk drar rätt = fortsätter',()=>{ const g=mk('fisk'); g.hands[0]=[C(5)]; g.hands[1]=[C(8)]; g.deck=[C(9,2),C(5,3)]; g.cur=0; ap(g,{type:'ask',to:1,rank:5},0); return g.cur===0&&g.last.lucky; });
-T('fisk gäst ser inte dragna kortet hos andra',()=>{ const g=mk('fisk'); g.hands[0]=[C(5)]; g.hands[1]=[C(8)]; g.deck=[C(9,2),C(3,3)]; g.cur=0; ap(g,{type:'ask',to:1,rank:5},0); const r=gRedact(g,1); return r.last.drew===undefined&&r.hands[0].every(c=>c===-1); });
+const fk=(deck)=>{ const g=mk('fisk'); g.hands[0]=[C(5)]; g.hands[1]=[C(8)]; g.deck=deck; g.lake=deck.map((_,i)=>[100*i,500,0]); g.cur=0; return g; };
+T('fisk finns i sjön: man väljer kort i sjön',()=>{ const g=fk([C(9,2),C(3,3)]); ap(g,{type:'ask',to:1,rank:5},0); return g.cur===0&&g.fish&&g.fish.rank===5&&g.hands[0].length===1&&ap(g,{type:'ask',to:1,rank:5},0)===false; });
+T('fisk valt kort i sjön byter tur',()=>{ const g=fk([C(9,2),C(3,3)]); ap(g,{type:'ask',to:1,rank:5},0); ap(g,{type:'fish',i:0},0); return g.cur===1&&g.hands[0].includes(C(9,2))&&g.deck.length===1&&g.lake.length===1&&!g.fish; });
+T('fisk fiskar upp rätt = fortsätter',()=>{ const g=fk([C(9,2),C(5,3)]); ap(g,{type:'ask',to:1,rank:5},0); ap(g,{type:'fish',i:1},0); return g.cur===0&&g.last.lucky; });
+T('fisk bara den som fiskar får välja',()=>{ const g=fk([C(9,2),C(5,3)]); ap(g,{type:'ask',to:1,rank:5},0); return ap(g,{type:'fish',i:0},1)===false&&ap(g,{type:'fish',i:7},0)===false; });
+T('fisk sjön är utspridd: en plats per kort',()=>{ const g=mk('fisk'); return g.lake.length===g.deck.length&&KIND.fisk.valid(g); });
+T('fisk gäst ser inte korten i sjön eller det fiskade kortet',()=>{ const g=fk([C(9,2),C(3,3)]); ap(g,{type:'ask',to:1,rank:5},0); ap(g,{type:'fish',i:0},0); const r=gRedact(g,1); return r.last.drew===undefined&&r.hands[0].every(c=>c===-1)&&r.deck.every(c=>c===-1)&&r.lake.length===1; });
+T('fisk datorn fiskar i sjön',()=>{ const g=fk([C(9,2),C(3,3)]); ap(g,{type:'ask',to:1,rank:5},0); const a=KIND.fisk.ai(Object.assign(g,{ai:[1,1]}),0); return a&&a.type==='fish'&&ap(g,a,0); });
 // ---------- Hjärter
 const hL=__cardsTest.hLegal;
 const hg=()=>{ const g=mk('hjarter',['A','B','C','D'],[false,false,false,false]); return g; };
