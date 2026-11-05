@@ -40,6 +40,8 @@ const DRONE = (()=>{
     if(st.cut){ snap=true; st.cut=false; }
     const g=goal(st,S,fx,fz), lift=p=>{ if(ground) p[1]=Math.max(p[1],ground(p[2])+3); };   // aldrig ned i backen
     lift(g.p);
+    // fri sikt: ligger backen (ett krön) mellan kameran och åkaren lyfts kameran tills åkaren syns
+    if(ground) for(let it=0;it<3;it++){ let need=0; for(let k=.12;k<.95;k+=.08){ const y0=S.y-.9, x=y0+(g.p[1]-y0)*k, z=S.z+(g.p[2]-S.z)*k, gy=ground(z)+.35; if(x<gy) need=Math.max(need,(gy-x)/k); } if(need<=0) break; g.p[1]+=need; }
     if(!st.cp||snap){ st.cp=g.p.slice(); st.lp=g.l.slice(); }
     const k=Math.min(1,dt*(st.fast||3.2)), kl=Math.min(1,dt*(st.fast?st.fast*2:7));
     for(let i=0;i<3;i++){ st.cp[i]+= (g.p[i]-st.cp[i])*k; st.lp[i]+= (g.l[i]-st.lp[i])*kl; }

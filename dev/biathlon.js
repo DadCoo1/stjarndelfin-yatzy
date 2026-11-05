@@ -333,10 +333,10 @@ const BIATHLON = (()=>{
       const m=mid(zz), hw=halfAt(zz), e={z:zz, m, hw};
       if(prev){ const zc=(zz+prev.z)/2, tr=T.trees[Math.round(wrap(zc,T.N))]||0, band=(Math.floor(zz/4)%2)*2, line=!pen&&wrap(zc,LP)>LINE-.6&&wrap(zc,LP)<LINE+.6;
         const pc=P(mid(zc),zc), q=[P(prev.m-prev.hw,prev.z),P(prev.m+prev.hw,prev.z),P(m+hw,zz),P(m-hw,zz)];
-        if(pc&&q.every(Boolean)){ const col=line?'rgba(239,68,68,.85)':`rgb(${247-band},${250-band},255)`; L.push({Z:pc[3]+.8, d:()=>{ ctx.fillStyle=col; quad(...q); }}); }
+        if(pc&&q.every(v=>v&&v[3]>1.5)){ const col=line?'rgba(239,68,68,.85)':`rgb(${247-band},${250-band},255)`; L.push({Z:pc[3]+.8, d:()=>{ ctx.fillStyle=col; quad(...q); }}); }
         const oc=`rgb(${226-tr*14},${234-tr*8},246)`;
         for(const sd of [-1,1]) for(const [b0,b1] of BANDS){ const cc=P(mid(zc)+sd*(halfAt(zc)+(b0+b1)/2),zc), qq=[P(prev.m+sd*(prev.hw+b0),prev.z),P(prev.m+sd*(prev.hw+b1),prev.z),P(m+sd*(hw+b1),zz),P(m+sd*(hw+b0),zz)];
-          if(cc&&qq.every(Boolean)) L.push({Z:cc[3]+.8, d:()=>{ ctx.fillStyle=oc; quad(...qq); }}); } }
+          if(cc&&qq.every(v=>v&&v[3]>1.5)) L.push({Z:cc[3]+.8, d:()=>{ ctx.fillStyle=oc; quad(...qq); }}); } }
       prev=e; }
     for(const o of collect(z,pen)){ const x=o.x!=null?o.x : o.a ? mid(o.a.ph==='pen'?o.a.pz:o.a.z) : mid(o.z), p=P(x,o.z); if(!p) continue;
       const flat=o.t==='mat'; if(!flat&&p[3]<4) continue; L.push({Z:p[3]+(flat?.4:0), d:()=>drawObj(o)}); }
