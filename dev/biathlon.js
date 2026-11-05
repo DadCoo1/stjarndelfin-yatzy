@@ -269,14 +269,16 @@ const BIATHLON = (()=>{
   /* ---------- skidåkningen i pseudo-3D ---------- */
   const CAMH=2.35, BACK=4.6, ZMAX=170;
   let cam={x:0,z:0,y:0,yaw:0,pitch:0}, F=500, YA=400, BD=null, BDkey='';
-  function P(x,z,h=0){ const dz=z-cam.z; if(dz<.3) return null; const xs=x-cam.x-dz*Math.tan(cam.yaw); return [W/2+xs*F/dz, YA+F*((cam.y-(elev(z)+h))/dz-Math.tan(cam.pitch)), F/dz]; }
+  const DS=DRONE.make('bs_dr'); let DM=false, DZA=0, DZB=0, VIEWK='back';
+  function P(x,z,h=0){ if(DM) return DRONE.proj(DS.C,x,elev(z)+h,z); const dz=z-cam.z; if(dz<.3) return null; const xs=x-cam.x-dz*Math.tan(cam.yaw); return [W/2+xs*F/dz, YA+F*((cam.y-(elev(z)+h))/dz-Math.tan(cam.pitch)), F/dz]; }
   function quad(a,b,c,d){ ctx.beginPath(); ctx.moveTo(a[0],a[1]); ctx.lineTo(b[0],b[1]); ctx.lineTo(c[0],c[1]); ctx.lineTo(d[0],d[1]); ctx.closePath(); ctx.fill(); }
   function drawSki(dt){
     const a=meA(), pen=a.ph==='pen', z=pen?a.pz:a.z; T=pen?TP:TL;
+    if(DS.on){ drawDroneB(dt,a,pen,z); return; }
     const sway=Math.sin(a.t*2.6)*.35*(1-a.tuck);
     const tx=mid(z)+sway, tz=z-BACK;
     cam.x+=(tx-cam.x)*Math.min(1,dt*5); cam.z=tz;
-    const head=Math.atan(mid(z+8)-mid(z)) ; cam.yaw+=((head*.8)-cam.yaw)*Math.min(1,dt*3);
+    const head=Math.atan((mid(z+8)-mid(z))/8);   // banans riktning (lutning i sidled per meter) cam.yaw+=((head*.8)-cam.yaw)*Math.min(1,dt*3);
     const ahead=Math.atan(-(elev(z+10)-elev(z))/10); cam.pitch+=(ahead*.85-cam.pitch)*Math.min(1,dt*2.4);
     cam.y=elev(cam.z)+CAMH; F=Math.min(W,H)*1.05;
     YA=H*.8 - F*((cam.y-elev(z))/BACK - Math.tan(cam.pitch));
@@ -314,6 +316,40 @@ const BIATHLON = (()=>{
     ctx.globalAlpha=1;
     drawSkier(a,W/2+(mid(z)+sway*.0-cam.x-BACK*Math.tan(cam.yaw))*F/BACK,H*.8,F/BACK,true);
   }
+  // drönaren: äkta 3D-kamera runt åkaren
+  function drawDroneB(dt,a,pen,z){
+    const fx=mid(z+3)-mid(z-3), Cc=DRONE.solve(DS,{x:mid(z),y:elev(z)+1,z},fx/6,1,dt,W,H,zz=>elev(zz));
+    DM=true; VIEWK=DRONE.facing(Cc,fx/6,1);
+    const key=W+'x'+H; if(BDkey!==key){ BD=makeBackdrop(W,H); BDkey=key; }
+    const yH=H/2-Cc.f*Math.tan(Cc.pitch);
+    ctx.fillStyle='#4f7fc4'; ctx.fillRect(0,0,W,H);
+    if(yH>0){ const top=yH-BD.hz, bw=BD.c.width; let x0=-(((Cc.yaw*Cc.f*.9)%(bw*2)+bw*2)%(bw*2))-bw*.2;
+      for(let k=0;k<4&&x0<W;k++,x0+=bw){ if(x0+bw<0) continue; if(k%2===0) ctx.drawImage(BD.c,x0,top); else { ctx.save(); ctx.translate(x0+bw,top); ctx.scale(-1,1); ctx.drawImage(BD.c,0,0); ctx.restore(); } }
+      ctx.fillStyle='#eef3fa'; ctx.fillRect(0,top+BD.c.height-1,W,H); }
+    else { ctx.fillStyle='#eef3fa'; ctx.fillRect(0,0,W,H); }
+    DZA=z-120; DZB=z+220;
+    const off=[], pist=[]; let prev=null;
+    for(let zz=DZA; zz<=DZB; zz+=Math.max(1.2,Math.abs(zz-z)*.05)){
+      const m=mid(zz), hw=halfAt(zz), e={z:zz, pL:P(m-hw,zz), pR:P(m+hw,zz), oL:P(m-hw-80,zz), oR:P(m+hw+80,zz)};
+      if(prev){ const zc=(zz+prev.z)/2, c=P(mid(zc),zc); if(c){ const tr=T.trees[Math.round(wrap(zc,T.N))]||0, band=(Math.floor(zz/4)%2)*2, line=!pen&&wrap(zc,LP)>LINE-.6&&wrap(zc,LP)<LINE+.6;
+          const oc=`rgb(${226-tr*14},${234-tr*8},246)`;
+          if(prev.oL&&prev.pL&&e.pL&&e.oL) off.push({Z:c[3], q:[prev.oL,prev.pL,e.pL,e.oL], c:oc});
+          if(prev.pR&&prev.oR&&e.oR&&e.pR) off.push({Z:c[3], q:[prev.pR,prev.oR,e.oR,e.pR], c:oc});
+          if(prev.pL&&prev.pR&&e.pR&&e.pL) pist.push({Z:c[3], q:[prev.pL,prev.pR,e.pR,e.pL], c: line?'rgba(239,68,68,.85)':`rgb(${247-band},${250-band},255)`}); } }
+      prev=e; }
+    off.sort((p,q)=>q.Z-p.Z); pist.sort((p,q)=>q.Z-p.Z);
+    for(const g of off){ ctx.fillStyle=g.c; quad(...g.q); } for(const g of pist){ ctx.fillStyle=g.c; quad(...g.q); }
+    const objs=collect(z,pen), up=[];
+    for(const o of objs){ if(o.t==='mat'){ drawObj(o); continue; }
+      const x=o.x!=null?o.x : o.a ? mid(o.a.ph==='pen'?o.a.pz:o.a.z) : mid(o.z), p=P(x,o.z); if(p) up.push({Z:p[3], o}); }
+    const pm=P(mid(z),z); if(pm) up.push({Z:pm[3], me:true});
+    for(let i=up.length-1;i>=0;i--) if(!up[i].me && up[i].Z<4) up.splice(i,1);
+    up.sort((p,q)=>q.Z-p.Z);
+    for(const u of up){ if(u.me) drawSkier(a,pm[0],pm[1],pm[2],false); else drawObj(u.o); }
+    R.parts=R.parts.filter(p=>(p.t-=dt)>0);
+    for(const p of R.parts){ p.x+=p.vx*dt; p.z+=p.vz*dt; p.y+=p.vy*dt; p.vy-=9*dt; const q=P(p.x,p.z,Math.max(0,p.y)); if(!q) continue; ctx.globalAlpha=Math.min(1,p.t*2.4); ctx.fillStyle='#fff'; ctx.beginPath(); ctx.arc(q[0],q[1],Math.max(.8,q[2]*.04*p.r),0,7); ctx.fill(); }
+    ctx.globalAlpha=1; DM=false;
+  }
   // föremål runt banan (i varvets koordinater, upprepas varje varv)
   const STATIC=(()=>{ const o=[], r=rng(77);
     o.push({q:LINE, t:'arch'});
@@ -324,7 +360,7 @@ const BIATHLON = (()=>{
     for(let q=0;q<LP;q+=9){ const k=TL.kind[q]; if(k==='stadium'||k==='into'||k==='top'||k==='climb') o.push({q, t:'flag', sd:r()<.5?-1:1, ph:r()*6}); }
     return o; })();
   function collect(z,pen){
-    const objs=[], zA=cam.z+.8, zB=cam.z+ZMAX, N=T.N;
+    const objs=[], zA=DM?DZA:cam.z+.8, zB=DM?DZB:cam.z+ZMAX, N=T.N;
     for(let zz=Math.ceil(zA/5)*5; zz<zB; zz+=5){ const qi=Math.round(wrap(zz,N)), m=mid(zz), hw=halfAt(zz), r=rng(qi*7+(pen?999:1)), dens=T.trees[qi]||0, cr=T.crowd[qi];
       for(const sd of [-1,1]){
         if(cr) objs.push({z:zz, t:'fence', x:m+sd*(hw+1.3), sd});
@@ -344,6 +380,8 @@ const BIATHLON = (()=>{
   const now2=()=>performance.now()/1000;
   function drawObj(o){
     const t=now2();
+    if(o.t==='tree'&&DM&&VIEWK==='top'){ const p=P(o.x,o.z); if(!p) return; const r=p[2]*(o.v===2?1.6:2.3)*o.s; if(r<.8) return; ctx.fillStyle=o.v===2?'rgba(120,110,100,.7)':'#1f4d3a'; ctx.beginPath(); ctx.arc(p[0],p[1],r,0,7); ctx.fill(); ctx.fillStyle='rgba(255,255,255,.75)'; ctx.beginPath(); ctx.arc(p[0]-r*.25,p[1]-r*.25,r*.5,0,7); ctx.fill(); return; }
+    if(o.t==='fan'&&DM&&VIEWK==='top'){ const p=P(o.x,o.z); if(!p) return; ctx.fillStyle=JACK[o.v%JACK.length]; ctx.beginPath(); ctx.arc(p[0],p[1],Math.max(1,p[2]*.28),0,7); ctx.fill(); return; }
     if(o.t==='tree'){ const p=P(o.x,o.z); if(!p) return; const img=SPR.tree[o.v], h=p[2]*8*o.s, w=h*img.width/img.height; if(p[0]+w<0||p[0]-w>W||h<1) return; ctx.drawImage(img,p[0]-w/2,p[1]-h,w,h); return; }
     if(o.t==='fan'){ const p=P(o.x,o.z); if(!p) return; const img=SPR.fan[o.v], h=p[2]*1.75, w=h*img.width/img.height; if(h<1.5) return; const j=Math.max(0,Math.sin(t*6+o.ph))*h*.1; ctx.drawImage(img,p[0]-w/2,p[1]-h-j,w,h); return; }
     if(o.t==='fence'){ const z2=o.z+5, a=P(o.x,o.z), b=P(mid(z2)+o.sd*(halfAt(z2)+1.3),z2); if(!a||!b) return; const ha=a[2]*1, hb=b[2]*1;
@@ -380,13 +418,27 @@ const BIATHLON = (()=>{
   // åkaren bakifrån: skating med skidorna i V, stavar, gevär på ryggen, Team Sweden
   const SUIT=[{b:'#0b2e7a',m:'#1d4ed8',a:'#facc15'},{b:'#991b1b',m:'#dc2626',a:'#f8fafc'},{b:'#14532d',m:'#16a34a',a:'#f8fafc'},{b:'#3f3f46',m:'#71717a',a:'#f97316'}];
   function limb(x1,y1,x2,y2,w1,w2,col){ const dx=x2-x1, dy=y2-y1, L=Math.hypot(dx,dy)||1, nx=-dy/L, ny=dx/L; ctx.fillStyle=col; ctx.beginPath(); ctx.moveTo(x1+nx*w1/2,y1+ny*w1/2); ctx.lineTo(x2+nx*w2/2,y2+ny*w2/2); ctx.lineTo(x2-nx*w2/2,y2-ny*w2/2); ctx.lineTo(x1-nx*w1/2,y1-ny*w1/2); ctx.closePath(); ctx.fill(); ctx.beginPath(); ctx.arc(x1,y1,w1/2,0,7); ctx.fill(); ctx.beginPath(); ctx.arc(x2,y2,w2/2,0,7); ctx.fill(); }
+  function drawSkierTop(a,x,y,sc){
+    const z=a.ph==='pen'?a.pz:a.z, p0=P(mid(z),z), p1=P(mid(z+1),z+1); if(!p0||!p1) return; const ang=Math.atan2(p1[1]-p0[1],p1[0]-p0[0]);
+    const S=SUIT[a.k%4], side=a.lastSide==='L'?-1:1, st=a.stride||0, tk=a.tuck||0;
+    ctx.save(); ctx.translate(x,y); ctx.rotate(ang); ctx.scale(sc,sc);
+    ctx.fillStyle='rgba(60,90,140,.25)'; ctx.beginPath(); ctx.ellipse(-.1,0,.95,.45,0,0,7); ctx.fill();
+    for(const sd of [-1,1]){ const v=tk>.5?.02:.3+(sd===side?st*.25:0); ctx.save(); ctx.translate(-.05,sd*.12); ctx.rotate(sd*v); ctx.fillStyle='#f8fafc'; ctx.beginPath(); ctx.roundRect(-.85,-.03,1.75,.06,.03); ctx.fill(); ctx.fillStyle=S.m; ctx.fillRect(-.8,-.01,1.6,.02); ctx.fillStyle='#111827'; ctx.fillRect(-.08,-.05,.2,.1); ctx.restore(); }
+    for(const sd of [-1,1]){ ctx.strokeStyle='#cbd5e1'; ctx.lineWidth=.025; ctx.beginPath(); ctx.moveTo(.1,sd*.3); ctx.lineTo(-.6-st*.3,sd*.42); ctx.stroke(); }
+    ctx.fillStyle=S.b; ctx.beginPath(); ctx.ellipse(-.05,0,.17,.27,0,0,7); ctx.fill(); ctx.fillStyle=S.m; ctx.beginPath(); ctx.ellipse(.07,0,.13,.24,0,0,7); ctx.fill();
+    ctx.fillStyle='#3b2416'; ctx.save(); ctx.rotate(-.5); ctx.fillRect(-.3,-.04,.62,.08); ctx.restore();
+    ctx.fillStyle=S.b; ctx.beginPath(); ctx.arc(.15,0,.11,0,7); ctx.fill(); ctx.fillStyle=S.a; ctx.fillRect(.05,-.02,.2,.04);
+    ctx.restore();
+  }
   function drawSkier(a,x,y,sc,me){
+    if(DM && VIEWK==='top'){ drawSkierTop(a,x,y,sc); return; }
+    const FR = DM && VIEWK==='front';
     const u=sc*(me?.0118:.0105), S=SUIT[a.k%4], tk=a.tuck||0, st=a.stride||0, side=a.lastSide==='L'?-1:1, ph=st;   // ph: 1 = precis frånskjut
     ctx.save(); ctx.translate(x,y); ctx.scale(u,u);
     ctx.fillStyle='rgba(60,90,140,.22)'; ctx.beginPath(); ctx.ellipse(0,8,64,12,0,0,7); ctx.fill();
     // skidorna i V: den som skjuter ifrån är ute åt sidan, den andra under kroppen
     const spread = tk>.5 ? 6 : 15;
-    [-1,1].forEach(sd=>{ const pushing=sd===side, out=pushing?ph:0, fx=sd*(spread+out*20)+(-side*ph*6), lift=pushing?0:(1-ph)*0; ctx.save(); ctx.translate(fx,-lift);
+    [-1,1].forEach(sd=>{ const pushing=sd===side, out=pushing?ph:0, fx=sd*(spread+out*20)+(-side*ph*6), lift=pushing?0:(1-ph)*0; ctx.save(); ctx.translate(fx,-lift); if(FR) ctx.scale(1,-1);
       const ang=tk>.5?0:sd*.32; ctx.rotate(ang*.0); const tip=sd*(tk>.5?2:22), tl=-tip*.5;
       ctx.fillStyle='#f8fafc'; ctx.beginPath(); ctx.moveTo(tl-5,32); ctx.quadraticCurveTo(tl,35,tl+5,32); ctx.lineTo(tip+2,-60); ctx.quadraticCurveTo(tip,-64,tip-2,-60); ctx.closePath(); ctx.fill(); ctx.strokeStyle='rgba(15,23,42,.35)'; ctx.lineWidth=.8; ctx.stroke();
       ctx.fillStyle=S.m; ctx.beginPath(); ctx.moveTo(tl-1.6,31); ctx.lineTo(tl+1.6,31); ctx.lineTo(tip+.6,-56); ctx.lineTo(tip-.6,-56); ctx.closePath(); ctx.fill();
@@ -424,7 +476,8 @@ const BIATHLON = (()=>{
     const hy=-bh-12+tk*8; ctx.fillStyle='#f1c7a5'; ctx.fillRect(-5,hy+6,10,8);
     ctx.fillStyle='#f1c7a5'; ctx.beginPath(); ctx.ellipse(0,hy,13,15,0,0,7); ctx.fill();
     ctx.fillStyle=S.b; ctx.beginPath(); ctx.ellipse(0,hy-4,14,12.5,0,Math.PI,0); ctx.fill(); ctx.fillRect(-14,hy-5,28,7); ctx.fillStyle=S.a; ctx.fillRect(-14,hy-1,28,3);
-    ctx.fillStyle='#7c4a2d'; ctx.beginPath(); ctx.ellipse(0,hy+5,10,6,0,0,Math.PI); ctx.fill();
+    if(FR){ ctx.fillStyle='#f1c7a5'; ctx.beginPath(); ctx.ellipse(0,hy+2,11,12,0,0,7); ctx.fill(); ctx.fillStyle='#1e293b'; ctx.beginPath(); ctx.arc(-4,hy+1,1.6,0,7); ctx.arc(4,hy+1,1.6,0,7); ctx.fill(); ctx.strokeStyle='#9a3412'; ctx.lineWidth=1.4; ctx.beginPath(); ctx.arc(0,hy+5,3.5,.2,Math.PI-.2); ctx.stroke(); }
+    else { ctx.fillStyle='#7c4a2d'; ctx.beginPath(); ctx.ellipse(0,hy+5,10,6,0,0,Math.PI); ctx.fill(); }
     ctx.restore(); ctx.restore();
   }
 
@@ -674,9 +727,10 @@ const BIATHLON = (()=>{
     // skyttet hittills
     a.sh.forEach((m,i)=>{ const x=10+i*84; ctx.fillStyle='rgba(15,23,42,.58)'; ctx.beginPath(); ctx.roundRect(x,78,78,22,8); ctx.fill(); ctx.fillStyle=m?'#fca5a5':'#86efac'; ctx.font='800 12px system-ui'; ctx.textAlign='left'; ctx.textBaseline='middle'; ctx.fillText(`${FMT[g.fmt].st[i]==='L'?'Ligg':'Stå'}: ${m?m+' bom':'fullt'}`,x+8,89); });
     // puls
-    const beat=Math.pow(1-((a.t*a.hr/60)%1),5); ctx.save(); ctx.translate(26,H-112); ctx.scale(1+beat*.15,1+beat*.15); ctx.font='24px system-ui'; ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.fillStyle='#ef4444'; ctx.fillText('❤',0,0); ctx.restore();
-    ctx.fillStyle=a.hr>186?'#fca5a5':'#fff'; ctx.font='800 22px ui-monospace,monospace'; ctx.textAlign='left'; ctx.textBaseline='middle'; ctx.fillText(String(Math.round(a.hr)),44,H-111);
-    if(a.hr>186){ ctx.font='700 11px system-ui'; ctx.fillStyle='#fca5a5'; ctx.fillText('Mjölksyra!',44,H-92); }
+    ctx.fillStyle='rgba(15,23,42,.58)'; ctx.beginPath(); ctx.roundRect(8,H-196,96,a.hr>186?52:40,12); ctx.fill();
+    const beat=Math.pow(1-((a.t*a.hr/60)%1),5); ctx.save(); ctx.translate(26,H-176); ctx.scale(1+beat*.15,1+beat*.15); ctx.font='24px system-ui'; ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.fillStyle='#ef4444'; ctx.fillText('❤',0,0); ctx.restore();
+    ctx.fillStyle=a.hr>186?'#fca5a5':'#fff'; ctx.font='800 22px ui-monospace,monospace'; ctx.textAlign='left'; ctx.textBaseline='middle'; ctx.fillText(String(Math.round(a.hr)),44,H-175);
+    if(a.hr>186){ ctx.font='700 11px system-ui'; ctx.fillStyle='#fca5a5'; ctx.fillText('Mjölksyra!',44,H-156); }
     // placering
     if(R.A.length>1){ const prog=x=> x.done? 1e9-(x.finish||0) : (x.lap*LP*0)+x.z - (x.ph==='pen'?(x.pen-x.pz):0) - (x.ph==='range'?40:0);
       const order=R.A.slice().sort((p,q)=>prog(q)-prog(p)); ctx.fillStyle='rgba(15,23,42,.58)'; ctx.beginPath(); ctx.roundRect(W-150,10,140,14+order.length*17,12); ctx.fill();
@@ -684,9 +738,9 @@ const BIATHLON = (()=>{
         ctx.textAlign='right'; const d=x.done?fmtT(x.finish):x===a?'':(x.ph==='range'?'🎯':x.ph==='pen'?'↻':`${Math.round(prog(x)-prog(a))>0?'+':''}${Math.round(prog(x)-prog(a))} m`); ctx.fillText(d,W-16,17+i*17); }); }
     // takten: två fotsulor, nästa sida lyser – lagom takt fyller ringen
     if(R.started && a.ph!=='done'){ const ideal=idealGap(gradeAt(a.ph==='pen'?a.pz:a.z,a.ph==='pen'?TP:TL),a.v), since=a.t-(a.lastPush??-9), f=clamp(since/ideal,0,1.4), next=a.lastSide==='L'?'R':'L';
-      [['L',W*.25],['R',W*.75]].forEach(([s,x])=>{ const on=s===next; ctx.globalAlpha=on?.95:.35; ctx.fillStyle='rgba(15,23,42,.5)'; ctx.beginPath(); ctx.arc(x,H-56,26,0,7); ctx.fill();
-        if(on){ ctx.strokeStyle=f>=.8&&f<=1.3?'#22c55e':f<.8?'#fde047':'#94a3b8'; ctx.lineWidth=4; ctx.beginPath(); ctx.arc(x,H-56,24,-Math.PI/2,-Math.PI/2+Math.PI*2*Math.min(1,f)); ctx.stroke(); }
-        ctx.fillStyle='#fff'; ctx.font='800 16px system-ui'; ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.fillText(s==='L'?'V':'H',x,H-56); }); ctx.globalAlpha=1; }
+      const fy=H-124; [['L',W*.25],['R',W*.75]].forEach(([s,x])=>{ const on=s===next; ctx.globalAlpha=on?.95:.35; ctx.fillStyle='rgba(15,23,42,.5)'; ctx.beginPath(); ctx.arc(x,fy,26,0,7); ctx.fill();
+        if(on){ ctx.strokeStyle=f>=.8&&f<=1.3?'#22c55e':f<.8?'#fde047':'#94a3b8'; ctx.lineWidth=4; ctx.beginPath(); ctx.arc(x,fy,24,-Math.PI/2,-Math.PI/2+Math.PI*2*Math.min(1,f)); ctx.stroke(); }
+        ctx.fillStyle='#fff'; ctx.font='800 16px system-ui'; ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.fillText(s==='L'?'V':'H',x,fy); }); ctx.globalAlpha=1; }
     // höjdprofil med position
     profile(a);
     if(R.banner&&R.banner.t>0){ ctx.globalAlpha=Math.min(1,R.banner.t*2); ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.font='900 26px system-ui'; ctx.fillStyle='#fde047'; ctx.fillText(R.banner.txt,W/2,96); ctx.globalAlpha=1; }
@@ -798,7 +852,7 @@ const BIATHLON = (()=>{
   function fit(){ if(!cv) return; const host=cv.parentElement, r=host.getBoundingClientRect(); const w=Math.round(Math.min(host.clientWidth,700)), h=Math.round(Math.max(340,Math.min(window.innerHeight-r.top-10,w*1.9)));
     dpr=Math.min(2,window.devicePixelRatio||1); cv.style.width=w+'px'; cv.style.height=h+'px'; cv.width=Math.round(w*dpr); cv.height=Math.round(h*dpr); W=w; H=h; BDkey=''; WCkey=''; PROFkey=''; }
   window.addEventListener('resize',()=>{ if(G&&G.kind==='skidskytte'&&view==='game') fit(); });
-  function showCtl(on){ const c=document.getElementById('bsCtl'); if(c) c.classList.toggle('on',!!on); }
+  function showCtl(on){ const c=document.getElementById('bsCtl'); if(c) c.classList.toggle('on',!!on); const d=document.querySelector('.dr-bar[data-dk="bs_dr"]'); if(d) d.style.display=on?'none':''; }
   function tapSki(e){ const a=meA(); if(!R.started||(a.ph!=='ski'&&a.ph!=='pen')||a.done) return; const r=cv.getBoundingClientRect(), side=(e.clientX-r.left)<r.width/2?'L':'R'; doPush(side); }
   function doPush(side){ const a=meA(); const res=push(a,side); strideSfx(a.v,res.q); if(res.bad.includes('side')) R.banner={txt:'Växla ben!',t:.8}; else if(res.bad.includes('fast')) R.banner={txt:'Lugnare takt',t:.8}; }
   function mount(){
@@ -879,7 +933,7 @@ const BIATHLON = (()=>{
           <div class="gbtns">${R.trI<TR_N?`<button class="pri" data-bsx="next">▶️ Nästa serie (${stagesOf(G)[R.trI]==='L'?'liggande':'stående'})</button>`:`<button class="pri" data-bsx="end">✅ Se resultatet</button>`}${R.trI<TR_N?'<button data-bsx="end">Avsluta</button>':''}</div></div></div>`; }
       const tr=g.fmt==='tr';
       return `<div class="bs-wrap"><div id="bsHost" class="bs-host"></div>
-        <div class="bs-ctl" id="bsCtl"><button class="bs-cl" data-bs="cl" data-d="-1" aria-label="Knäpp vänster">◀ klick</button><button class="bs-fire" data-bs="fire">AVFYRA</button><button class="bs-cl" data-bs="cl" data-d="1" aria-label="Knäpp höger">klick ▶</button></div>${over}</div>
+        ${tr?'':DRONE.panel(DS)}<div class="bs-ctl" id="bsCtl"><button class="bs-cl" data-bs="cl" data-d="-1" aria-label="Knäpp vänster">◀ klick</button><button class="bs-fire" data-bs="fire">AVFYRA</button><button class="bs-cl" data-bs="cl" data-d="1" aria-label="Knäpp höger">klick ▶</button></div>${over}</div>
         <div class="ghint">${tr?`Träna skytte · ${g.trPos==='L'?'liggande':g.trPos==='S'?'stående':'växla ligg/stå'} · ${g.trHr==='race'?'hög puls':'lugn puls'}`:`${FMT[g.fmt].name} · ${FMT[g.fmt].desc}`} · Skejta: tryck växelvis vänster–höger (← →). Skytte: dra för att sikta, håll kvar fingret för att hålla andan, tryck AVFYRA (mellanslag). ${g.wind?'Vinden syns på flaggorna – flytta träffläget med knäpparna.':''} ${KIT.resignHTML()}</div>`;
     },
     mounted(){ mount(); if(R&&R.sc&&meA().ph==='range'&&R.sc.phase==='aim') showCtl(true); }
