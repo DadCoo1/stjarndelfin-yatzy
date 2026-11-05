@@ -1,3 +1,18 @@
+/* ================= Kompatibilitet med äldre iPad/Safari =================
+   roundRect finns först i Safari 16 – lägg till en egen version. */
+(function(){
+  function rr(x,y,w,h,r){
+    let a=r; if(Array.isArray(r)) a=r.length?r[0]:0; if(typeof a==='object'&&a) a=a.x||0; a=+a||0;
+    if(w<0){ x+=w; w=-w; } if(h<0){ y+=h; h=-h; }
+    a=Math.max(0,Math.min(a,w/2,h/2));
+    this.moveTo(x+a,y); this.lineTo(x+w-a,y); this.arcTo(x+w,y,x+w,y+a,a); this.lineTo(x+w,y+h-a);
+    this.arcTo(x+w,y+h,x+w-a,y+h,a); this.lineTo(x+a,y+h); this.arcTo(x,y+h,x,y+h-a,a); this.lineTo(x,y+a);
+    this.arcTo(x,y,x+a,y,a); this.closePath();
+  }
+  try{ if(window.CanvasRenderingContext2D&&!CanvasRenderingContext2D.prototype.roundRect) CanvasRenderingContext2D.prototype.roundRect=rr; }catch(e){}
+  try{ if(window.Path2D&&!Path2D.prototype.roundRect) Path2D.prototype.roundRect=rr; }catch(e){}
+})();
+
 /* ================= Skydd mot inramning (clickjacking) =================
    Appen får bara visas i en ram av sig själv (testkompisen i dev). */
 (function(){
@@ -6,7 +21,7 @@
   if(!same || !/[?&]bot=1/.test(location.search)){ document.documentElement.innerHTML=''; throw new Error('Inramning blockerad'); }
 })();
 /* ================= Version & utvecklingsläge ================= */
-const APP_VERSION='2026.11.05.2';
+const APP_VERSION='2026.11.05.3';
 const DEV = /\/dev(\/|$)/.test(location.pathname);      // testversionen ligger i mappen /dev/
 const BOT = DEV && /[?&]bot=1/.test(location.search) && window.parent!==window;   // osynlig testkompis i en ram (bara dev)
 const LSP = DEV ? (BOT ? 'dev:bot:' : 'dev:') : '';    // egen sparad data i testversionen

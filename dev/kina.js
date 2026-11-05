@@ -238,9 +238,9 @@
 .khead .gp{flex:1 1 30%;min-width:96px;padding:7px 10px}
 .khead .gp span{font-size:14px}.khead .gp b{font-size:12px}
 .kdot{display:inline-block;width:11px;height:11px;border-radius:50%;margin-right:5px;vertical-align:-1px;box-shadow:0 0 6px currentColor}
-.kwrap{position:relative;width:100%;max-width:min(560px,100%,calc((100dvh - 250px)/1.08));margin:0 auto;aspect-ratio:1/1.08;border-radius:28px;
+.kwrap{position:relative;width:100%;max-width:min(560px,100%,calc((100vh - 250px)/1.08));max-width:min(560px,100%,calc((100dvh - 250px)/1.08));margin:0 auto;aspect-ratio:1/1.08;border-radius:28px;
   background:radial-gradient(circle at 50% 45%,rgba(56,189,248,.18),rgba(15,23,42,.55) 70%);border:1px solid var(--line);box-shadow:inset 0 0 40px rgba(0,0,0,.35)}
-.kboard{width:100%;height:100%;display:block;touch-action:manipulation;user-select:none;-webkit-user-select:none}
+.kboard{width:100%;height:100%;display:block;touch-action:manipulation;-webkit-user-select:none;user-select:none}
 .kh{fill:rgba(2,6,23,.55);stroke:rgba(148,163,184,.35);stroke-width:.05}
 .kh.dest{fill:rgba(250,204,21,.25);stroke:#facc15;stroke-width:.09;animation:kpulse 1s ease-in-out infinite;cursor:pointer}
 @keyframes kpulse{50%{stroke-opacity:.35}}

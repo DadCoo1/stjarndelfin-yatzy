@@ -1086,14 +1086,14 @@ const BIATHLON = (()=>{
 
   const css=document.createElement('style'); css.textContent=`
 .bs-wrap{position:relative;margin:0 auto}.bs-host{display:flex;justify-content:center}
-.bs-cv{display:block;border-radius:16px;touch-action:none;user-select:none;-webkit-user-select:none;box-shadow:0 10px 30px rgba(0,0,0,.4)}
+.bs-cv{display:block;border-radius:16px;touch-action:none;-webkit-user-select:none;user-select:none;box-shadow:0 10px 30px rgba(0,0,0,.4)}
 .bs-ctl{position:absolute;left:0;right:0;bottom:10px;display:none;justify-content:center;align-items:center;gap:14px;pointer-events:none}
 .bs-ctl.on{display:flex}.bs-ctl button{pointer-events:auto;touch-action:manipulation}
 .bs-fire{width:96px;height:96px;border-radius:50%;border:3px solid rgba(255,255,255,.75);background:radial-gradient(circle at 40% 35%,#f87171,#b91c1c 70%);color:#fff;font-weight:900;font-size:14px;letter-spacing:.5px;box-shadow:0 6px 18px rgba(0,0,0,.5)}
 .bs-fire:active{transform:scale(.95)}
 .bs-cl{padding:9px 10px;border-radius:12px;border:1px solid rgba(255,255,255,.35);background:rgba(15,23,42,.7);color:#e2e8f0;font-size:12.5px;font-weight:700}
-.bs-over{position:absolute;inset:0;display:grid;place-items:center;padding:12px;background:rgba(15,23,42,.35);overflow:auto}
-.bs-over .gover{max-width:360px;width:100%;background:rgba(11,16,40,.92);backdrop-filter:blur(6px)}
+.bs-over{position:absolute;top:0;right:0;bottom:0;left:0;display:grid;place-items:center;padding:12px;background:rgba(15,23,42,.35);overflow:auto}
+.bs-over .gover{max-width:360px;width:100%;background:rgba(11,16,40,.92);-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px)}
 .bs-res>div{display:flex;justify-content:space-between;gap:10px;padding:6px 12px;border-radius:10px;background:rgba(255,255,255,.06);margin:4px 0;font-variant-numeric:tabular-nums}
 .bs-res>div.win{background:rgba(250,204,21,.2);border:1px solid var(--gold)}
 .bs-pb{font-size:12.5px;opacity:.85}.bs-pep{font-size:14px;font-weight:700;margin:4px 0 8px;line-height:1.35}.bs-tsvg{width:100%;max-width:300px;display:block;margin:6px auto}

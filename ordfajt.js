@@ -125,7 +125,7 @@
     /^röv(en|ens|s)?$/, /^kuk(en|ens|ar|arna|s)?$/, /fitt(a|an|ans|or|orna|ors)$/, /^bög(ar|en|arna|ens|ig|iga|igt|s)?$/
   ];
   const CRUDE_NO=[
-    /knull|voldt|porno|orgasm|fuck|(?<!g)jævl|helvet|dildo|bordell|prostitu|pervers|homse|rasshøl|rævhol/,
+    /knull|voldt|porno|orgasm|fuck|(?:^|[^g])jævl|helvet|dildo|bordell|prostitu|pervers|homse|rasshøl|rævhol/,
     /^(porr|onan|dritt|ludder|tispe)/, /^sperm(a|ie|ier|iene|en)?$/,
     /^pikk(en|er|ene|ar|ane|s)?$/, /^kuk(en|er|ene|ar|ane|s)?$/, /^fitte(n|r|ne|ar|ane|s)?$/,
     /^hore|^hor(a|ar|ane|er|ene)$|(luksus|gate)hor/, /^faen$/, /^ræv(en|a|er|ane|ene|s)?$/,
@@ -524,8 +524,8 @@
 .of-head{display:flex;gap:6px;align-items:stretch;margin:2px 0 4px}.of-head .gp{flex:1}
 .of-bag{flex:none;display:grid;place-items:center;padding:0 10px;border-radius:16px;background:var(--glass);border:1px solid var(--line);font-weight:700;font-size:14px}
 .of-sub{min-height:22px;font-size:14.5px}.of-sub .bad{color:#fca5a5}
-.of-wrap{width:100%;max-width:min(620px,100%,max(320px,calc(100dvh - 300px)));margin:0 auto}
-.of-board{--cs:24px;display:grid;grid-template-columns:repeat(15,minmax(0,1fr));grid-template-rows:repeat(15,minmax(0,1fr));gap:1.5px;padding:3px;border-radius:12px;background:#0b1530;aspect-ratio:1;user-select:none;-webkit-user-select:none;touch-action:manipulation}
+.of-wrap{width:100%;max-width:min(620px,100%,max(320px,calc(100vh - 300px)));max-width:min(620px,100%,max(320px,calc(100dvh - 300px)));margin:0 auto}
+.of-board{--cs:24px;display:grid;grid-template-columns:repeat(15,minmax(0,1fr));grid-template-rows:repeat(15,minmax(0,1fr));gap:1.5px;padding:3px;border-radius:12px;background:#0b1530;aspect-ratio:1;-webkit-user-select:none;user-select:none;touch-action:manipulation}
 .of-c{position:relative;min-width:0;min-height:0;border-radius:3px;background:#1e2a4a;display:grid;place-items:center;font-size:calc(var(--cs)*.32);font-weight:700;color:rgba(255,255,255,.8);overflow:hidden}
 .of-c span{pointer-events:none;letter-spacing:-.5px}
 .of-c.pW{background:#c2410c}.of-c.pw{background:#be185d}.of-c.pL{background:#1d4ed8}.of-c.pl{background:#0e7490}.of-c.ps{background:#7c3aed;font-size:calc(var(--cs)*.55)}

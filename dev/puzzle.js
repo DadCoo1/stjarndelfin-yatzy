@@ -86,7 +86,7 @@
       <div class="btns" style="flex-direction:column"><button class="pri" data-wd="daily">📅 Dagens ord</button><button class="pri" data-wd="free" style="background:linear-gradient(135deg,#22d3ee,#6366f1)">🔁 Öva med ett slumpat ord</button><button data-act="close">Avbryt</button></div>`,'wdmenu');
     if(window.ORDLISTA) ORDLISTA.load(wdLang).catch(()=>{}); };
   GINFO.wordle.menu=()=>showWordleMenu();
-  css(`.wd-b{display:grid;gap:6px;max-width:min(330px,100%,max(230px,calc((100dvh - 420px)*5/6)));margin:8px auto}
+  css(`.wd-b{display:grid;gap:6px;max-width:min(330px,100%,max(230px,calc((100vh - 420px)*5/6)));max-width:min(330px,100%,max(230px,calc((100dvh - 420px)*5/6)));margin:8px auto}
 .wd-r{display:grid;grid-template-columns:repeat(5,1fr);gap:6px}.wd-r.shake{animation:wdsh .4s}@keyframes wdsh{20%,60%{transform:translateX(-8px)}40%,80%{transform:translateX(8px)}}
 .wd-c{aspect-ratio:1;border:2px solid rgba(148,163,184,.4);border-radius:8px;display:grid;place-items:center;font-size:clamp(20px,7vw,32px);font-weight:800;text-transform:uppercase}
 .wd-c.typed{border-color:#cbd5e1}.wd-c.new{animation:wdp .12s}@keyframes wdp{50%{transform:scale(1.08)}}
@@ -187,11 +187,11 @@
       ${B[sdLevel]?`<div class="setnote">Bästa tid: ${f(B[sdLevel])}${today?` · dagens: ${f(today)} ✅`:''}</div>`:''}
       <div class="btns" style="flex-direction:column"><button class="pri" data-sd="daily">📅 Dagens sudoku</button><button class="pri" data-sd="start" style="background:linear-gradient(135deg,#22d3ee,#6366f1)">🎲 Nytt slumpat pussel</button><button data-act="close">Avbryt</button></div>`,'sdmenu'); };
   GINFO.sudoku.menu=()=>showSudokuMenu();
-  css(`.sd-b{display:grid;grid-template-columns:repeat(9,1fr);max-width:min(460px,100%,max(300px,calc(100dvh - 330px)));margin:8px auto;border:3px solid #cbd5e1;border-radius:10px;overflow:hidden;background:#0f172a;container-type:inline-size}
-.sd-c{aspect-ratio:1;border:0;border-right:1px solid #475569;border-bottom:1px solid #475569;background:#f8fafc;color:#1d4ed8;font-size:calc(100cqw/9*.58);font-weight:700;padding:0;display:grid;place-items:center;position:relative}
+  css(`.sd-b{display:grid;grid-template-columns:repeat(9,1fr);max-width:min(460px,100%,max(300px,calc(100vh - 330px)));max-width:min(460px,100%,max(300px,calc(100dvh - 330px)));margin:8px auto;border:3px solid #cbd5e1;border-radius:10px;overflow:hidden;background:#0f172a;container-type:inline-size}
+.sd-c{aspect-ratio:1;border:0;border-right:1px solid #475569;border-bottom:1px solid #475569;background:#f8fafc;color:#1d4ed8;font-size:calc(min(92vw,460px)/9*.58);font-size:calc(100cqw/9*.58);font-weight:700;padding:0;display:grid;place-items:center;position:relative}
 .sd-c.br{border-right:3px solid #0f172a}.sd-c.bb{border-bottom:3px solid #0f172a}
 .sd-c.giv{color:#0f172a;font-weight:800}.sd-c.hl{background:#e0f2fe}.sd-c.same{background:#bae6fd}.sd-c.sel{background:#7dd3fc}.sd-c.bad{color:#dc2626;background:#fee2e2}
-.sd-n{position:absolute;inset:2px;display:grid;grid-template-columns:repeat(3,1fr);font-size:calc(100cqw/9*.24);color:#475569;font-weight:600}.sd-n i{font-style:normal;display:grid;place-items:center}
+.sd-n{position:absolute;top:2px;right:2px;bottom:2px;left:2px;display:grid;grid-template-columns:repeat(3,1fr);font-size:calc(min(92vw,460px)/9*.24);font-size:calc(100cqw/9*.24);color:#475569;font-weight:600}.sd-n i{font-style:normal;display:grid;place-items:center}
 .sd-tools{display:flex;gap:8px;justify-content:center;margin:6px 0}.sd-tools button{padding:9px 12px;border-radius:12px;background:var(--glass2);border:1px solid var(--line);font-size:14px}.sd-tools button.on{border-color:#facc15;background:#facc15;color:#1e293b;font-weight:800;box-shadow:0 0 14px rgba(250,204,21,.6)}
 .sd-noteinfo{text-align:center;font-size:12.5px;color:#fde68a;margin:2px 8px 4px}
 .sd-k.sdnote{background:linear-gradient(160deg,#a16207,#713f12);font-style:italic}

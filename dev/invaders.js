@@ -287,9 +287,9 @@ function invStatsHTML(){ const s=INV.stats(); if(!s.games) return ''; return `<s
 .inv-hud b{color:#fff;font-size:16px;margin-left:4px}.inv-hud .lv{color:#fb7185;font-size:15px;letter-spacing:2px}
 .inv-stage{position:relative;width:100%;display:flex;justify-content:center}
 #ivc{display:block;border-radius:18px;box-shadow:0 0 0 1px rgba(125,249,255,.3),0 20px 60px rgba(0,0,0,.6),0 0 40px rgba(99,102,241,.25);touch-action:none;cursor:crosshair}
-.inv-ov{position:absolute;inset:0;display:none;align-items:center;justify-content:center;padding:14px}
+.inv-ov{position:absolute;top:0;right:0;bottom:0;left:0;display:none;align-items:center;justify-content:center;padding:14px}
 .inv-ov.show{display:flex}
-.iv-card{width:min(330px,92%);padding:22px 18px;border-radius:24px;text-align:center;background:rgba(5,8,40,.88);border:1px solid rgba(125,249,255,.45);box-shadow:0 0 40px rgba(99,102,241,.4);backdrop-filter:blur(4px)}
+.iv-card{width:min(330px,92%);padding:22px 18px;border-radius:24px;text-align:center;background:rgba(5,8,40,.88);border:1px solid rgba(125,249,255,.45);box-shadow:0 0 40px rgba(99,102,241,.4);-webkit-backdrop-filter:blur(4px);backdrop-filter:blur(4px)}
 .iv-title{font-size:36px;font-weight:700;line-height:1;letter-spacing:3px;background:linear-gradient(180deg,#a3e635,#22d3ee 55%,#f0abfc);-webkit-background-clip:text;background-clip:text;color:transparent;filter:drop-shadow(0 0 12px rgba(34,211,238,.6))}
 .iv-title.sm{font-size:28px;margin-bottom:12px}
 .iv-sub{color:#cdeeff;margin:8px 0 12px}
