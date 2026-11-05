@@ -473,10 +473,10 @@ const SLALOM = (()=>{
       const m=mid(z), hw=halfAt(z), e={z, m, hw};
       if(prev){ const zc=(z+prev.z)/2, fo=T.trees[Math.round(zc)|0]||.3, band=(Math.floor(z/5)%2)*3, sl=pitchAt(z), sh2=clamp((sl-.25)*40,-6,10), fin=z>C.L&&z<C.L+4;
         const pc=P(mid(zc),zc), q=[P(prev.m-prev.hw,prev.z),P(prev.m+prev.hw,prev.z),P(m+hw,z),P(m-hw,z)];
-        if(pc&&q.every(Boolean)){ const col=fin?'rgba(239,68,68,.85)':`rgb(${246-sh2-band},${250-sh2*.7-band},255)`; L.push({Z:pc[3]+.8, d:()=>{ ctx.fillStyle=col; quad(...q); }}); }
+        if(pc&&q.every(v=>v&&v[3]>1.5)){ const col=fin?'rgba(239,68,68,.85)':`rgb(${246-sh2-band},${250-sh2*.7-band},255)`; L.push({Z:pc[3]+.8, d:()=>{ ctx.fillStyle=col; quad(...q); }}); }
         const oc=`rgb(${224-fo*10},${233-fo*6},245)`;
         for(const sd of [-1,1]) for(const [b0,b1] of BANDS){ const cc=P(mid(zc)+sd*(halfAt(zc)+(b0+b1)/2),zc), qq=[P(prev.m+sd*(prev.hw+b0),prev.z),P(prev.m+sd*(prev.hw+b1),prev.z),P(m+sd*(hw+b1),z),P(m+sd*(hw+b0),z)];
-          if(cc&&qq.every(Boolean)) L.push({Z:cc[3]+.8, d:()=>{ ctx.fillStyle=oc; quad(...qq); }}); } }
+          if(cc&&qq.every(v=>v&&v[3]>1.5)) L.push({Z:cc[3]+.8, d:()=>{ ctx.fillStyle=oc; quad(...qq); }}); } }
       prev=e; }
     for(const o of collect(C,s)){ const x=o.x!=null?o.x : o.sk? o.sk.x : o.g? (o.g.a.x+o.g.b.x)/2 : mid(o.z), p=P(x,o.z); if(!p) continue;
       const flat=o.t==='rut'||o.t==='dye'||o.t==='arrow'; if(!flat&&p[3]<4) continue; L.push({Z:p[3]+(flat?.4:0), d:()=>drawObj(o)}); }
@@ -615,7 +615,9 @@ const SLALOM = (()=>{
     if(DM && VIEWK==='top'){ drawSkierTop(s,x,y,sc); return; }
     const FR = DM && VIEWK==='front';
     const md = s.done && s.mood ? s.mood : null;
-    const u=sc*(me?.0118:.0105), E=md?0:clamp(s.lean,-1.2,1.2), tk=md?0:(s.tuck||0), rel=s.th-cam.yaw, dir=Math.sign(E)||1, inc=E*.6;
+    // i drönarvyn räknas skidornas riktning ut från hur åkriktningen syns i bild; framifrån blir åkarens vänster bildens höger
+    let rel=s.th-cam.yaw; if(DM){ const p0=P(s.x,s.z), p1=P(s.x+Math.sin(s.th)*2,s.z+Math.cos(s.th)*2); if(p0&&p1) rel=clamp(Math.atan2(p1[0]-p0[0],Math.abs(p1[1]-p0[1])),-1.3,1.3); }
+    const u=sc*(me?.0118:.0105), E=md?0:clamp(s.lean,-1.2,1.2)*(FR?-1:1), tk=md?0:(s.tuck||0), dir=Math.sign(E)||1, inc=E*.6;
     const S = (s.k===0) ? SUITS.swe : SUITS.red;
     const t=performance.now()/1000;
     ctx.save(); ctx.translate(x,y); ctx.scale(u,u);
