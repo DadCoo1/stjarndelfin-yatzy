@@ -154,6 +154,69 @@ const SLALOM = (()=>{
     R={gid:G.id+':'+(G.go||0), C, sk, me: G.par?me:0, cd:3.2, started:false, parts:[], shake:0, finishT:0, sent:false, cheer:1.5, beeped:-1, remote:null, split:null};
   }
   const meSk = () => R.sk[R.me];
+  // efter målgång: jubel eller deppighet beroende på hur det gick
+  function moodOf(s){ if(s.dsq) return 'sad';
+    if(G.par){ const o=R.sk.find(x=>x!==s); return (o&&o.done&&!o.dsq&&o.finish<s.finish) ? 'sad' : 'cheer'; }
+    if(s.missed) return 'sad';
+    const B=G.std?bestOf():{}; return (B.t && s.finish*1000>B.t+2500) ? 'sad' : 'cheer'; }
+
+  /* ---------- inspelning, repris och höjdpunkter ---------- */
+  function recEv(s,g,pass,hit){ if(R&&R.rec&&!R.play) R.rec.ev.push({t:R.rec.t, lane:s.lane, i:R.C.gates[s.lane].indexOf(g), pass, hit}); }
+  function recStep(dt){
+    if(!R.rec) R.rec={fr:[],ev:[],acc:0,t:0,end:null};
+    const r=R.rec; r.t+=dt; if(r.end!=null && r.t>r.end) return;
+    if(r.end==null && R.sk.every(k=>k.done)) r.end=r.t+3.6;
+    r.acc+=dt; if(r.acc<1/20) return; r.acc=0;
+    r.fr.push({t:r.t, s:R.sk.map(k=>[k.x,k.z,k.th,k.lean,k.tuck||0,k.v,k.plant||0,k.om||0,k.done?1:0,k.mood==='cheer'?1:k.mood==='sad'?2:0,k.done?(k.finish??k.t):k.t+k.pen,k.gi,k.missed,k.finish??-1,k.dsq?1:0])});
+  }
+  function applyFrame(t){
+    const fr=R.rec.fr, i=REPLAY.find(fr,t), a=fr[i], b=fr[Math.min(fr.length-1,i+1)], u=b.t>a.t?clamp((t-a.t)/(b.t-a.t),0,1):0;
+    R.sk.forEach((k,j)=>{ const A=a.s[j], B=b.s[j]; if(!A) return; const L=n=>A[n]+(B[n]-A[n])*u;
+      k.x=L(0); k.z=L(1); k.th=L(2); k.lean=L(3); k.tuck=L(4); k.v=L(5); k.plant=A[6]; k.om=L(7); k.done=!!A[8]; k.mood=A[9]===1?'cheer':A[9]===2?'sad':null; k.t=L(10); k.pen=0; k.gi=A[11]; k.missed=A[12]; k.finish=A[13]>=0?A[13]:null; k.dsq=!!A[14]; });
+    for(const gs of R.C.gates) for(const g of gs){ g.pass=undefined; g.hit=0; }
+    for(const e of R.rec.ev){ if(e.t>t) break; const g=R.C.gates[e.lane][e.i]; if(!g) continue; g.pass=e.pass; if(e.hit){ g.hit=1; g.hitT=performance.now()-(t-e.t)*1000; } }
+  }
+  function buildClips(){
+    const fr=R.rec.fr, me=R.me, sk=R.sk[me], T=fr[fr.length-1].t, st=(fr.find(f=>f.s[me][5]>.6)||fr[0]).t, fin=(fr.find(f=>f.s[me][8])||fr[fr.length-1]).t;
+    let vm=0, tv=st+2; for(const f of fr) if(f.t<fin && f.s[me][5]>vm){ vm=f.s[me][5]; tv=f.t; }
+    const ev=R.rec.ev.filter(e=>e.lane===sk.lane), gate=e=>R.C.gates[e.lane][e.i]||{};
+    const comb=ev.find(e=>e.pass&&gate(e).type==='closed'), hitE=ev.find(e=>e.hit&&e.t>st+3), missE=ev.find(e=>!e.pass);
+    const out=[]; const add=c=>{ c.t0=clamp(c.t0,0,T); c.t1=clamp(c.t1,c.t0+.3,T); out.push(c); };
+    add({t0:st-.4, t1:st+2.6, view:'fly', z0:.2, z1:.16, rate:1, cap:`${G.disc==='gs'?'Storslalom':'Slalom'} · ${bare(pname(sk.k))}`});
+    if(comb) add({t0:comb.t-1.7, t1:comb.t+1.1, view:'close', z0:.13, z1:.03, a0:.3, a1:1.3, rate:.45, cap:'Rakt genom vertikalen!', slow:1});
+    else if(hitE) add({t0:hitE.t-1.3, t1:hitE.t+.7, view:'close', z0:.11, z1:.02, a0:-.6, a1:.5, rate:.35, cap:'Käppen viker sig!', slow:1});
+    add({t0:tv-1.6, t1:tv+1.3, view:'low', z0:.06, z1:.06, a0:-.4, a1:.4, rate:.55, cap:`Toppfart ${Math.round(vm*3.6)} km/h`, slow:1});
+    const tm=(st+fin)/2; add({t0:tm-1.4, t1:tm+1.6, view:'orbit', z0:.24, z1:.12, a0:-2.7, a1:-1.0, rate:.75});
+    if(missE) add({t0:missE.t-1.3, t1:missE.t+.9, view:'top', z0:.28, z1:.2, rate:.6, cap:'Oj – missad port…'});
+    add({t0:fin-1.9, t1:fin+.35, view:'front', z0:.22, z1:.05, rate:.5, slow:1, cap:sk.dsq?'Ur…':`I mål: ${fmt(sk.finish??0)}`});
+    add({t0:fin+.35, t1:Math.min(T,fin+3.3), view:'close', z0:.05, z1:.03, a0:-.7, a1:1.7, rate:.85, cap:sk.mood==='cheer'?'🎉 Jubel!':'Nästa gång! 💪'});
+    out.sort((a,b)=>a.t0-b.t0); const res=[]; for(const c of out){ const p=res[res.length-1]; if(p && c.t0<p.t1){ if(c.t1-p.t1<.8) continue; c.t0=p.t1; } res.push(c); }
+    return res;
+  }
+  function startPlay(mode){
+    if(!R||!R.rec||R.rec.fr.length<10){ toast('Ingen inspelning ännu'); return; }
+    const T0=R.rec.fr[R.rec.fr.length-1].t, clips=mode==='hl'?buildClips():null;
+    R.play={mode, t:clips?clips[0].t0:0, T:T0, speed:1, playing:true, clips, ci:mode==='hl'?0:-1, rt:0, flash:0}; R.camO=mode==='hl'; if(clips) DSO.cut=true;
+    sndOff(); render();
+  }
+  function stopPlay(){ if(!R||!R.play) return; R.play=null; R.camO=false; applyFrame(R.rec.fr[R.rec.fr.length-1].t); render(); }
+  function playStep(dt){
+    const p=R.play; let rate=1; p.rt+=dt; p.flash=Math.max(0,p.flash-dt*3);
+    if(p.mode==='hl' && p.playing){ let c=p.clips[p.ci];
+      if(!c || p.t>=c.t1-1e-3){ p.ci++; c=p.clips[p.ci]; if(!c){ p.playing=false; p.done=true; p.ci=p.clips.length-1; c=p.clips[p.ci]; REPLAY.refresh('sl',p); } else { p.t=c.t0; p.flash=.9; DSO.cut=true; tone(880,.06,'sine',.05); } }
+      if(c){ const u=clamp((p.t-c.t0)/Math.max(.01,c.t1-c.t0),0,1); rate=c.rate; DSO.view=c.view; DSO.zoom=lerp(c.z0,c.z1,smooth(u)); DSO.ang=lerp(c.a0||0,c.a1||0,u); DSO.k=u; DSO.fast=6; p.cap=c.cap; p.capA=Math.min(u*5,(1-u)*5,1); p.slow=!!c.slow; } }
+    if(p.playing){ p.t=Math.min(p.T,p.t+dt*p.speed*rate); if(p.mode==='replay'&&p.t>=p.T){ p.playing=false; REPLAY.refresh('sl',p); } }
+    applyFrame(p.t);
+    const s=meSk(); if(p.playing && !s.done && Math.abs(s.om)>.45 && s.v>5){ R.parts.push({x:s.x-Math.sign(s.om)*.5, z:s.z+.3, y:.05, vx:-Math.sign(s.om)*(2+Math.random()*4)*Math.min(1,s.v/14), vz:s.v*.25, vy:1+Math.random()*2.6, t:.55, r:.7+Math.random()*.8}); }
+    if(R.parts.length>180) R.parts.splice(0,R.parts.length-180);
+    if((p.syncT=(p.syncT||0)+dt)>.25){ p.syncT=0; REPLAY.sync('sl',p); }
+  }
+  REPLAY.register('sl',(a,v)=>{ if(!R||!R.play) return; const p=R.play;
+    if(a==='close'){ stopPlay(); return; }
+    if(a==='play'){ if(p.done){ p.done=false; p.ci=0; p.t=p.clips[0].t0; p.rt=0; DSO.cut=true; } else if(p.mode==='replay'&&p.t>=p.T-.01) p.t=0; p.playing=!p.playing||p.ci===0&&p.rt===0; }
+    if(a==='speed') p.speed={1:.5,.5:.25,.25:2,2:1}[p.speed]||1;
+    if(a==='seek'){ p.t=v*p.T; }
+    REPLAY.refresh('sl',p); });
 
   /* ---------- fysik ---------- */
   function crossed(g,px,pz,x,z){
@@ -192,18 +255,18 @@ const SLALOM = (()=>{
     let g=gs[s.gi];
     while(g){
       const c=crossed(g,px,pz,s.x,s.z);
-      if(c!==null && c>=0){ g.pass=true; if(c<.5){ g.hit=1; g.hitT=performance.now(); s.v*=.975; if(s===meSk()) poleSfx(); } s.gi++; }
+      if(c!==null && c>=0){ g.pass=true; recEv(s,g,true,c<.5); if(c<.5){ g.hit=1; g.hitT=performance.now(); s.v*=.975; if(s===meSk()) poleSfx(); } s.gi++; }
       else if(c===-1 && g.type!=='closed' || s.z>g.zmax+(g.type==='closed'?1.5:3)){ miss(s,g); s.gi++; }
       else break;
       if(s===meSk() && s.gi===Math.floor(gs.length/2) && !R.split) R.split=s.t;
       g=gs[s.gi];
     }
-    if(!s.done && s.z>=R.C.L){ s.done=true; s.finish=s.t+s.pen; if(s===meSk()) finishSfx(); }
+    if(!s.done && s.z>=R.C.L){ s.done=true; s.finish=s.t+s.pen; s.mood=moodOf(s); if(s===meSk()) finishSfx(); }
     s.trail.push(s.x, s.z); if(s.trail.length>300) s.trail.splice(0,2);
   }
-  function miss(s,g){ g.pass=false; s.missed++;
+  function miss(s,g){ g.pass=false; s.missed++; recEv(s,g,false,false);
     if(G.pen){ s.pen+=3; if(s===meSk()){ toast('Missad port +3 s',1300); sfx.unbubble(); } }
-    else if(!s.dsq){ s.dsq=true; s.done=true; if(s===meSk()){ toast('Ur! Missad port 😬',2200); sfx.unbubble(); } } }
+    else if(!s.dsq){ s.dsq=true; s.done=true; s.mood='sad'; if(s===meSk()){ toast('Ur! Missad port 😬',2200); sfx.unbubble(); } } }
 
   // datorn: siktar på nästa ports idealpassage och glider mot nästa i tid
   const AILV={easy:{gain:1.5,late:.5,slow:.45,cap:.78}, medium:{gain:1.55,late:.46,slow:.2,cap:.88}, hard:{gain:1.6,late:.43,slow:0,cap:1}};
@@ -329,15 +392,15 @@ const SLALOM = (()=>{
   /* ---------- projektion med höjd ---------- */
   const HZ=.30, VB=.09, CAMH=2.9, BACK=5.2, ZMAX=200;
   let cam={x:0,z:0,y:0,yaw:0,roll:0,pitch:.3}, F=500, YA=400, back=5.2, camD=0, camMode=lsGet('sl_cam')||'rider';
-  const DS=DRONE.make('sl_dr'); let DM=false, DZA=0, DZB=0, VIEWK='back', FLIP=false;
-  function P(x,z,h=0){ if(DM) return DRONE.proj(DS.C,x,elev(z)+h,z); const dz=z-cam.z; if(dz<.3) return null; const xs=x-cam.x-dz*Math.tan(cam.yaw);
+  const DS=DRONE.make('sl_dr'), DSO=DRONE.make('sl_dro',true); let DCUR=DS; let DM=false, DZA=0, DZB=0, VIEWK='back', FLIP=false;
+  function P(x,z,h=0){ if(DM) return DRONE.proj(DCUR.C,x,elev(z)+h,z); const dz=z-cam.z; if(dz<.3) return null; const xs=x-cam.x-dz*Math.tan(cam.yaw);
     return [W/2 + xs*F/dz, YA + F*((cam.y-(elev(z)+h))/dz - Math.tan(cam.pitch)), F/dz]; }
 
   /* ---------- ritning ---------- */
   let BD=null, BDsize='';
   const now=()=>performance.now()/1000;
   function drawScene(dt){
-    if(DS.on){ drawDrone(dt); return; }
+    const DD = R.camO ? DSO : DS.on ? DS : null; if(DD){ drawDrone(dt,DD); return; }
     const s=meSk(), C=R.C;
     // drönarvyn: kameran glider upp och bakåt, tittar ned över åkaren och svävar mjukt i sidled
     camD = 0; const D=smooth(clamp(camD,0,1)), tt=now();
@@ -391,8 +454,8 @@ const SLALOM = (()=>{
     drawSkier(s,null,true);
   }
   // drönaren: äkta 3D-kamera; marken först (utanför pisten, pisten, färg och spår), sedan allt upprätt sorterat på djup
-  function drawDrone(dt){
-    const s=meSk(), C=R.C, fx=(mid(s.z+6)-mid(s.z-6))/12, Cc=DRONE.solve(DS,{x:s.x,y:elev(s.z)+1,z:s.z},fx,1,dt,W,H,z=>elev(z));
+  function drawDrone(dt,D){ DCUR=D;
+    const s=meSk(), C=R.C, fx=(mid(s.z+6)-mid(s.z-6))/12, Cc=DRONE.solve(D,{x:s.x,y:elev(s.z)+1,z:s.z},fx,1,dt,W,H,z=>elev(z));
     DM=true; VIEWK=DRONE.facing(Cc,fx,1); FLIP = Math.cos(Cc.yaw-Math.atan2(fx,1))<0 && Cc.pitch<1.2;
     const key=W+'x'+H; if(BDsize!==key){ BD=makeBackdrop(W,H); BDsize=key; }
     const yH=H/2-Cc.f*Math.tan(Cc.pitch), hz=Math.round(H*HZ);
@@ -551,13 +614,16 @@ const SLALOM = (()=>{
     else { if(!p) return; [x,y,sc]=p; }
     if(DM && VIEWK==='top'){ drawSkierTop(s,x,y,sc); return; }
     const FR = DM && VIEWK==='front';
-    const u=sc*(me?.0118:.0105), E=clamp(s.lean,-1.2,1.2), tk=s.tuck||0, rel=s.th-cam.yaw, dir=Math.sign(E)||1, inc=E*.6;
+    const md = s.done && s.mood ? s.mood : null;
+    const u=sc*(me?.0118:.0105), E=md?0:clamp(s.lean,-1.2,1.2), tk=md?0:(s.tuck||0), rel=s.th-cam.yaw, dir=Math.sign(E)||1, inc=E*.6;
     const S = (s.k===0) ? SUITS.swe : SUITS.red;
     const t=performance.now()/1000;
     ctx.save(); ctx.translate(x,y); ctx.scale(u,u);
+    const hop = md==='cheer' ? Math.abs(Math.sin(t*6.5))*9 : 0;
     // skugga
     ctx.fillStyle='rgba(60,90,140,.22)'; ctx.beginPath(); ctx.ellipse(-E*20,10,62,14,0,0,7); ctx.fill();
     const st=11+Math.abs(E)*2, shiftX=-E*12, tip=Math.sin(rel)*34;
+    ctx.translate(0,-hop);
     const feet=[-1,1].map(side=>{ const outer=side!==dir; return {side, outer, x:side*st+shiftX, y: outer?0:-4}; });
     // 1) skidor (spets bort från kameran = uppåt i bild), med kant/sula när de kantas
     feet.forEach(f=>{ ctx.save(); ctx.translate(f.x,f.y); if(FR) ctx.scale(1,-1);   // framifrån pekar spetsarna mot kameran
@@ -591,7 +657,7 @@ const SLALOM = (()=>{
       ctx.fillStyle='#1f2937'; ctx.fillRect(-7.5,6,15,3);
       ctx.restore(); });
     // 3) höft och rygg (mer upprätt än benen = vinkling; framåtfälld i fartställning)
-    const torso=E*.2, bh=56-tk*30, bw=20+tk*3;
+    const torso=E*.2, bh=(56-tk*30)*(md==='sad'?.82:1), bw=20+tk*3;
     ctx.save(); ctx.translate(hipC.x,hipC.y); ctx.rotate(torso);
     ctx.fillStyle=S.base; ctx.beginPath(); ctx.ellipse(0,0,bw*.95,9,0,0,7); ctx.fill();          // säte
     const gr=ctx.createLinearGradient(-bw,0,bw,0); gr.addColorStop(0,S.base); gr.addColorStop(.5,S.mid); gr.addColorStop(1,S.base);
@@ -605,7 +671,9 @@ const SLALOM = (()=>{
     const sh={y:-bh+6};
     [-1,1].forEach(side=>{ const shX=side*bw*.78;
       let el, hd, tipP;
-      if(tk>.5){ el={x:side*(bw-1),y:sh.y+12}; hd={x:side*8,y:sh.y+2}; tipP={x:side*(bw+24),y:sh.y-30}; }   // händerna fram, stavarna under armarna
+      if(md==='cheer'){ const w=Math.sin(t*9+side)*5; el={x:side*(bw+13),y:sh.y-22}; hd={x:side*(bw+5)+w,y:sh.y-54}; tipP={x:hd.x+side*36,y:hd.y-60}; }   // armarna upp, stavarna i ett V
+      else if(md==='sad'){ el={x:side*(bw+3),y:sh.y+24}; hd={x:side*(bw+1),y:sh.y+48}; tipP={x:hd.x+side*7,y:hd.y+58}; }      // hängande armar, stavarna släpar
+      else if(tk>.5){ el={x:side*(bw-1),y:sh.y+12}; hd={x:side*8,y:sh.y+2}; tipP={x:side*(bw+24),y:sh.y-30}; }   // händerna fram, stavarna under armarna
       else { const plant = side===dir ? s.plant : 0, swing=Math.sin(t*2.2)*1.5;
         el={x:side*(bw+10)-E*4, y:sh.y+20}; hd={x:side*(bw+16)-E*6+swing, y:sh.y+34-plant*6};
         tipP = plant>0 ? {x:hd.x+side*4, y:hd.y-26} : {x:hd.x+side*8, y:hd.y+40}; }
@@ -617,7 +685,7 @@ const SLALOM = (()=>{
       ctx.fillStyle='#ef4444'; ctx.fillRect(hd.x-2,hd.y-9,4,6);   // stavhandtag
     });
     // 5) nacke, hjälm och glasögonband
-    const hy=-bh-12+tk*8;
+    const hy=-bh-12+tk*8+(md==='sad'?9:0);
     ctx.fillStyle=S.base; ctx.fillRect(-6,hy+6,12,8);
     ctx.fillStyle=S.helm; ctx.beginPath(); ctx.ellipse(0,hy,15.5,16,0,0,7); ctx.fill();
     ctx.fillStyle=S.helmAcc; ctx.beginPath(); ctx.moveTo(-3,hy-16); ctx.lineTo(3,hy-16); ctx.lineTo(4,hy+8); ctx.lineTo(-4,hy+8); ctx.closePath(); ctx.fill();
@@ -627,6 +695,7 @@ const SLALOM = (()=>{
     ctx.restore(); ctx.restore();
   }
   // liten karta (banan uppifrån) och höjdprofil, ritas en gång per åk och storlek
+  const rpBtns=()=> R&&R.rec&&R.rec.fr.length>10 ? `<div class="rp-btns"><button data-sl="rp">⏪ Repris</button><button data-sl="hl">🎬 Höjdpunkter</button></div>` : '';
   function maps(){
     const C=R.C, key=W+'x'+H+':'+R.gid; if(R.mapKey===key) return; R.mapKey=key;
     const L=C.L+10, mw=46, mh=Math.round(Math.min(170,H*.24)), pw=Math.round(W-24), ph=30;
@@ -683,6 +752,7 @@ const SLALOM = (()=>{
     raf=requestAnimationFrame(loop);
     const dt=Math.min(.05,(nowMs-(lastT||nowMs))/1000); lastT=nowMs;
     const runId=G.id+':'+(G.go||0); if(!R||R.gid!==runId) newRun();
+    if(R.play){ playStep(dt); draw(dt); return; }
     const s=meSk();
     let inp=0; if(drag) inp=clamp((drag.x-drag.x0)/(W*.22),-1,1);
     const kx=(keys.ArrowRight?1:0)-(keys.ArrowLeft?1:0); if(kx) steer+=(kx-steer)*Math.min(1,dt*6); else steer*=Math.pow(.02,dt); if(!drag) inp=steer;
@@ -698,12 +768,14 @@ const SLALOM = (()=>{
       // snöstänk från ytterskidans kant i svängarna
       if(!s.done && Math.abs(s.om)>.45 && s.v>5){ const n=Math.abs(s.om)>R.C.d.turn*.7?3:1; for(let i=0;i<n;i++) R.parts.push({x:s.x-Math.sign(s.om)*.5+(Math.random()-.5)*.4, z:s.z+.3, y:.05, vx:-Math.sign(s.om)*(2+Math.random()*4)*Math.min(1,s.v/14), vz:s.v*.25, vy:1+Math.random()*2.6, t:.55, r:.7+Math.random()*.8}); }
       if(R.parts.length>180) R.parts.splice(0,R.parts.length-180);
+      recStep(dt);
+      if(s.done && !s.dsq){ if(!R.camO){ R.camO=true; DSO.cut=true; DSO.view='close'; DSO.zoom=.04; DSO.fast=2.5; R.celebT=0; } R.celebT+=dt; DSO.ang=-.8+R.celebT*.35; }
       R.shake=Math.max(0,R.shake-dt*3); if(R.banner) R.banner.t-=dt;
       sndUpdate(s);
       // publiken jublar ibland när man åker förbi
       R.cheer-=dt; const zi=Math.round(s.z)|0; if(R.cheer<=0){ R.cheer=2+Math.random()*4; if(T.crowd[zi] && Math.random()<.65 && !s.done) cheer(.05+Math.random()*.06); }
       if(mode==='online' && nowMs-sendT>66){ sendT=nowMs; send({t:'sl', g:G.id, n:G.go||0, x:+s.x.toFixed(2), z:+s.z.toFixed(2), th:+s.th.toFixed(3), l:+s.lean.toFixed(2), k:+(s.tuck||0).toFixed(2), v:+s.v.toFixed(2), gi:s.gi, d:s.done?1:0, q:s.dsq?1:0, f:s.finish!=null?+s.finish.toFixed(3):null}); }
-      if(s.done && !R.sent && (s.v<.5 || s.dsq || performance.now()-(R.finishT||(R.finishT=performance.now()))>1500)){ R.sent=true; sndOff(); finishRun(s); }
+      if(s.done && !R.sent && performance.now()-(R.finishT||(R.finishT=performance.now()))>(s.dsq?1500:3600)){ R.sent=true; sndOff(); finishRun(s); }
       for(const sk of R.sk) if(sk.ai && sk.done && !sk.sentAI){ sk.sentAI=true; applyAndPublish({type:'finish', run:G.run, ms:sk.dsq?null:Math.round(sk.finish*1000)}, sk.k); }
     }
     draw(dt);
@@ -715,7 +787,8 @@ const SLALOM = (()=>{
     doAct({type:'finish', run:G.run, ms});
   }
   let scaleDpr=1;
-  function draw(dt){ ctx.setTransform(scaleDpr,0,0,scaleDpr,0,0); ctx.save(); drawScene(dt); ctx.restore(); hud(); }
+  function draw(dt){ ctx.setTransform(scaleDpr,0,0,scaleDpr,0,0); ctx.save(); drawScene(dt); ctx.restore(); const p=R.play; if(!p||p.mode!=='hl') hud();
+    if(p) REPLAY.overlay(ctx,W,H,{mode:p.mode, speed:p.speed, flash:p.flash, title:p.mode==='hl'?Math.max(0,1.8-p.rt):0, sub:`${G.disc==='gs'?'Storslalom':'Slalom'} · åk ${G.run||1}`, cap:p.cap, capA:p.capA, slow:p.slow&&p.playing}); }
   function fit(){ if(!cv) return; const host=cv.parentElement; const r=host.getBoundingClientRect(); const w=Math.round(Math.min(host.clientWidth, 700)), h=Math.round(Math.max(320, Math.min(window.innerHeight - r.top - 10, w*1.9)));
     const dpr=Math.min(2,window.devicePixelRatio||1); cv.style.width=w+'px'; cv.style.height=h+'px'; cv.width=Math.round(w*dpr); cv.height=Math.round(h*dpr); W=w; H=h; BDsize=''; scaleDpr=dpr; }
   window.addEventListener('resize',()=>{ if(G&&G.kind==='slalom'&&view==='game') fit(); });
@@ -778,12 +851,12 @@ const SLALOM = (()=>{
         over=`<div class="sl-over"><div class="gover ${solo?(tt!=null?'won':'lost'):g.winner===me?'won':g.winner===-1?'tie':'lost'}"><div class="gi">${solo?(tt!=null?'⛷️':'😬'):g.winner===me?'🏆':g.winner===-1?'🤝':'🎿'}</div>
           <h3>${solo?(tt!=null?'Båda åken klara!':'Ur!'):g.winner===me?'Du vann!':g.winner===-1?'Oavgjort':esc(bare(pname(g.winner)))+' vann'}</h3><p class="sl-pb">Åk 1 · åk 2 = totalt</p>${table()}
           ${g.std&&B.total?`<p class="sl-pb">Ditt rekord på standardbanan: <b>${fmt(B.total/1000)}</b></p>`:''}
-          <div class="gbtns"><button class="pri" data-g="rematch">🔄 Ny tävling</button><button data-act="lobby">🏠 Lobby</button></div></div></div>`; }
+          ${rpBtns()}<div class="gbtns"><button class="pri" data-g="rematch">🔄 Ny tävling</button><button data-act="lobby">🏠 Lobby</button></div></div></div>`; }
       else if(g.run===1 && runDone(g,0)){ const can = mode!=='online' || role==='host';
         over=`<div class="sl-over"><div class="gover tie"><div class="gi">⏱️</div><h3>Åk 1 klart</h3>${table()}
           <p class="sl-pb">Åk 2 har en ny bansättning${g.par?' och ni byter bana':''}.</p>
-          <div class="gbtns">${can?`<button class="pri" data-sl="next">▶️ Starta åk 2</button>`:'<p>Väntar på att värden startar åk 2…</p>'}</div></div></div>`; }
-      return `<div class="sl-wrap"><div id="slHost" class="sl-host"></div>${DRONE.panel(DS)}${over}</div>
+          ${rpBtns()}<div class="gbtns">${can?`<button class="pri" data-sl="next">▶️ Starta åk 2</button>`:'<p>Väntar på att värden startar åk 2…</p>'}</div></div></div>`; }
+      return `<div class="sl-wrap ${R&&R.play?'rp-on'+(R.play.mode==='hl'?' rp-hl':''):''}"><div id="slHost" class="sl-host"></div>${DRONE.panel(DS)}${R&&R.play?REPLAY.bar('sl',R.play):''}${over}</div>
         <div class="ghint">${DISC[g.disc].name}${g.par?' · parallell':''} · ${g.std?'standardbana':'ny bana'} · åk ${g.run} av 2 · Dra fingret åt sidan (eller ← →) för att svänga, släpp för att åka rakt – då går du ned i fartställning. ${g.pen?'Missad port +3 s.':'Missad port = ur.'} ${g.over?'':KIT.resignHTML()}</div>`; },
     mounted(){ mount(); }
   };
@@ -814,7 +887,8 @@ const SLALOM = (()=>{
     if(a==='disc'){ mDisc=b.dataset.v; lsSet('sl_disc',mDisc); document.getElementById('slD').innerHTML=segD(); sfx.bubble(); return; }
     if(a==='pen'){ mPen=b.dataset.v==='1'; lsSet('sl_pen',mPen?'1':'0'); document.getElementById('slP').innerHTML=segP(); sfx.bubble(); return; }
     if(a==='std'){ mStd=b.dataset.v==='1'; lsSet('sl_std',mStd?'1':'0'); document.getElementById('slS').innerHTML=segS(); sfx.bubble(); return; }
-    if(a==='next'){ unlockAudio(); doAct({type:'next'}); return; }
+    if(a==='next'){ unlockAudio(); if(R) { R.play=null; R.camO=false; } doAct({type:'next'}); return; }
+    if(a==='rp'||a==='hl'){ unlockAudio(); startPlay(a==='rp'?'replay':'hl'); return; }
     if(a==='cam'){ toggleCam(); return; }
     if(a==='lvl'){ mLvl=b.dataset.v; lsSet('sl_lvl',mLvl); document.getElementById('slL').innerHTML=segL(); sfx.bubble(); return; }
     const n=nm||'Du'; lsSet('ry_name',n); unlockAudio();

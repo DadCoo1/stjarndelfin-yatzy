@@ -11,9 +11,10 @@ const DRONE = (()=>{
   const VIEWS=[['back','⬆️','Bakom'],['obk','↗️','Snett bakifrån'],['top','⏺️','Ovanifrån'],['ofr','↙️','Snett framifrån'],['front','⬇️','Framför']];
   const REG={};
   const lerp=(a,b,t)=>a+(b-a)*t, clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
-  function make(key){
+  function make(key,temp){
     const st={key, on:lsGet(key+'_on')==='1', view:lsGet(key+'_v')||'obk', zoom:clamp(+(lsGet(key+'_z')||.15),0,1), cp:null, lp:null, C:{x:0,y:0,z:0,yaw:0,pitch:0,f:500}, onChange:null};
     if(!VIEWS.some(v=>v[0]===st.view)) st.view='obk';
+    if(temp){ st.on=false; return st; }   // tillfällig kamera (firande, höjdpunkter) – sparas inte
     REG[key]=st; return st;
   }
   // målposition och siktpunkt för läget, utifrån åkaren S och banans riktning (fx,fz)
@@ -27,14 +28,20 @@ const DRONE = (()=>{
       case 'top':   return {p:P(-d*.02,0,d*1.2), l:P(0,0,0)};
       case 'ofr':   return {p:P(d*.75,d*.5,d*.45), l:P(0,0,0)};
       case 'front': return {p:P(d*.95,0,d*.3), l:P(-d*.1,0,0)};
+      // för höjdpunkterna: kretsa runt åkaren, flyga över, zooma in nära
+      case 'orbit': { const a=st.ang||0; return {p:P(Math.cos(a)*d,Math.sin(a)*d,d*.38), l:P(0,0,.6)}; }
+      case 'fly':   { const k=st.k||0; return {p:P(lerp(d*1.3,-d*1.1,k),d*.15,d*.42+Math.sin(k*Math.PI)*d*.25), l:P(lerp(d*.2,-d*.05,k),0,0)}; }
+      case 'close': { const a=st.ang||.6; return {p:P(Math.cos(a)*d*.9,Math.sin(a)*d*.9,d*.22), l:P(0,0,.9)}; }
+      case 'low':   { const a=st.ang||0; return {p:P(-d*.9,Math.sin(a)*d*.3,.9), l:P(d*.5,0,.6)}; }
     }
     return {p:P(-d,0,d*.4), l:P(0,0,0)};
   }
   function solve(st,S,fx,fz,dt,W,H,ground,snap){
+    if(st.cut){ snap=true; st.cut=false; }
     const g=goal(st,S,fx,fz), lift=p=>{ if(ground) p[1]=Math.max(p[1],ground(p[2])+3); };   // aldrig ned i backen
     lift(g.p);
     if(!st.cp||snap){ st.cp=g.p.slice(); st.lp=g.l.slice(); }
-    const k=Math.min(1,dt*3.2), kl=Math.min(1,dt*7);
+    const k=Math.min(1,dt*(st.fast||3.2)), kl=Math.min(1,dt*(st.fast?st.fast*2:7));
     for(let i=0;i<3;i++){ st.cp[i]+= (g.p[i]-st.cp[i])*k; st.lp[i]+= (g.l[i]-st.lp[i])*kl; }
     lift(st.cp);
     const C=st.C, dx=st.lp[0]-st.cp[0], dy=st.lp[1]-st.cp[1], dz=st.lp[2]-st.cp[2];
