@@ -155,10 +155,8 @@ const SLALOM = (()=>{
   }
   const meSk = () => R.sk[R.me];
   // efter målgång: jubel eller deppighet beroende på hur det gick
-  function moodOf(s){ if(s.dsq) return 'sad';
-    if(G.par){ const o=R.sk.find(x=>x!==s); return (o&&o.done&&!o.dsq&&o.finish<s.finish) ? 'sad' : 'cheer'; }
-    if(s.missed) return 'sad';
-    const B=G.std?bestOf():{}; return (B.t && s.finish*1000>B.t+2500) ? 'sad' : 'cheer'; }
+  function moodOf(s){ if(s.dsq) return null;                              // diskad: varken jubel eller depp
+    const n=R.C.gates[s.lane].length; return s.missed>=n*.5 ? 'sad' : 'cheer'; }   // grunden är jubel – depp bara om minst hälften av portarna missats
 
   /* ---------- inspelning, repris och höjdpunkter ---------- */
   function recEv(s,g,pass,hit){ if(R&&R.rec&&!R.play) R.rec.ev.push({t:R.rec.t, lane:s.lane, i:R.C.gates[s.lane].indexOf(g), pass, hit}); }
@@ -268,7 +266,7 @@ const SLALOM = (()=>{
   }
   function miss(s,g){ g.pass=false; s.missed++; recEv(s,g,false,false);
     if(G.pen){ s.pen+=3; if(s===meSk()){ toast('Missad port +3 s',1300); sfx.unbubble(); } }
-    else if(!s.dsq){ s.dsq=true; s.done=true; s.mood='sad'; if(s===meSk()){ toast('Ur! Missad port 😬',2200); sfx.unbubble(); } } }
+    else if(!s.dsq){ s.dsq=true; s.done=true; s.mood=null; if(s===meSk()){ toast('Ur! Missad port 😬',2200); sfx.unbubble(); } } }
 
   // datorn: siktar på nästa ports idealpassage och glider mot nästa i tid
   const AILV={easy:{gain:1.5,late:.5,slow:.45,cap:.78}, medium:{gain:1.55,late:.46,slow:.2,cap:.88}, hard:{gain:1.6,late:.43,slow:0,cap:1}};
