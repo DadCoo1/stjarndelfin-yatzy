@@ -237,39 +237,52 @@
   GINFO.fisk={name:'Finns i sjön', icon:'🐟', ai:BOTS[0], bots:BOTS, max:4, desc:'Samla fyrtal · 2–4 spelare', grad:'linear-gradient(135deg,#0ea5e9,#14b8a6)'};
   const FK={ books(g,s){ const by={}; g.hands[s].forEach(c=>(by[rk(c)]=by[rk(c)]||[]).push(c)); let got=[];
       for(const r in by) if(by[r].length===4){ g.hands[s]=g.hands[s].filter(c=>rk(c)!==+r); g.books[s].push(+r); got.push(+r); } return got; },
-    refill(g,s){ if(!g.hands[s].length && g.deck.length) g.hands[s].push(g.deck.pop()); g.deckN=g.deck.length; },
+    take(g,i){ const c=g.deck.splice(i,1)[0]; g.lake.splice(i,1); g.deckN=g.deck.length; return c; },
+    spread(g){ const r=Math.random; g.lake=g.deck.map(()=>{ const a=r()*Math.PI*2, d=Math.sqrt(r()); return [Math.round(500+Math.cos(a)*d*400), Math.round(500+Math.sin(a)*d*330), Math.round(r()*180-90)]; }); },
+    refill(g,s){ if(!g.hands[s].length && g.deck.length) g.hands[s].push(FK.take(g,Math.floor(Math.random()*g.deck.length))); g.deckN=g.deck.length; },
     canPlay(g,s){ return g.hands[s].length>0; },
     done(g){ return g.books.reduce((a,b)=>a+b.length,0)===13; },
+    end(g){ g.over=true; g.fish=null; const b=g.books.map(x=>x.length), mx=Math.max(...b); g.winner=b.filter(x=>x===mx).length>1?-1:b.indexOf(mx); },
+    after(g,seat,L,again){
+      L.books=FK.books(g,seat);
+      g.names.forEach((_,s2)=>{ if(!(g.out||[]).includes(s2)) FK.refill(g,s2); });   // den som blivit utan kort drar ett ur sjön direkt
+      g.deckN=g.deck.length; g.last=L;
+      if(FK.done(g)){ FK.end(g); return true; }
+      if(again){ FK.refill(g,seat); if(g.hands[seat].length) return true; }
+      const nx=FK.advance(g,seat); if(nx<0) FK.end(g); else g.cur=nx;
+      return true; },
     advance(g,s){ let c=s; for(let k=0;k<g.names.length;k++){ c=(c+1)%g.names.length; if((g.out||[]).includes(c)) continue; FK.refill(g,c); if(g.hands[c].length) return c; } return -1; } };
   KIND.fisk={
-    init(){ return {hands:[],books:[],deck:[],asks:[]}; },
-    start(g){ const d=deck(), n=g.names.length, k=n===2?7:5; g.hands=[]; for(let s=0;s<n;s++) g.hands.push(d.splice(0,k)); g.deck=d; g.deckN=d.length; g.books=g.names.map(()=>[]); g.asks=[]; g.cur=g.starter%n; g.out=[];
+    init(){ return {hands:[],books:[],deck:[],lake:[],asks:[],fish:null}; },
+    start(g){ const d=deck(), n=g.names.length, k=n===2?7:5; g.hands=[]; for(let s=0;s<n;s++) g.hands.push(d.splice(0,k)); g.deck=d; g.deckN=d.length; FK.spread(g); g.fish=null; g.books=g.names.map(()=>[]); g.asks=[]; g.cur=g.starter%n; g.out=[];
       g.names.forEach((_,s)=>FK.books(g,s)); },
-    redact(g,seat){ g.hands=g.hands.map((h,s)=>s===seat?h:h.map(()=>-1)); g.deckN=g.deck.length; g.deck=[]; if(g.last&&g.last.seat!==seat) delete g.last.drew; },
+    redact(g,seat){ g.hands=g.hands.map((h,s)=>s===seat?h:h.map(()=>-1)); g.deckN=g.deck.length; g.deck=g.deck.map(()=>-1); if(g.last&&g.last.seat!==seat) delete g.last.drew; },
     valid(g){ const n=g.names.length; if(n<1||n>4) return false; if(g.started===false) return true;
-      return n>=2 && Array.isArray(g.hands)&&g.hands.length===n&&g.hands.every(h=>okCards(h,52)) && okCards(g.deck,52) && Array.isArray(g.books)&&g.books.every(b=>Array.isArray(b)&&b.every(r=>isInt(r,2,14))) && Array.isArray(g.asks)&&g.asks.length<=80; },
+      return n>=2 && Array.isArray(g.hands)&&g.hands.length===n&&g.hands.every(h=>okCards(h,52)) && okCards(g.deck,52) && Array.isArray(g.books)&&g.books.every(b=>Array.isArray(b)&&b.every(r=>isInt(r,2,14))) && Array.isArray(g.asks)&&g.asks.length<=80
+        && (g.lake==null || Array.isArray(g.lake)&&g.lake.length<=52&&g.lake.every(p=>Array.isArray(p)&&p.length===3&&isInt(p[0],0,1000)&&isInt(p[1],0,1000)&&isInt(p[2],-90,90)))
+        && (g.fish==null || (typeof g.fish==='object'&&isInt(g.fish.seat,0,n-1)&&isInt(g.fish.rank,2,14))); },
     waitingFor(g){ return g.cur; },
     scoreOf(g,i){ return `${g.books[i].length} fyrtal`; },
     apply(g,a,seat){
       if(a.type==='resign') return KIT.resign(g,seat);
-      if(g.over||seat!==g.cur||a.type!=='ask'||!isInt(a.to,0,g.names.length-1)||a.to===seat||!isInt(a.rank,2,14)) return false;
+      if(!Array.isArray(g.lake)||g.lake.length!==g.deck.length) FK.spread(g);   // äldre sparade partier
+      if(a.type==='fish'){ if(g.over||!g.fish||g.fish.seat!==seat||seat!==g.cur||!isInt(a.i,0,g.deck.length-1)) return false;
+        const rank=g.fish.rank, c=FK.take(g,a.i); g.fish=null; g.hands[seat].push(c);
+        const L={...(g.last||{}), seat, t:now(), drew:c, fish:true, picked:true, lucky:rk(c)===rank}; delete L.books;
+        return FK.after(g,seat,L,L.lucky); }
+      if(g.over||g.fish||seat!==g.cur||a.type!=='ask'||!isInt(a.to,0,g.names.length-1)||a.to===seat||!isInt(a.rank,2,14)) return false;
       if(!g.hands[seat].some(c=>rk(c)===a.rank)||!g.hands[a.to].length||(g.out||[]).includes(a.to)) return false;
       const got=g.hands[a.to].filter(c=>rk(c)===a.rank);
       const L={seat,t:now(),to:a.to,rank:a.rank,got:got.length}; g.asks.push({a:seat,to:a.to,r:a.rank,got:got.length}); if(g.asks.length>80) g.asks.shift();
       let again=false;
       if(got.length){ g.hands[a.to]=g.hands[a.to].filter(c=>rk(c)!==a.rank); g.hands[seat].push(...got); again=true; }
-      else if(g.deck.length){ const c=g.deck.pop(); g.hands[seat].push(c); L.drew=c; L.fish=true; if(rk(c)===a.rank){ again=true; L.lucky=true; } }
+      else if(g.deck.length){ L.fish=true; g.fish={seat, rank:a.rank}; g.last=L; return true; }   // nu väljer man ett kort i sjön
       else L.fish=true;
-      L.books=FK.books(g,seat);
-      g.names.forEach((_,s2)=>{ if(!(g.out||[]).includes(s2)) FK.refill(g,s2); });   // den som blivit utan kort drar ett ur sjön direkt
-      g.deckN=g.deck.length; g.last=L;
-      if(FK.done(g)){ g.over=true; const b=g.books.map(x=>x.length), mx=Math.max(...b); g.winner=b.filter(x=>x===mx).length>1?-1:b.indexOf(mx); return true; }
-      if(again){ FK.refill(g,seat); if(g.hands[seat].length) return true; }
-      const nx=FK.advance(g,seat); if(nx<0){ g.over=true; const b=g.books.map(x=>x.length), mx=Math.max(...b); g.winner=b.filter(x=>x===mx).length>1?-1:b.indexOf(mx); } else g.cur=nx;
-      return true; },
+      return FK.after(g,seat,L,again); },
     aiSeat(g){ return !g.over&&isAI(g.cur)?g.cur:null; },
     aiDelay(){ return 1100; },
-    ai(g,seat){ const lv=g.ai[seat], mine=[...new Set(g.hands[seat].map(rk))], opp=g.names.map((_,i)=>i).filter(i=>i!==seat&&g.hands[i].length&&!(g.out||[]).includes(i));
+    ai(g,seat){ if(g.fish){ return g.fish.seat===seat&&g.deck.length ? {type:'fish', i:rint(g.deck.length)} : null; }
+      const lv=g.ai[seat], mine=[...new Set(g.hands[seat].map(rk))], opp=g.names.map((_,i)=>i).filter(i=>i!==seat&&g.hands[i].length&&!(g.out||[]).includes(i));
       if(!mine.length||!opp.length) return null;
       // vem har frågat efter vad (och inte blivit av med det sedan)?
       const knows = lv==='hard'?1: lv==='medium'?.6:.15; const hint=[];
@@ -281,8 +294,9 @@
       return {type:'ask', to:opp[rint(opp.length)], rank:r}; },
     effects(prev,d){ if(!d.last||(prev.last&&prev.last.t===d.last.t)) return; const L=d.last, me=meSeat();
       const who=L.seat===me?'Du':bare(pname(L.seat)), whom=L.to===me?'dig':bare(pname(L.to));
-      if(L.got) { sfx.pick(); toast(`${who} fick ${L.got} ${RNAME(L.rank)} av ${whom}`,2000); }
-      else { sfx.bubble(); toast(`${who} frågade ${whom} efter ${RNAME(L.rank)} – finns i sjön! 🐟${L.lucky?' Och drog rätt!':''}`,2200); }
+      if(L.picked){ sfx.pick(); if(L.lucky) toast(`${who} fiskade upp ${RNAME(L.rank)}! 🎣`,2000); }
+      else if(L.got) { sfx.pick(); toast(`${who} fick ${L.got} ${RNAME(L.rank)} av ${whom}`,2000); }
+      else { sfx.bubble(); toast(`${who} frågade ${whom} efter ${RNAME(L.rank)} – finns i sjön! 🐟`,2200); }
       if(L.books&&L.books.length){ sparkles(20); sfx.yatzy(); } },
     html(){
       const g=G, me=meSeat(), my=!g.over&&g.cur===me&&canActG(me), sel=fkSel;
@@ -291,21 +305,32 @@
       const targets=g.names.map((_,i)=>i).filter(i=>i!==me&&g.hands[i].length&&!(g.out||[]).includes(i)); if(!targets.includes(sel.to)) sel.to=targets.length===1?targets[0]:null;
       const hand=`<div class="hand" style="--ov:${handOv(g.hands[me].length)}">${sortHand(g.hands[me]).map(c=>card(c,{cls:`${my?'can':''} ${sel.r===rk(c)?'sel':''}`,attr:`data-fk="r" data-r="${rk(c)}"`})).join('')}</div>`;
       const books=`<div class="fk-books">${g.books.map((b,i)=>b.length?`<div><b>${i===me?'Du':esc(bare(g.names[i]))}:</b> ${b.map(r=>RN(r)).join(' ')}</div>`:'').join('')}</div>`;
-      const L=g.last; const lastTxt = L ? `${L.seat===me?'Du':esc(bare(pname(L.seat)))} frågade ${L.to===me?'dig':esc(bare(pname(L.to)))} efter ${RNAME(L.rank)}: ${L.got?`fick ${L.got} st 🎉`:'finns i sjön 🐟'}${L.drew!=null&&L.seat===me?` – du drog ${RN(rk(L.drew))}${S[su(L.drew)]}`:''}` : '';
-      let sub; if(g.over) sub=''; else if(my) sub = sel.r ? `Fråga ${targets.length>1&&sel.to==null?'någon':esc(bare(pname(sel.to)))} efter ${RNAME(sel.r)}` : '<b style="color:var(--gold)">Din tur</b> – välj ett kort du vill ha fler av';
+      const L=g.last; const lastTxt = L ? `${L.seat===me?'Du':esc(bare(pname(L.seat)))} frågade ${L.to===me?'dig':esc(bare(pname(L.to)))} efter ${RNAME(L.rank)}: ${L.got?`fick ${L.got} st 🎉`:'finns i sjön 🐟'}${L.picked?(L.seat===me&&L.drew>=0?` – du fiskade upp ${RN(rk(L.drew))}${S[su(L.drew)]}${L.lucky?' 🎣':''}`:L.lucky?' – och fiskade upp rätt! 🎣':' – fiskade upp ett kort'):''}` : '';
+      const fishing = !g.over && g.fish && g.fish.seat===g.cur, myFish = my && fishing;
+      let sub; if(g.over) sub=''; else if(myFish) sub='<b style="color:#22d3ee">Finns i sjön! 🐟</b> Peka på ett kort i sjön'; else if(fishing) sub=`${isAI(g.cur)?'🤖 ':''}<b>${esc(pname(g.cur))}</b> fiskar i sjön…`; else if(my) sub = sel.r ? `Fråga ${targets.length>1&&sel.to==null?'någon':esc(bare(pname(sel.to)))} efter ${RNAME(sel.r)}` : '<b style="color:var(--gold)">Din tur</b> – välj ett kort du vill ha fler av';
       else sub=`${isAI(g.cur)?'🤖 ':''}<b>${esc(pname(g.cur))}</b> funderar…`;
       return gHeadHTML(sub) + opps(g,me,i=>`<div class="mini">${g.hands[i].slice(0,7).map(()=>card(-1)).join('')}</div><small>${g.hands[i].length} kort${my&&sel.r&&targets.includes(i)?'':''}</small>${my&&targets.length>1&&targets.includes(i)?`<div><button class="fk-to ${sel.to===i?'sel':''}" data-fk="to" data-to="${i}">${sel.to===i?'✅':'👉'} Fråga</button></div>`:''}`)
-        + `<div class="table"><div class="vt-deck">${(g.deckN??g.deck.length)?card(-1):'<div class="pc empty"></div>'}<small>🌊 ${g.deckN??g.deck.length} i sjön</small></div><div class="fk-last">${lastTxt}</div></div>`
-        + books + hand + (g.over?gOverHTML(g.books.map((b,i)=>`${esc(bare(g.names[i]))} ${b.length}`).join(' · ')):`<div class="cbtns"><button class="pri" data-fk="ask" ${my&&sel.r&&sel.to!=null?'':'disabled'}>Har du några ${sel.r?RNAME(sel.r):'…'}?</button></div>
-        <div class="ghint">Fråga efter en valör du själv har. Får du kort fortsätter du, annars drar du ur sjön. Fyra lika blir ett fyrtal – flest fyrtal vinner. ${KIT.resignHTML()}</div>`); }
+        + `<div class="fk-last fk-lastw">${lastTxt}</div><div class="fk-lake ${myFish?'go':''}">${(g.lake||[]).map((p,i)=>`<div class="fk-lc" style="left:${p[0]/10}%;top:${p[1]/10}%;--rot:${p[2]}deg" ${myFish?`data-fk="fish" data-i="${i}"`:''}>${card(-1)}</div>`).join('')}<small>🌊 ${(g.lake||[]).length} kort i sjön</small></div>`
+        + books + hand + (g.over?gOverHTML(g.books.map((b,i)=>`${esc(bare(g.names[i]))} ${b.length}`).join(' · ')):`<div class="cbtns"><button class="pri" data-fk="ask" ${my&&!fishing&&sel.r&&sel.to!=null?'':'disabled'}>Har du några ${sel.r?RNAME(sel.r):'…'}?</button></div>
+        <div class="ghint">Fråga efter en valör du själv har. Får du kort fortsätter du, annars väljer du ett kort ur sjön. Fyra lika blir ett fyrtal – flest fyrtal vinner. ${KIT.resignHTML()}</div>`); }
   };
   const fkSel={gid:null,r:null,to:null};
   document.addEventListener('click',e=>{ const b=e.target.closest('[data-fk]'); if(!b||!G||G.kind!=='fisk') return; const me=meSeat(); if(G.over||G.cur!==me||!canActG(me)) return;
-    const a=b.dataset.fk; if(a==='r'){ fkSel.r=+b.dataset.r; sfx.bubble(); render(); return; } if(a==='to'){ fkSel.to=+b.dataset.to; sfx.bubble(); render(); return; }
+    const a=b.dataset.fk; if(a==='fish'){ if(G.fish&&G.fish.seat===me) doAct({type:'fish', i:+b.dataset.i}); return; }
+    if(G.fish) return;
+    if(a==='r'){ fkSel.r=+b.dataset.r; sfx.bubble(); render(); return; } if(a==='to'){ fkSel.to=+b.dataset.to; sfx.bubble(); render(); return; }
     if(a==='ask'&&fkSel.r&&fkSel.to!=null){ doAct({type:'ask',to:fkSel.to,rank:fkSel.r}); } });
   css(`.fk-last{max-width:200px;font-size:13.5px;line-height:1.4;opacity:.9}.fk-books{display:flex;flex-wrap:wrap;gap:4px 14px;justify-content:center;font-size:13px;margin:4px 0}
+.fk-lastw{max-width:none;text-align:center;min-height:19px;margin:2px 10px}
+.fk-lake{position:relative;height:min(170px,22vh);height:min(170px,22dvh);margin:6px 18px 16px;border-radius:50%/42%;background:radial-gradient(ellipse at 40% 35%,#38bdf8,#0369a1 70%,#0c4a6e);box-shadow:inset 0 0 26px rgba(0,0,0,.45),0 0 0 6px rgba(20,184,166,.25);--cw:min(30px,8vw,4.4dvh)}
+.fk-lake.go{animation:fklake 1.6s ease-in-out infinite alternate}@keyframes fklake{to{box-shadow:inset 0 0 26px rgba(0,0,0,.45),0 0 0 9px rgba(34,211,238,.6)}}
+.fk-lake small{position:absolute;left:50%;bottom:-18px;transform:translateX(-50%);font-size:12px;opacity:.75;white-space:nowrap}
+.fk-lc{position:absolute;transform:translate(-50%,-50%) rotate(var(--rot));transition:transform .15s}
+.fk-lc .pc{box-shadow:0 2px 4px rgba(0,0,0,.45)}
+@media (max-height:520px){.fk-lake{height:62px;margin:2px 60px 14px;--cw:19px}.fk-lastw{min-height:0}}
+.fk-lake.go .fk-lc{cursor:pointer}.fk-lake.go .fk-lc:hover,.fk-lake.go .fk-lc:active{transform:translate(-50%,-50%) rotate(var(--rot)) scale(1.25);z-index:5}
 .fk-to{margin-top:4px;padding:5px 10px;border-radius:10px;border:1px solid var(--line);font-size:12.5px}.fk-to.sel{border-color:#22c55e;background:rgba(34,197,94,.18)}`);
-  GINFO.fisk.menu=()=>KIT.menu('fisk',{rules:'Fråga en motspelare efter en valör du själv har, t.ex. ”Har du några åttor?”. Får du dem fortsätter du – annars säger de ”finns i sjön!” och du drar ett kort. Samla fyra lika – flest fyrtal vinner!', bots:[1,3]});
+  GINFO.fisk.menu=()=>KIT.menu('fisk',{rules:'Fråga en motspelare efter en valör du själv har, t.ex. ”Har du några åttor?”. Får du dem fortsätter du – annars säger de ”finns i sjön!” och du väljer ett kort ur sjön, där korten ligger utspridda med baksidan upp. Samla fyra lika – flest fyrtal vinner!', bots:[1,3]});
 
   /* =================================================================
      3) HJÄRTER – fyra spelare (tomma platser fylls med datorspelare)

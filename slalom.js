@@ -124,12 +124,12 @@ const SLALOM = (()=>{
           // stängda portar längs fallinjen: åkaren korsar linjen fram och tillbaka
           const type=plan[i]; let n=0; while(plan[i+n]===type) n++;
           z+=9.5; const L=5.4, gap=type==='h'?1:.9;
-          const cx=fx(z,0); let from=prevTurn ? (Math.sign(prevTurn.x-cx)||1) : -side;
+          const cx=fx(z,0); let from=prevTurn ? -(Math.sign(prevTurn.x-cx)||1) : side;   // efter förra vändstången korsar man fallinjen och svänger tillbaka in i första porten
           for(let k=0;k<n;k++){ const za=z+k*(L+gap), zb=za+L;
             const gt=mkGate({x:cx,z:za},{x:cx,z:zb},col,'closed',{x:cx,z:(za+zb)/2}); gt.turn={x:cx,z:(za+zb)/2}; gt.from=from; from=-from; out[0].push(gt);
             col=col==='r'?'b':'r'; }
           z+=n*(L+gap)-gap; prevTurn={x:cx,z};
-          side = (n%2===0) ? side : -side;     // efter ett udda antal korsningar fortsätter rytmen åt andra hållet
+          side = (n%2===0) ? -side : side;     // man går ut ur kombinationen på den sida man gick in: nästa öppna port ligger på motsatt sida
           i+=n;
         }
       }
@@ -151,9 +151,72 @@ const SLALOM = (()=>{
     const lane=k=> G.par ? ((G.run||1)===2 ? 1-k : k) : 0;     // i parallell byter man bana till åk 2
     const mkSk=(k,isAIsk)=>({k, lane:lane(k), x: mid(2)+(C.lanes[lane(k)]||0), z:2, v:0, th:0, om:0, t:0, done:false, dsq:false, missed:0, pen:0, gi:0, ai:isAIsk, lean:0, tuck:0, straight:0, plant:0, lastSign:0, trail:[]});
     const sk = G.par ? [mkSk(0,isAI(0)&&mode==='local'), mkSk(1,isAI(1)&&mode==='local')] : [mkSk(0,false)];
-    R={gid:G.id+':'+(G.go||0), C, sk, me: G.par?me:0, cd:3.2, started:false, parts:[], shake:0, finishT:0, sent:false, cheer:1.5, beeped:-1, remote:null, split:null};
+    R={gid:G.id+':'+(G.go||0), wx:WEATHER.pick(runSeed(G)), wxs:WEATHER.mkState(), C, sk, me: G.par?me:0, cd:3.2, started:false, parts:[], shake:0, finishT:0, sent:false, cheer:1.5, beeped:-1, remote:null, split:null};
   }
   const meSk = () => R.sk[R.me];
+  // efter målgång: jubel eller deppighet beroende på hur det gick
+  function moodOf(s){ if(s.dsq) return null;                              // diskad: varken jubel eller depp
+    const n=R.C.gates[s.lane].length; return s.missed>=n*.5 ? 'sad' : 'cheer'; }   // grunden är jubel – depp bara om minst hälften av portarna missats
+
+  /* ---------- inspelning, repris och höjdpunkter ---------- */
+  function recEv(s,g,pass,hit){ if(R&&R.rec&&!R.play) R.rec.ev.push({t:R.rec.t, lane:s.lane, i:R.C.gates[s.lane].indexOf(g), pass, hit}); }
+  function recStep(dt){
+    if(!R.rec) R.rec={fr:[],ev:[],acc:0,t:0,end:null};
+    const r=R.rec; r.t+=dt; if(r.end!=null && r.t>r.end) return;
+    if(r.end==null && R.sk.every(k=>k.done)) r.end=r.t+3.6;
+    r.acc+=dt; if(r.acc<1/20) return; r.acc=0;
+    r.fr.push({t:r.t, s:R.sk.map(k=>[k.x,k.z,k.th,k.lean,k.tuck||0,k.v,k.plant||0,k.om||0,k.done?1:0,k.mood==='cheer'?1:k.mood==='sad'?2:0,k.done?(k.finish??k.t):k.t+k.pen,k.gi,k.missed,k.finish??-1,k.dsq?1:0])});
+  }
+  function applyFrame(t){
+    const fr=R.rec.fr, i=REPLAY.find(fr,t), a=fr[i], b=fr[Math.min(fr.length-1,i+1)], u=b.t>a.t?clamp((t-a.t)/(b.t-a.t),0,1):0;
+    R.sk.forEach((k,j)=>{ const A=a.s[j], B=b.s[j]; if(!A) return; const L=n=>A[n]+(B[n]-A[n])*u;
+      k.x=L(0); k.z=L(1); k.th=L(2); k.lean=L(3); k.tuck=L(4); k.v=L(5); k.plant=A[6]; k.om=L(7); k.done=!!A[8]; k.mood=A[9]===1?'cheer':A[9]===2?'sad':null; k.t=L(10); k.pen=0; k.gi=A[11]; k.missed=A[12]; k.finish=A[13]>=0?A[13]:null; k.dsq=!!A[14]; });
+    for(const gs of R.C.gates) for(const g of gs){ g.pass=undefined; g.hit=0; }
+    for(const e of R.rec.ev){ if(e.t>t) break; const g=R.C.gates[e.lane][e.i]; if(!g) continue; g.pass=e.pass; if(e.hit){ g.hit=1; g.hitT=performance.now()-(t-e.t)*1000; } }
+  }
+  function buildClips(){
+    const fr=R.rec.fr, me=R.me, sk=R.sk[me], T=fr[fr.length-1].t, st=(fr.find(f=>f.s[me][5]>.6)||fr[0]).t, fin=(fr.find(f=>f.s[me][8])||fr[fr.length-1]).t;
+    let vm=0, tv=st+2; for(const f of fr) if(f.t<fin && f.s[me][5]>vm){ vm=f.s[me][5]; tv=f.t; }
+    const ev=R.rec.ev.filter(e=>e.lane===sk.lane), gate=e=>R.C.gates[e.lane][e.i]||{};
+    const comb=ev.find(e=>e.pass&&gate(e).type==='closed'), hitE=ev.find(e=>e.hit&&e.t>st+3), missE=ev.find(e=>!e.pass);
+    const out=[]; const add=c=>{ c.t0=clamp(c.t0,0,T); c.t1=clamp(c.t1,c.t0+.3,T); out.push(c); };
+    add({t0:st-.4, t1:st+2.6, view:'fly', z0:.2, z1:.16, rate:1, cap:`${G.disc==='gs'?'Storslalom':'Slalom'} · ${bare(pname(sk.k))} · ${R.wx.icon} ${R.wx.name}`});
+    if(comb) add({t0:comb.t-1.7, t1:comb.t+1.1, view:'close', z0:.13, z1:.03, a0:.3, a1:1.3, rate:.45, cap:'Rakt genom vertikalen!', slow:1});
+    else if(hitE) add({t0:hitE.t-1.3, t1:hitE.t+.7, view:'close', z0:.11, z1:.02, a0:-.6, a1:.5, rate:.35, cap:'Käppen viker sig!', slow:1});
+    add({t0:tv-1.6, t1:tv+1.3, view:'low', z0:.06, z1:.06, a0:-.4, a1:.4, rate:.55, cap:`Toppfart ${Math.round(vm*3.6)} km/h`, slow:1});
+    const tm=(st+fin)/2; add({t0:tm-1.4, t1:tm+1.6, view:'orbit', z0:.24, z1:.12, a0:-2.7, a1:-1.0, rate:.75});
+    if(missE) add({t0:missE.t-1.3, t1:missE.t+.9, view:'top', z0:.28, z1:.2, rate:.6, cap:'Oj – missad port…'});
+    add({t0:fin-1.9, t1:fin+.35, view:'front', z0:.22, z1:.05, rate:.5, slow:1, cap:sk.dsq?'Ur…':`I mål: ${fmt(sk.finish??0)}`});
+    add({t0:fin+.35, t1:Math.min(T,fin+3.3), view:'close', z0:.05, z1:.03, a0:-.7, a1:1.7, rate:.85, cap:sk.mood==='cheer'?'🎉 Jubel!':'Nästa gång! 💪'});
+    out.sort((a,b)=>a.t0-b.t0); const res=[]; for(const c of out){ const p=res[res.length-1]; if(p && c.t0<p.t1){ if(c.t1-p.t1<.8) continue; c.t0=p.t1; } res.push(c); }
+    return res;
+  }
+  function startPlay(mode){
+    if(!R||!R.rec||R.rec.fr.length<10){ toast('Ingen inspelning ännu'); return; }
+    const T0=R.rec.fr[R.rec.fr.length-1].t, clips=mode==='hl'?buildClips():null;
+    R.play={mode, t:clips?clips[0].t0:0, T:T0, speed:1, playing:true, clips, ci:mode==='hl'?0:-1, rt:0, flash:0}; R.camO=mode==='hl'; if(clips) DSO.cut=true;
+    sndOff(); render();
+  }
+  function stopPlay(){ if(!R||!R.play) return; R.play=null; R.camO=false; applyFrame(R.rec.fr[R.rec.fr.length-1].t); render(); }
+  function playStep(dt){
+    const p=R.play; let rate=1; p.rt+=dt; p.flash=Math.max(0,p.flash-dt*3);
+    const INTRO=PHOTO?2.6:0; if(p.mode==='hl' && p.rt<INTRO){ applyFrame(p.t); return; }
+    if(p.mode==='hl' && p.done){ p.outro=(p.outro||0)+dt; }
+    if(p.mode==='hl' && p.playing){ let c=p.clips[p.ci];
+      if(!c || p.t>=c.t1-1e-3){ p.ci++; c=p.clips[p.ci]; if(!c){ p.playing=false; p.done=true; p.ci=p.clips.length-1; c=p.clips[p.ci]; REPLAY.refresh('sl',p); } else { p.t=c.t0; p.flash=.9; DSO.cut=true; tone(880,.06,'sine',.05); } }
+      if(c){ const u=clamp((p.t-c.t0)/Math.max(.01,c.t1-c.t0),0,1); rate=c.rate; DSO.view=c.view; DSO.zoom=lerp(c.z0,c.z1,smooth(u)); DSO.ang=lerp(c.a0||0,c.a1||0,u); DSO.k=u; DSO.fast=6; p.cap=c.cap; p.capA=Math.min(u*5,(1-u)*5,1); p.slow=!!c.slow; } }
+    if(p.playing){ p.t=Math.min(p.T,p.t+dt*p.speed*rate); if(p.mode==='replay'&&p.t>=p.T){ p.playing=false; REPLAY.refresh('sl',p); } }
+    applyFrame(p.t);
+    const s=meSk(); if(p.playing && !s.done && Math.abs(s.om)>.45 && s.v>5){ R.parts.push({x:s.x-Math.sign(s.om)*.5, z:s.z+.3, y:.05, vx:-Math.sign(s.om)*(2+Math.random()*4)*Math.min(1,s.v/14), vz:s.v*.25, vy:1+Math.random()*2.6, t:.55, r:.7+Math.random()*.8}); }
+    if(R.parts.length>180) R.parts.splice(0,R.parts.length-180);
+    if((p.syncT=(p.syncT||0)+dt)>.25){ p.syncT=0; REPLAY.sync('sl',p); }
+  }
+  REPLAY.register('sl',(a,v)=>{ if(!R||!R.play) return; const p=R.play;
+    if(a==='close'){ stopPlay(); return; }
+    if(a==='play'){ if(p.done){ p.done=false; p.ci=0; p.t=p.clips[0].t0; p.rt=0; p.outro=0; DSO.cut=true; } else if(p.mode==='replay'&&p.t>=p.T-.01) p.t=0; p.playing=!p.playing||p.ci===0&&p.rt===0; }
+    if(a==='speed') p.speed={1:.5,.5:.25,.25:2,2:1}[p.speed]||1;
+    if(a==='seek'){ p.t=v*p.T; }
+    REPLAY.refresh('sl',p); });
 
   /* ---------- fysik ---------- */
   function crossed(g,px,pz,x,z){
@@ -192,18 +255,18 @@ const SLALOM = (()=>{
     let g=gs[s.gi];
     while(g){
       const c=crossed(g,px,pz,s.x,s.z);
-      if(c!==null && c>=0){ g.pass=true; if(c<.5){ g.hit=1; g.hitT=performance.now(); s.v*=.975; if(s===meSk()) poleSfx(); } s.gi++; }
+      if(c!==null && c>=0){ g.pass=true; recEv(s,g,true,c<.5); if(c<.5){ g.hit=1; g.hitT=performance.now(); s.v*=.975; if(s===meSk()) poleSfx(); } s.gi++; }
       else if(c===-1 && g.type!=='closed' || s.z>g.zmax+(g.type==='closed'?1.5:3)){ miss(s,g); s.gi++; }
       else break;
       if(s===meSk() && s.gi===Math.floor(gs.length/2) && !R.split) R.split=s.t;
       g=gs[s.gi];
     }
-    if(!s.done && s.z>=R.C.L){ s.done=true; s.finish=s.t+s.pen; if(s===meSk()) finishSfx(); }
+    if(!s.done && s.z>=R.C.L){ s.done=true; s.finish=s.t+s.pen; s.mood=moodOf(s); if(s===meSk()) finishSfx(); }
     s.trail.push(s.x, s.z); if(s.trail.length>300) s.trail.splice(0,2);
   }
-  function miss(s,g){ g.pass=false; s.missed++;
+  function miss(s,g){ g.pass=false; s.missed++; recEv(s,g,false,false);
     if(G.pen){ s.pen+=3; if(s===meSk()){ toast('Missad port +3 s',1300); sfx.unbubble(); } }
-    else if(!s.dsq){ s.dsq=true; s.done=true; if(s===meSk()){ toast('Ur! Missad port 😬',2200); sfx.unbubble(); } } }
+    else if(!s.dsq){ s.dsq=true; s.done=true; s.mood=null; if(s===meSk()){ toast('Ur! Missad port 😬',2200); sfx.unbubble(); } } }
 
   // datorn: siktar på nästa ports idealpassage och glider mot nästa i tid
   const AILV={easy:{gain:1.5,late:.5,slow:.45,cap:.78}, medium:{gain:1.55,late:.46,slow:.2,cap:.88}, hard:{gain:1.6,late:.43,slow:0,cap:1}};
@@ -328,29 +391,34 @@ const SLALOM = (()=>{
 
   /* ---------- projektion med höjd ---------- */
   const HZ=.30, VB=.09, CAMH=2.9, BACK=5.2, ZMAX=200;
-  let cam={x:0,z:0,y:0,yaw:0,roll:0,pitch:.3}, F=500, YA=400;
-  function P(x,z,h=0){ const dz=z-cam.z; if(dz<.3) return null; const xs=x-cam.x-dz*Math.tan(cam.yaw);
+  let cam={x:0,z:0,y:0,yaw:0,roll:0,pitch:.3}, F=500, YA=400, back=5.2, camD=0, camMode=lsGet('sl_cam')||'rider';
+  const DS=DRONE.make('sl_dr'), DSO=DRONE.make('sl_dro',true); let DCUR=DS; let DM=false, DZA=0, DZB=0, VIEWK='back', FLIP=false;
+  function P(x,z,h=0){ if(DM) return DRONE.proj(DCUR.C,x,elev(z)+h,z); const dz=z-cam.z; if(dz<.3) return null; const xs=x-cam.x-dz*Math.tan(cam.yaw);
     return [W/2 + xs*F/dz, YA + F*((cam.y-(elev(z)+h))/dz - Math.tan(cam.pitch)), F/dz]; }
 
   /* ---------- ritning ---------- */
-  let BD=null, BDsize='';
+  let BD=null, BDsize='', lastYH=0;
   const now=()=>performance.now()/1000;
   function drawScene(dt){
+    const DD = R.camO ? DSO : DS.on ? DS : null; if(DD){ drawDrone(dt,DD); return; }
     const s=meSk(), C=R.C;
-    const tx=s.x-Math.sin(s.th)*1.8, tz=s.z-BACK;
-    cam.x += (tx-cam.x)*Math.min(1,dt*6); cam.z=tz;
-    cam.yaw += (s.th*.4-cam.yaw)*Math.min(1,dt*4); cam.roll += (-s.lean*.06-cam.roll)*Math.min(1,dt*5);
-    const ahead=Math.atan(pitchAt(s.z+6)); cam.pitch += (ahead-cam.pitch)*Math.min(1,dt*2.2);
-    cam.y = elev(cam.z)+CAMH;
-    F=Math.min(W,H)*1.05;
-    // åkaren alltid på 80 % av höjden
-    YA = H*.80 - F*((cam.y-elev(s.z))/BACK - Math.tan(cam.pitch));
+    // drönarvyn: kameran glider upp och bakåt, tittar ned över åkaren och svävar mjukt i sidled
+    camD = 0; const D=smooth(clamp(camD,0,1)), tt=now();
+    back=lerp(BACK,13,D); const camh=lerp(CAMH,11.5+Math.sin(tt*.31)*1.5*D,D);
+    const tx=s.x-Math.sin(s.th)*1.8*(1-D)+D*Math.sin(tt*.21)*5.5, tz=s.z-back;
+    cam.x += (tx-cam.x)*Math.min(1,dt*(6-3.5*D)); cam.z=tz;
+    cam.yaw += (s.th*.4*(1-D*.7)+D*Math.sin(tt*.21)*-.12-cam.yaw)*Math.min(1,dt*(4-2*D)); cam.roll += (-s.lean*.06*(1-D)-cam.roll)*Math.min(1,dt*5);
+    const ahead=Math.atan(pitchAt(s.z+6))+D*.36; cam.pitch += (ahead-cam.pitch)*Math.min(1,dt*2.2);
+    cam.y = elev(cam.z)+camh;
+    F=Math.min(W,H)*1.05*(1+D*.15);
+    // åkaren på 80 % av höjden (lite högre upp i drönarvyn)
+    YA = H*lerp(.80,.62,D) - F*((cam.y-elev(s.z))/back - Math.tan(cam.pitch));
     const sh=R.shake>0?(Math.random()-.5)*R.shake*8:0;
     ctx.translate(W/2+sh,H*.6); ctx.rotate(cam.roll); ctx.translate(-W/2,-H*.6);
     // himmel, fjäll och dal: den sanna horisonten flyttar sig med kamerans lutning
-    const key=W+'x'+H; if(BDsize!==key){ BD=makeBackdrop(W,H); BDsize=key; }
-    const yH = YA - F*Math.tan(cam.pitch), hz=Math.round(H*HZ);
-    ctx.fillStyle='#5b8fd6'; ctx.fillRect(-W,-H,W*3,H*3);
+    const key=W+'x'+H+':'+R.wx.kind+R.wx.seed; if(BDsize!==key){ BD=makeBackdrop(W,H); WEATHER.tintBackdrop(BD,Math.round(H*HZ),R.wx); BDsize=key; }
+    const yH = YA - F*Math.tan(cam.pitch), hz=Math.round(H*HZ); lastYH=yH;
+    ctx.fillStyle=WEATHER.sky(R.wx)||'#5b8fd6'; ctx.fillRect(-W,-H,W*3,H*3);
     // varannan kopia spegelvänd: kanterna möts alltid, ingen skarv i fjällen
     const bw=BD.width, per=bw*2, top=yH-hz; let x0=-(((cam.x*1.2 + cam.yaw*W*.9)%per+per)%per)-bw*.25;
     for(let k=0;k<4&&x0<W;k++,x0+=bw){ if(x0+bw<0) continue; if(k%2===0) ctx.drawImage(BD,x0,top); else { ctx.save(); ctx.translate(x0+bw,top); ctx.scale(-1,1); ctx.drawImage(BD,0,0); ctx.restore(); } }
@@ -385,8 +453,41 @@ const SLALOM = (()=>{
     ctx.globalAlpha=1;
     drawSkier(s,null,true);
   }
+  // drönaren: äkta 3D-kamera; marken först (utanför pisten, pisten, färg och spår), sedan allt upprätt sorterat på djup
+  function drawDrone(dt,D){ DCUR=D;
+    const s=meSk(), C=R.C, fx=(mid(s.z+6)-mid(s.z-6))/12, Cc=DRONE.solve(D,{x:s.x,y:elev(s.z)+1,z:s.z},fx,1,dt,W,H,z=>elev(z));
+    DM=true; VIEWK=DRONE.facing(Cc,fx,1); FLIP = Math.cos(Cc.yaw-Math.atan2(fx,1))<0 && Cc.pitch<1.2;
+    const key=W+'x'+H+':'+R.wx.kind+R.wx.seed; if(BDsize!==key){ BD=makeBackdrop(W,H); WEATHER.tintBackdrop(BD,Math.round(H*HZ),R.wx); BDsize=key; }
+    const yH=H/2-Cc.f*Math.tan(Cc.pitch), hz=Math.round(H*HZ); lastYH=yH;
+    ctx.fillStyle=WEATHER.sky(R.wx)||'#5b8fd6'; ctx.fillRect(0,0,W,H);
+    if(yH>0){ const bw=BD.width, per=bw*2, top=yH-hz; let x0=-(((Cc.yaw*Cc.f*.9)%per+per)%per)-bw*.25;
+      for(let k=0;k<4&&x0<W;k++,x0+=bw){ if(x0+bw<0) continue; if(k%2===0) ctx.drawImage(BD,x0,top); else { ctx.save(); ctx.translate(x0+bw,top); ctx.scale(-1,1); ctx.drawImage(BD,0,0); ctx.restore(); } }
+      ctx.fillStyle='#dfe8f4'; ctx.fillRect(0,top+BD.height-1,W,H); }
+    else { ctx.fillStyle='#dfe8f4'; ctx.fillRect(0,0,W,H); }
+    DZA=Math.max(-20,s.z-130); DZB=s.z+240;
+    // allt (mark i remsor och band, färg på snön, käppar, träd, åkare) sorteras på djup tillsammans,
+    // så att ett krön skymmer det som ligger bakom – annars ser käpparna ut att sväva
+    const L=[], BANDS=[[0,6],[6,20],[20,75]];
+    let prev=null;
+    for(let z=DZA; z<=DZB; z+=Math.max(.8,Math.abs(z-D.C.z)*.03)){
+      const m=mid(z), hw=halfAt(z), e={z, m, hw};
+      if(prev){ const zc=(z+prev.z)/2, fo=T.trees[Math.round(zc)|0]||.3, band=(Math.floor(z/5)%2)*3, sl=pitchAt(z), sh2=clamp((sl-.25)*40,-6,10), fin=z>C.L&&z<C.L+4;
+        const pc=P(mid(zc),zc), q=[P(prev.m-prev.hw,prev.z),P(prev.m+prev.hw,prev.z),P(m+hw,z),P(m-hw,z)];
+        if(pc&&q.every(v=>v&&v[3]>1.5)){ const col=fin?'rgba(239,68,68,.85)':`rgb(${246-sh2-band},${250-sh2*.7-band},255)`; L.push({Z:pc[3]+.8, d:()=>{ ctx.fillStyle=col; quad(...q); }}); }
+        const oc=`rgb(${224-fo*10},${233-fo*6},245)`;
+        for(const sd of [-1,1]) for(const [b0,b1] of BANDS){ const cc=P(mid(zc)+sd*(halfAt(zc)+(b0+b1)/2),zc), qq=[P(prev.m+sd*(prev.hw+b0),prev.z),P(prev.m+sd*(prev.hw+b1),prev.z),P(m+sd*(hw+b1),z),P(m+sd*(hw+b0),z)];
+          if(cc&&qq.every(v=>v&&v[3]>1.5)) L.push({Z:cc[3]+.8, d:()=>{ ctx.fillStyle=oc; quad(...qq); }}); } }
+      prev=e; }
+    for(const o of collect(C,s)){ const x=o.x!=null?o.x : o.sk? o.sk.x : o.g? (o.g.a.x+o.g.b.x)/2 : mid(o.z), p=P(x,o.z); if(!p) continue;
+      const flat=o.t==='rut'||o.t==='dye'||o.t==='arrow'; if(!flat&&p[3]<4) continue; L.push({Z:p[3]+(flat?.4:0), d:()=>drawObj(o)}); }
+    const pm=P(s.x,s.z); if(pm) L.push({Z:pm[3]-.05, d:()=>drawSkier(s,pm,false)});
+    L.sort((a,b)=>b.Z-a.Z); for(const it of L) it.d();
+    R.parts=R.parts.filter(p=>(p.t-=dt)>0);
+    for(const p of R.parts){ p.x+=p.vx*dt; p.z+=p.vz*dt; p.y+=p.vy*dt; p.vy-=9*dt; const q=P(p.x,p.z,Math.max(0,p.y)); if(!q) continue; ctx.globalAlpha=Math.min(1,p.t*2.2); ctx.fillStyle='#fff'; ctx.beginPath(); ctx.arc(q[0],q[1],Math.max(1,q[2]*.05*p.r),0,7); ctx.fill(); }
+    ctx.globalAlpha=1; DM=false;
+  }
   function collect(C,s){
-    const objs=[], zA=cam.z+.8, zB=cam.z+ZMAX;
+    const objs=[], zA=DM?DZA:cam.z+.8, zB=DM?DZB:cam.z+ZMAX;
     for(let z=Math.ceil(zA/5)*5; z<zB; z+=5){ const zi=Math.round(z), m=mid(z), hw=halfAt(z), r=rng(zi*7+1), dens=T.trees[zi]||.3, cr=T.crowd[zi], nt=T.net[zi];
       for(const sd of [-1,1]){
         if(nt||cr) objs.push({z, t:'fence', x:m+sd*(hw+1.2), sd});
@@ -412,7 +513,7 @@ const SLALOM = (()=>{
       const dirTo=(q,len)=>{ if(!q) return null; const dx=q.aim.x-g.aim.x, dz=q.aim.z-g.aim.z, L=Math.hypot(dx,dz)||1; return {x:g.aim.x+dx/L*len, z:g.aim.z+dz/L*len}; };
       objs.push({z:g.aim.z+.01, t:'dye', p:dirTo(pv,3.6), a:{x:g.aim.x+(g.side||0)*.35,z:g.aim.z}, n:dirTo(nx,3)}); }));
     objs.push({z:C.L, t:'finish'});
-    R.sk.forEach(o=>{ if(o!==s && o.z>zA) objs.push({z:o.z, t:'skier', sk:o}); });
+    R.sk.forEach(o=>{ if(o!==s && o.z>zA && o.z<zB) objs.push({z:o.z, t:'skier', sk:o}); });
     objs.sort((a,b)=>b.z-a.z);
     return objs;
   }
@@ -424,28 +525,32 @@ const SLALOM = (()=>{
     if(o.t==='dye'){ const a=P(o.a.x,o.a.z); if(!a) return; ctx.strokeStyle='rgba(29,78,216,.5)'; ctx.lineCap='round'; const dl=Math.min(a[2],40); ctx.setLineDash([dl*.6,dl*.35]);
       ctx.lineWidth=clamp(a[2]*.16,1,7); ctx.beginPath(); const p=o.p&&P(o.p.x,o.p.z), n=o.n&&P(o.n.x,o.n.z);
       if(p){ ctx.moveTo(p[0],p[1]); ctx.lineTo(a[0],a[1]); } else ctx.moveTo(a[0],a[1]); if(n) ctx.lineTo(n[0],n[1]); ctx.stroke(); ctx.setLineDash([]); return; }
+    if(o.t==='tree'&&DM&&VIEWK==='top'){ const p=P(o.x,o.z); if(!p) return; const r=p[2]*(o.v===2?1.6:2.3)*o.s; if(r<.8) return; ctx.fillStyle=o.v===2?'rgba(120,110,100,.7)':'#1f4d3a'; ctx.beginPath(); ctx.arc(p[0],p[1],r,0,7); ctx.fill(); ctx.fillStyle='rgba(255,255,255,.75)'; ctx.beginPath(); ctx.arc(p[0]-r*.25,p[1]-r*.25,r*.5,0,7); ctx.fill(); return; }
+    if(o.t==='fan'&&DM&&VIEWK==='top'){ const p=P(o.x,o.z); if(!p) return; ctx.fillStyle=['#e11d48','#2563eb','#f59e0b','#16a34a'][o.v%4]; ctx.beginPath(); ctx.arc(p[0],p[1],Math.max(1,p[2]*.28),0,7); ctx.fill(); return; }
     if(o.t==='tree'){ const p=P(o.x,o.z); if(!p) return; const img=SPR.tree[o.v]; const h=p[2]*8*o.s, w=h*img.width/img.height; if(p[0]+w<0||p[0]-w>W||h<1) return; ctx.drawImage(img,p[0]-w/2,p[1]-h,w,h); return; }
     if(o.t==='fan'){ const p=P(o.x,o.z); if(!p) return; const img=SPR.fan[o.v]; const h=p[2]*1.75, w=h*img.width/img.height; if(h<1.5) return; const near=Math.abs(o.z-meSk().z)<35, jump=Math.max(0,Math.sin(t*6+o.ph))*h*.12*(near?1:.25);
       ctx.drawImage(img,p[0]-w/2,p[1]-h-jump,w,h);
       if(o.v%4===2 && h>8){ ctx.fillStyle=o.v%8===2?'#006aa7':'#e11d48'; const fx=p[0]+w*.45, fy=p[1]-h*1.15-jump; ctx.fillRect(fx,fy,1,h*.5); ctx.beginPath(); ctx.moveTo(fx,fy); ctx.quadraticCurveTo(fx+h*.25,fy+h*.08+Math.sin(t*8+o.ph)*h*.05,fx+h*.42,fy+h*.05); ctx.lineTo(fx+h*.42,fy+h*.25); ctx.quadraticCurveTo(fx+h*.2,fy+h*.3,fx,fy+h*.22); ctx.fill();
         if(o.v%8===2){ ctx.fillStyle='#fecc00'; ctx.fillRect(fx+h*.1,fy+h*.04,h*.06,h*.22); ctx.fillRect(fx,fy+h*.11,h*.42,h*.05); } }
       return; }
-    if(o.t==='fence'){ const z2=o.z+5, a=P(o.x,o.z), b=P(mid(z2)+o.sd*(halfAt(z2)+1.2),z2); if(!a||!b) return; const ha=a[2]*1.1, hb=b[2]*1.1;
-      ctx.fillStyle='rgba(37,99,235,.55)'; ctx.beginPath(); ctx.moveTo(a[0],a[1]); ctx.lineTo(b[0],b[1]); ctx.lineTo(b[0],b[1]-hb); ctx.lineTo(a[0],a[1]-ha); ctx.closePath(); ctx.fill();
-      ctx.strokeStyle='rgba(30,64,175,.8)'; ctx.lineWidth=Math.max(.5,a[2]*.05); ctx.beginPath(); ctx.moveTo(a[0],a[1]); ctx.lineTo(a[0],a[1]-ha); ctx.stroke(); return; }
-    if(o.t==='banner'){ const z2=o.z+4, a=P(o.x,o.z), b=P(mid(z2)+o.sd*(halfAt(z2)+1.25),z2); if(!a||!b) return; const ha=a[2]*.8;
-      ctx.fillStyle='#fff'; ctx.beginPath(); ctx.moveTo(a[0],a[1]-a[2]*.15); ctx.lineTo(b[0],b[1]-b[2]*.15); ctx.lineTo(b[0],b[1]-b[2]*.95); ctx.lineTo(a[0],a[1]-a[2]*.95); ctx.closePath(); ctx.fill();
-      if(ha>6){ ctx.save(); ctx.fillStyle='#e11d48'; ctx.font=`800 ${Math.max(6,ha*.55)}px system-ui`; ctx.textAlign='center'; ctx.textBaseline='middle'; const txt=['VEMDALEN','KRYA PÅ DIG 💙','FRÖKNARNA','HEJA! 🐬'][Math.floor(o.z/45)%4];
-        ctx.translate((a[0]+b[0])/2,(a[1]+b[1])/2-ha*.55); ctx.fillText(txt,0,0); ctx.restore(); } return; }
+    if(o.t==='fence'){ const z2=o.z+5, x2=mid(z2)+o.sd*(halfAt(z2)+1.2), a=P(o.x,o.z), b=P(x2,z2); if(!a||!b) return;
+      const at=DM?P(o.x,o.z,1.1):[a[0],a[1]-a[2]*1.1], bt=DM?P(x2,z2,1.1):[b[0],b[1]-b[2]*1.1]; if(!at||!bt) return;
+      ctx.fillStyle='rgba(37,99,235,.55)'; ctx.beginPath(); ctx.moveTo(a[0],a[1]); ctx.lineTo(b[0],b[1]); ctx.lineTo(bt[0],bt[1]); ctx.lineTo(at[0],at[1]); ctx.closePath(); ctx.fill();
+      ctx.strokeStyle='rgba(30,64,175,.8)'; ctx.lineWidth=Math.max(.5,a[2]*.05); ctx.beginPath(); ctx.moveTo(a[0],a[1]); ctx.lineTo(at[0],at[1]); ctx.stroke(); return; }
+    if(o.t==='banner'){ const z2=o.z+4, x2=mid(z2)+o.sd*(halfAt(z2)+1.25), a1=P(o.x,o.z,.15), b1=P(x2,z2,.15), b2=P(x2,z2,.95), a2=P(o.x,o.z,.95); if(!a1||!b1||!b2||!a2) return;
+      ctx.fillStyle='#fff'; quad(a1,b1,b2,a2); const ha=Math.hypot(a2[0]-a1[0],a2[1]-a1[1]);
+      if(ha>6){ ctx.save(); ctx.fillStyle='#e11d48'; ctx.font=`800 ${Math.max(6,ha*.6)}px system-ui`; ctx.textAlign='center'; ctx.textBaseline='middle'; const txt=['VEMDALEN','KRYA PÅ DIG 💙','FRÖKNARNA','HEJA! 🐬'][Math.floor(o.z/45)%4];
+        ctx.translate((a1[0]+b1[0]+a2[0]+b2[0])/4,(a1[1]+b1[1]+a2[1]+b2[1])/4); ctx.rotate(Math.atan2(b1[1]-a1[1],b1[0]-a1[0])); ctx.fillText(txt,0,0); ctx.restore(); } return; }
     if(o.t==='lift'){ const p=P(o.x,o.z), q=P(o.x,o.z,10.5); if(!p||!q) return; const w=Math.max(1,p[2]*.35);
       ctx.fillStyle='#64748b'; ctx.fillRect(p[0]-w/2,q[1],w,p[1]-q[1]); ctx.fillRect(p[0]-p[2]*1.4,q[1],p[2]*2.8,Math.max(1,p[2]*.25));
       const n=P(o.x,o.z+40,10.5); if(n){ ctx.strokeStyle='rgba(51,65,85,.8)'; ctx.lineWidth=Math.max(.5,p[2]*.04); [-1.2,1.2].forEach(dx=>{ ctx.beginPath(); ctx.moveTo(q[0]+dx*p[2],q[1]); ctx.quadraticCurveTo((q[0]+n[0])/2+dx*(p[2]+n[2])/2,(q[1]+n[1])/2+p[2]*.6,n[0]+dx*n[2],n[1]); ctx.stroke(); });
         const f=((t*.25)%1); const cz=o.z+f*40, c=P(o.x+1.2,cz,9.2); if(c){ ctx.fillStyle='#ef4444'; ctx.fillRect(c[0]-c[2]*.5,c[1],c[2],c[2]*.6); ctx.fillStyle='#334155'; ctx.fillRect(c[0]-.5,c[1]-c[2]*1.1,1,c[2]*1.1); } }
       return; }
-    if(o.t==='finish'){ const m=mid(o.z), hw=halfAt(o.z), a=P(m-hw-1,o.z), b=P(m+hw+1,o.z); if(!a) return; const h=a[2]*4.4;
-      ctx.fillStyle='#1e3a8a'; ctx.fillRect(a[0]-a[2]*.3,a[1]-h,a[2]*.6,h); ctx.fillRect(b[0]-b[2]*.3,b[1]-h,b[2]*.6,h);
-      const g=ctx.createLinearGradient(0,a[1]-h,0,a[1]-h*.7); g.addColorStop(0,'#ef4444'); g.addColorStop(1,'#b91c1c'); ctx.fillStyle=g; ctx.fillRect(a[0],a[1]-h,b[0]-a[0],h*.28);
-      if(h>10){ ctx.fillStyle='#fff'; ctx.font=`900 ${h*.18}px system-ui`; ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.fillText('MÅL · VEMDALEN',(a[0]+b[0])/2,a[1]-h*.86); } return; }
+    if(o.t==='finish'){ // målportalen räknas i 3D: stolpar från snön och upp, banderollen mellan topparna
+      const m=mid(o.z), hw=halfAt(o.z), x1=m-hw-1, x2=m+hw+1, a=P(x1,o.z), b=P(x2,o.z), at=P(x1,o.z,4.4), bt=P(x2,o.z,4.4), al=P(x1,o.z,3.2), bl=P(x2,o.z,3.2); if(!a||!b||!at||!bt||!al||!bl) return;
+      ctx.strokeStyle='#1e3a8a'; ctx.lineCap='butt'; ctx.lineWidth=Math.max(1.5,a[2]*.5); ctx.beginPath(); ctx.moveTo(a[0],a[1]); ctx.lineTo(at[0],at[1]); ctx.stroke(); ctx.lineWidth=Math.max(1.5,b[2]*.5); ctx.beginPath(); ctx.moveTo(b[0],b[1]); ctx.lineTo(bt[0],bt[1]); ctx.stroke();
+      const g=ctx.createLinearGradient(0,Math.min(at[1],bt[1]),0,Math.max(al[1],bl[1])); g.addColorStop(0,'#ef4444'); g.addColorStop(1,'#b91c1c'); ctx.fillStyle=g; quad(at,bt,bl,al);
+      const hh=Math.hypot(at[0]-al[0],at[1]-al[1]); if(hh>8){ ctx.save(); ctx.translate((at[0]+bt[0]+al[0]+bl[0])/4,(at[1]+bt[1]+al[1]+bl[1])/4); ctx.rotate(Math.atan2(bt[1]-at[1],bt[0]-at[0])); ctx.fillStyle='#fff'; ctx.font=`900 ${hh*.62}px system-ui`; ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.fillText('MÅL · VEMDALEN',0,0); ctx.restore(); } return; }
     if(o.t==='gate'){ drawGate(o.g,o.i,o.pole); return; }
     if(o.t==='arrow'){ const g=o.g, zm=(g.zmin+g.zmax)/2, f=g.from||1, p0=P(g.a.x+f*1.6,zm), p1=P(g.a.x-f*1.6,zm); if(!p0||!p1) return;   // pil på snön: åt vilket håll man korsar nästa stängda port
       const sz=clamp(p0[2]*.5,3,18), d=Math.sign(p1[0]-p0[0])||-f; ctx.fillStyle=`rgba(250,204,21,${.8+.2*Math.sin(t*6)})`; ctx.strokeStyle='rgba(30,58,138,.85)'; ctx.lineWidth=1.6;
@@ -457,46 +562,76 @@ const SLALOM = (()=>{
     if(g.type==='closed'){ if(only==='a'&&!a || only==='b'&&!b) return; } else if(!a||!b) return;
     const col = g.col==='r' ? '#ef4444' : '#2563eb', dark = g.col==='r' ? '#991b1b' : '#1e3a8a', t=now();
     const bend = g.hit ? Math.max(0,1-(performance.now()-(g.hitT||0))/600)*.55 : 0;
-    const pole=(p,bnd)=>{ const h=p[2]*1.8, pw=Math.max(1,p[2]*.045); ctx.strokeStyle=col; ctx.lineWidth=pw*2; ctx.lineCap='round'; ctx.beginPath(); ctx.moveTo(p[0],p[1]); ctx.quadraticCurveTo(p[0]+bnd*h*.3,p[1]-h*.5,p[0]+bnd*h*.6,p[1]-h*.95); ctx.stroke();
-      ctx.strokeStyle='rgba(255,255,255,.6)'; ctx.lineWidth=pw*.6; ctx.beginPath(); ctx.moveTo(p[0]-pw*.4,p[1]-h*.1); ctx.lineTo(p[0]-pw*.4+bnd*h*.5,p[1]-h*.85); ctx.stroke();
+    // käppen står lodrätt i världen: i drönarvyn räknas toppen ut i 3D, annars rakt upp i bild
+    const up=(p,wx,wz)=>{ const q=DM&&wx!=null?P(wx,wz,1.8):null; return q?[q[0]-p[0],q[1]-p[1]]:[0,-p[2]*1.8]; };
+    const pole=(p,bnd,wx,wz)=>{ const v=up(p,wx,wz), h=Math.hypot(v[0],v[1]), pw=Math.max(1,p[2]*.045); ctx.strokeStyle=col; ctx.lineWidth=pw*2; ctx.lineCap='round'; ctx.beginPath(); ctx.moveTo(p[0],p[1]); ctx.quadraticCurveTo(p[0]+v[0]*.5+bnd*h*.3,p[1]+v[1]*.5,p[0]+v[0]*.95+bnd*h*.6,p[1]+v[1]*.95); ctx.stroke();
+      ctx.strokeStyle='rgba(255,255,255,.6)'; ctx.lineWidth=pw*.6; ctx.beginPath(); ctx.moveTo(p[0]-pw*.4+v[0]*.1,p[1]+v[1]*.1); ctx.lineTo(p[0]-pw*.4+v[0]*.85+bnd*h*.5,p[1]+v[1]*.85); ctx.stroke();
       ctx.fillStyle='rgba(80,110,160,.18)'; ctx.beginPath(); ctx.ellipse(p[0]+p[2]*.4,p[1]+1,p[2]*.35,p[2]*.08,0,0,7); ctx.fill(); };
     if(g.type==='gs'){ // ett stångpar med flagga på var sida om porten
       const wv=Math.sin(t*3+i)*a[2]*.05;
-      [[g.a.x-.75,g.a.x],[g.b.x,g.b.x+.75]].forEach(([xa,xb])=>{ const pa=P(xa,g.a.z), pb=P(xb,g.a.z); if(!pa||!pb) return; const h=pa[2]*1.8;
-        pole(pa,0); pole(pb,0);
+      [[g.a.x-.75,g.a.x],[g.b.x,g.b.x+.75]].forEach(([xa,xb])=>{ const pa0=P(xa,g.a.z), pb0=P(xb,g.a.z); if(!pa0||!pb0) return;
+        pole(pa0,0,xa,g.a.z); pole(pb0,0,xb,g.a.z);
+        // flaggan mellan käpparna: i drönarvyn följer den käpparnas riktning, annars som förut
+        const va=up(pa0,xa,g.a.z), vb=up(pb0,xb,g.a.z), h=Math.hypot(va[0],va[1]), k=-va[1]/(h||1);
+        const pa=[pa0[0]+va[0]-0,pa0[1]+va[1]+h,pa0[2]], pb=[pb0[0]+vb[0],pb0[1]+vb[1]+Math.hypot(vb[0],vb[1]),pb0[2]];
+        if(DM && h<pa0[2]*.6) return;      // rakt ovanifrån syns flaggan inte
         ctx.fillStyle=col; ctx.beginPath(); ctx.moveTo(pa[0],pa[1]-h*.95); ctx.quadraticCurveTo((pa[0]+pb[0])/2,pa[1]-h*.95+wv,pb[0],pb[1]-h*.95); ctx.lineTo(pb[0],pb[1]-h*.5); ctx.quadraticCurveTo((pa[0]+pb[0])/2,pa[1]-h*.5+wv,pa[0],pa[1]-h*.5); ctx.closePath(); ctx.fill();
         ctx.fillStyle='rgba(255,255,255,.9)'; ctx.beginPath(); ctx.arc((pa[0]+pb[0])/2,pa[1]-h*.72+wv*.5,Math.max(.8,(pb[0]-pa[0])*.22),0,7); ctx.fill();
         ctx.fillStyle=dark; ctx.fillRect(pa[0],pa[1]-h*.52,pb[0]-pa[0],Math.max(.5,h*.02)); });
     } else {
       // slalom: ledade käppar utan flagga; vändstången viker sig vid träff
       const tp=P(g.turn.x,g.turn.z); const away = g.type==='closed' ? (g.aim.x>g.a.x?-1:1) : (g.side||1)*-1;
-      if(g.type==='single'){ if(tp) pole(tp, bend*away); }
-      else if(g.type==='closed'){ if(only==='b') pole(b,0); else pole(a,bend*(g.aim.x>g.a.x?-1:1)); }
-      else { const tA = Math.abs(g.a.x-g.turn.x)<.01; pole(a,tA?bend*away:0); pole(b,!tA?bend*away:0); }
+      if(g.type==='single'){ if(tp) pole(tp, bend*away, g.turn.x, g.turn.z); }
+      else if(g.type==='closed'){ if(only==='b') pole(b,0,g.b.x,g.b.z); else pole(a,bend*(g.aim.x>g.a.x?-1:1),g.a.x,g.a.z); }
+      else { const tA = Math.abs(g.a.x-g.turn.x)<.01; pole(a,tA?bend*away:0,g.a.x,g.a.z); pole(b,!tA?bend*away:0,g.b.x,g.b.z); }
     }
     if(g.pass===false && only!=='b'){ const q=P(g.aim.x,g.aim.z)||a||b; if(!q) return; ctx.fillStyle='rgba(239,68,68,.9)'; ctx.font=`900 ${Math.max(10,q[2]*.9)}px system-ui`; ctx.textAlign='center'; ctx.fillText('✕',q[0],q[1]-q[2]*.6); }
   }
 
   // åkaren bakifrån – en sammanhängande figur: skidor → bindning → pjäxor → ben → höft → rygg → armar → stavar → hjälm
   const SUITS={ swe:{base:'#0b2e7a', mid:'#1d4ed8', acc:'#facc15', boot:'#f8fafc', bootAcc:'#1d4ed8', helm:'#facc15', helmAcc:'#1d4ed8', ski:'#f8fafc', skiAcc:'#1d4ed8', glove:'#0f172a', bib:'#ffffff', bibTxt:'#0b2e7a'},
+                own:{base:'#0b0f17', mid:'#1f2937', acc:'#93c5fd', boot:'#f8fafc', bootAcc:'#111827', helm:'#2dd4bf', helmAcc:'#0f766e', ski:'#111827', skiAcc:'#a3e635', glove:'#0b0f17', bib:'#7cb8f7', bibTxt:'#0b0f17', vest:true},
                 red:{base:'#991b1b', mid:'#dc2626', acc:'#f8fafc', boot:'#111827', bootAcc:'#dc2626', helm:'#f8fafc', helmAcc:'#dc2626', ski:'#111827', skiAcc:'#dc2626', glove:'#111827', bib:'#facc15', bibTxt:'#111827'} };
+  // min åkare får den dräkt jag valt; motståndaren får en som skiljer sig
+  function suitOf(s){ const mine=lsGet('sl_suit')||'swe', meK=R?R.sk[R.me].k:0; if(s.k===meK) return SUITS[mine]||SUITS.swe; return mine==='red'?SUITS.swe:SUITS.red; }
   function limb(x1,y1,x2,y2,w1,w2,col){ const dx=x2-x1, dy=y2-y1, L=Math.hypot(dx,dy)||1, nx=-dy/L, ny=dx/L;
     ctx.fillStyle=col; ctx.beginPath(); ctx.moveTo(x1+nx*w1/2,y1+ny*w1/2); ctx.lineTo(x2+nx*w2/2,y2+ny*w2/2); ctx.lineTo(x2-nx*w2/2,y2-ny*w2/2); ctx.lineTo(x1-nx*w1/2,y1-ny*w1/2); ctx.closePath(); ctx.fill();
     ctx.beginPath(); ctx.arc(x1,y1,w1/2,0,7); ctx.fill(); ctx.beginPath(); ctx.arc(x2,y2,w2/2,0,7); ctx.fill(); }
+  // ovanifrån: skidor, kropp, hjälm och stavar sedda uppifrån, vridna efter åkriktningen
+  function drawSkierTop(s,x,y,sc){
+    const a=P(s.x,s.z), b=P(s.x+Math.sin(s.th),s.z+Math.cos(s.th)); if(!a||!b) return; const ang=Math.atan2(b[1]-a[1],b[0]-a[0]);
+    const S=suitOf(s), E=clamp(s.lean||0,-1.2,1.2), m=sc;
+    ctx.save(); ctx.translate(x,y); ctx.rotate(ang); ctx.scale(m,m);
+    ctx.fillStyle=WEATHER.shadow(R.wx,.25); ctx.beginPath(); ctx.ellipse(-.1,.12,.95,.4,0,0,7); ctx.fill();
+    for(const sd of [-1,1]){ ctx.fillStyle=S.ski; ctx.beginPath(); ctx.roundRect(-.75,sd*.13-.035-E*.08,1.65,.07,.035); ctx.fill(); ctx.fillStyle=S.skiAcc; ctx.fillRect(-.7,sd*.13-.01-E*.08,1.5,.02); ctx.fillStyle=S.boot; ctx.fillRect(-.08,sd*.13-.05-E*.08,.2,.1); }
+    for(const sd of [-1,1]){ ctx.strokeStyle='#cbd5e1'; ctx.lineWidth=.025; ctx.beginPath(); ctx.moveTo(.1,sd*.32); ctx.lineTo(-.75,sd*.45); ctx.stroke(); }
+    ctx.fillStyle=S.base; ctx.beginPath(); ctx.ellipse(-.05,-E*.15,.16,.27,0,0,7); ctx.fill();
+    ctx.fillStyle=S.mid; ctx.beginPath(); ctx.ellipse(.08,-E*.18,.13,.24,0,0,7); ctx.fill();
+    for(const sd of [-1,1]){ ctx.fillStyle=S.glove; ctx.beginPath(); ctx.arc(.2,sd*.3-E*.15,.05,0,7); ctx.fill(); }
+    ctx.fillStyle=S.helm; ctx.beginPath(); ctx.arc(.14,-E*.2,.12,0,7); ctx.fill(); ctx.fillStyle=S.helmAcc; ctx.fillRect(.02,-E*.2-.025,.24,.05);
+    ctx.restore();
+  }
   function drawSkier(s, p, me){
     let x,y,sc;
-    if(me){ x=W/2+(s.x-cam.x-BACK*Math.tan(cam.yaw))*F/BACK; y=H*.80; sc=F/BACK; }
+    if(me){ x=W/2+(s.x-cam.x-back*Math.tan(cam.yaw))*F/back; y=YA+F*((cam.y-elev(s.z))/back-Math.tan(cam.pitch)); sc=F/back; }
     else { if(!p) return; [x,y,sc]=p; }
-    const u=sc*(me?.0118:.0105), E=clamp(s.lean,-1.2,1.2), tk=s.tuck||0, rel=s.th-cam.yaw, dir=Math.sign(E)||1, inc=E*.6;
-    const S = (s.k===0) ? SUITS.swe : SUITS.red;
+    if(DM && VIEWK==='top'){ drawSkierTop(s,x,y,sc); return; }
+    const FR = DM && VIEWK==='front';
+    const md = s.done && s.mood ? s.mood : null;
+    // i drönarvyn räknas skidornas riktning ut från hur åkriktningen syns i bild; framifrån blir åkarens vänster bildens höger
+    let rel=s.th-cam.yaw; if(DM){ const p0=P(s.x,s.z), p1=P(s.x+Math.sin(s.th)*2,s.z+Math.cos(s.th)*2); if(p0&&p1) rel=clamp(Math.atan2(p1[0]-p0[0],Math.abs(p1[1]-p0[1])),-1.3,1.3); }
+    const u=sc*(me?.0118:.0105), E=md?0:clamp(s.lean,-1.2,1.2)*(FR?-1:1), tk=md?0:(s.tuck||0), dir=Math.sign(E)||1, inc=E*.6;
+    const S = suitOf(s);
     const t=performance.now()/1000;
     ctx.save(); ctx.translate(x,y); ctx.scale(u,u);
+    const hop = md==='cheer' ? Math.abs(Math.sin(t*6.5))*9 : 0;
     // skugga
-    ctx.fillStyle='rgba(60,90,140,.22)'; ctx.beginPath(); ctx.ellipse(-E*20,10,62,14,0,0,7); ctx.fill();
+    ctx.fillStyle=WEATHER.shadow(R.wx,.22); ctx.beginPath(); ctx.ellipse(-E*20+(R.wx.kind==='sun'?18:0),10,62,14,0,0,7); ctx.fill();
     const st=11+Math.abs(E)*2, shiftX=-E*12, tip=Math.sin(rel)*34;
+    ctx.translate(0,-hop);
     const feet=[-1,1].map(side=>{ const outer=side!==dir; return {side, outer, x:side*st+shiftX, y: outer?0:-4}; });
     // 1) skidor (spets bort från kameran = uppåt i bild), med kant/sula när de kantas
-    feet.forEach(f=>{ ctx.save(); ctx.translate(f.x,f.y);
+    feet.forEach(f=>{ ctx.save(); ctx.translate(f.x,f.y); if(FR) ctx.scale(1,-1);   // framifrån pekar spetsarna mot kameran
       const ew=Math.abs(E)*5, sx=-dir*4;
       const tl=-tip*.55;                                      // bakänden pekar åt andra hållet
       if(ew>.6){ ctx.fillStyle='#1e293b'; ctx.beginPath(); ctx.moveTo(tl+sx,34); ctx.lineTo(tl+sx-dir*ew*1.3,34); ctx.lineTo(tip+sx*.4-dir*ew*.4,-58); ctx.lineTo(tip+sx*.4,-58); ctx.closePath(); ctx.fill();
@@ -527,7 +662,7 @@ const SLALOM = (()=>{
       ctx.fillStyle='#1f2937'; ctx.fillRect(-7.5,6,15,3);
       ctx.restore(); });
     // 3) höft och rygg (mer upprätt än benen = vinkling; framåtfälld i fartställning)
-    const torso=E*.2, bh=56-tk*30, bw=20+tk*3;
+    const torso=E*.2, bh=(56-tk*30)*(md==='sad'?.82:1), bw=20+tk*3;
     ctx.save(); ctx.translate(hipC.x,hipC.y); ctx.rotate(torso);
     ctx.fillStyle=S.base; ctx.beginPath(); ctx.ellipse(0,0,bw*.95,9,0,0,7); ctx.fill();          // säte
     const gr=ctx.createLinearGradient(-bw,0,bw,0); gr.addColorStop(0,S.base); gr.addColorStop(.5,S.mid); gr.addColorStop(1,S.base);
@@ -535,13 +670,16 @@ const SLALOM = (()=>{
     // gula svep längs sidorna
     ctx.strokeStyle=S.acc; ctx.lineWidth=3; [-1,1].forEach(sd=>{ ctx.beginPath(); ctx.moveTo(sd*bw*.88,0); ctx.quadraticCurveTo(sd*bw*1.08,-bh*.5,sd*bw*.72,-bh*.95); ctx.stroke(); });
     // startnummerväst
-    if(bh>30){ ctx.fillStyle=S.bib; ctx.beginPath(); ctx.roundRect(-bw*.55,-bh*.82,bw*1.1,bh*.52,4); ctx.fill();
+    if(S.vest){ ctx.fillStyle=S.bib; ctx.beginPath(); ctx.roundRect(-bw*.86,-bh*.96,bw*1.72,bh*.7,7); ctx.fill(); ctx.fillStyle='rgba(255,255,255,.18)'; ctx.fillRect(-bw*.86,-bh*.96,bw*1.72,bh*.12); }
+    if(bh>30){ ctx.fillStyle=S.vest?'#e0f2fe':S.bib; ctx.beginPath(); ctx.roundRect(-bw*.55,-bh*.82,bw*1.1,bh*.52,4); ctx.fill();
       ctx.fillStyle=S.bibTxt; ctx.font=`900 ${Math.max(9,bh*.3)}px system-ui`; ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.fillText(String(s.k+1),0,-bh*.56); }
     // 4) armar och stavar
     const sh={y:-bh+6};
     [-1,1].forEach(side=>{ const shX=side*bw*.78;
       let el, hd, tipP;
-      if(tk>.5){ el={x:side*(bw-1),y:sh.y+12}; hd={x:side*8,y:sh.y+2}; tipP={x:side*(bw+24),y:sh.y-30}; }   // händerna fram, stavarna under armarna
+      if(md==='cheer'){ const w=Math.sin(t*9+side)*5; el={x:side*(bw+13),y:sh.y-22}; hd={x:side*(bw+5)+w,y:sh.y-54}; tipP={x:hd.x+side*36,y:hd.y-60}; }   // armarna upp, stavarna i ett V
+      else if(md==='sad'){ el={x:side*(bw+3),y:sh.y+24}; hd={x:side*(bw+1),y:sh.y+48}; tipP={x:hd.x+side*7,y:hd.y+58}; }      // hängande armar, stavarna släpar
+      else if(tk>.5){ el={x:side*(bw-1),y:sh.y+12}; hd={x:side*8,y:sh.y+2}; tipP={x:side*(bw+24),y:sh.y-30}; }   // händerna fram, stavarna under armarna
       else { const plant = side===dir ? s.plant : 0, swing=Math.sin(t*2.2)*1.5;
         el={x:side*(bw+10)-E*4, y:sh.y+20}; hd={x:side*(bw+16)-E*6+swing, y:sh.y+34-plant*6};
         tipP = plant>0 ? {x:hd.x+side*4, y:hd.y-26} : {x:hd.x+side*8, y:hd.y+40}; }
@@ -553,15 +691,17 @@ const SLALOM = (()=>{
       ctx.fillStyle='#ef4444'; ctx.fillRect(hd.x-2,hd.y-9,4,6);   // stavhandtag
     });
     // 5) nacke, hjälm och glasögonband
-    const hy=-bh-12+tk*8;
+    const hy=-bh-12+tk*8+(md==='sad'?9:0);
     ctx.fillStyle=S.base; ctx.fillRect(-6,hy+6,12,8);
     ctx.fillStyle=S.helm; ctx.beginPath(); ctx.ellipse(0,hy,15.5,16,0,0,7); ctx.fill();
     ctx.fillStyle=S.helmAcc; ctx.beginPath(); ctx.moveTo(-3,hy-16); ctx.lineTo(3,hy-16); ctx.lineTo(4,hy+8); ctx.lineTo(-4,hy+8); ctx.closePath(); ctx.fill();
     ctx.fillStyle='rgba(255,255,255,.5)'; ctx.beginPath(); ctx.ellipse(-6,hy-8,5,3.5,-.4,0,7); ctx.fill();
     ctx.fillStyle='#111827'; ctx.fillRect(-15.5,hy+1,31,5.5); ctx.fillStyle=S.acc; ctx.fillRect(-7,hy+1.5,14,4.5);
+    if(FR){ const lg=ctx.createLinearGradient(-13,0,13,0); lg.addColorStop(0,'#f97316'); lg.addColorStop(.5,'#facc15'); lg.addColorStop(1,'#a855f7'); ctx.fillStyle=lg; ctx.beginPath(); ctx.roundRect(-13,hy-3,26,11,5); ctx.fill(); ctx.fillStyle='#f1c7a5'; ctx.beginPath(); ctx.ellipse(0,hy+11,8,4,0,0,Math.PI); ctx.fill(); }
     ctx.restore(); ctx.restore();
   }
   // liten karta (banan uppifrån) och höjdprofil, ritas en gång per åk och storlek
+  const rpBtns=()=> R&&R.rec&&R.rec.fr.length>10 ? `<div class="rp-btns"><button data-sl="rp">⏪ Repris</button><button data-sl="hl">🎬 Höjdpunkter</button></div>` : '';
   function maps(){
     const C=R.C, key=W+'x'+H+':'+R.gid; if(R.mapKey===key) return; R.mapKey=key;
     const L=C.L+10, mw=46, mh=Math.round(Math.min(170,H*.24)), pw=Math.round(W-24), ph=30;
@@ -605,7 +745,7 @@ const SLALOM = (()=>{
     const kind=T.kind[Math.round(s.z)|0];
     if(R.started && !s.done && kind==='steep' && (R.steepShown||0)<s.z-200){ R.steepShown=s.z; R.banner={txt:'⚠️ Brant!',t:1.6}; }
     if(R.banner&&R.banner.t>0){ ctx.globalAlpha=Math.min(1,R.banner.t*2); ctx.textAlign='center'; ctx.font='900 30px system-ui'; ctx.fillStyle='#fde047'; ctx.fillText(R.banner.txt,W/2,82); ctx.globalAlpha=1; }
-    if(!R.started && R.cd>0){ const n2=Math.ceil(R.cd); ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.font='900 90px system-ui'; ctx.fillStyle='#fff'; ctx.save(); ctx.shadowColor='#ef4444'; ctx.shadowBlur=25; ctx.fillText(n2>3?'':String(n2),W/2,H*.42); ctx.restore(); }
+    if(!R.started && R.cd>0){ const n2=Math.ceil(R.cd); ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.font='900 90px system-ui'; ctx.fillStyle='#fff'; ctx.save(); ctx.shadowColor='#ef4444'; ctx.shadowBlur=25; ctx.fillText(n2>3?'':String(n2),W/2,H*.42); ctx.restore(); ctx.font='800 16px system-ui'; ctx.fillStyle='#fff'; ctx.fillText(`${R.wx.icon} ${R.wx.name}`,W/2,H*.42+66); }
     else if(R.started && s.t<.8){ ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.font='900 72px system-ui'; ctx.fillStyle='#22c55e'; ctx.fillText('KÖR!',W/2,H*.42); }
   }
   const fmt=t=>{ const m=Math.floor(t/60), s=t-m*60; return (m?m+':':'')+(m?String(s.toFixed(2)).padStart(5,'0'):s.toFixed(2)); };
@@ -618,9 +758,11 @@ const SLALOM = (()=>{
     raf=requestAnimationFrame(loop);
     const dt=Math.min(.05,(nowMs-(lastT||nowMs))/1000); lastT=nowMs;
     const runId=G.id+':'+(G.go||0); if(!R||R.gid!==runId) newRun();
+    if(R.play){ playStep(dt); draw(dt); return; }
     const s=meSk();
     let inp=0; if(drag) inp=clamp((drag.x-drag.x0)/(W*.22),-1,1);
     const kx=(keys.ArrowRight?1:0)-(keys.ArrowLeft?1:0); if(kx) steer+=(kx-steer)*Math.min(1,dt*6); else steer*=Math.pow(.02,dt); if(!drag) inp=steer;
+    if(DS.on && FLIP) inp=-inp;   // kameran tittar mot åkaren: styr efter skärmen, inte efter åkarens höger/vänster
     if(!R.started){ R.cd-=dt; const n=Math.ceil(R.cd); if(n!==R.beeped && n>=1 && n<=3){ R.beeped=n; tone(660,.12,'sine',.12); } if(R.cd<=0){ R.started=true; tone(1320,.35,'sine',.13); sndInit(); cheer(.12); } }
     else {
       const lv=G.ai||[];
@@ -632,12 +774,14 @@ const SLALOM = (()=>{
       // snöstänk från ytterskidans kant i svängarna
       if(!s.done && Math.abs(s.om)>.45 && s.v>5){ const n=Math.abs(s.om)>R.C.d.turn*.7?3:1; for(let i=0;i<n;i++) R.parts.push({x:s.x-Math.sign(s.om)*.5+(Math.random()-.5)*.4, z:s.z+.3, y:.05, vx:-Math.sign(s.om)*(2+Math.random()*4)*Math.min(1,s.v/14), vz:s.v*.25, vy:1+Math.random()*2.6, t:.55, r:.7+Math.random()*.8}); }
       if(R.parts.length>180) R.parts.splice(0,R.parts.length-180);
+      recStep(dt);
+      if(s.done && !s.dsq){ if(!R.camO){ R.camO=true; DSO.cut=true; DSO.view='close'; DSO.zoom=.04; DSO.fast=2.5; R.celebT=0; } R.celebT+=dt; DSO.ang=-.8+R.celebT*.35; }
       R.shake=Math.max(0,R.shake-dt*3); if(R.banner) R.banner.t-=dt;
       sndUpdate(s);
       // publiken jublar ibland när man åker förbi
       R.cheer-=dt; const zi=Math.round(s.z)|0; if(R.cheer<=0){ R.cheer=2+Math.random()*4; if(T.crowd[zi] && Math.random()<.65 && !s.done) cheer(.05+Math.random()*.06); }
       if(mode==='online' && nowMs-sendT>66){ sendT=nowMs; send({t:'sl', g:G.id, n:G.go||0, x:+s.x.toFixed(2), z:+s.z.toFixed(2), th:+s.th.toFixed(3), l:+s.lean.toFixed(2), k:+(s.tuck||0).toFixed(2), v:+s.v.toFixed(2), gi:s.gi, d:s.done?1:0, q:s.dsq?1:0, f:s.finish!=null?+s.finish.toFixed(3):null}); }
-      if(s.done && !R.sent && (s.v<.5 || s.dsq || performance.now()-(R.finishT||(R.finishT=performance.now()))>1500)){ R.sent=true; sndOff(); finishRun(s); }
+      if(s.done && !R.sent && performance.now()-(R.finishT||(R.finishT=performance.now()))>(s.dsq?1500:3600)){ R.sent=true; sndOff(); finishRun(s); }
       for(const sk of R.sk) if(sk.ai && sk.done && !sk.sentAI){ sk.sentAI=true; applyAndPublish({type:'finish', run:G.run, ms:sk.dsq?null:Math.round(sk.finish*1000)}, sk.k); }
     }
     draw(dt);
@@ -649,7 +793,11 @@ const SLALOM = (()=>{
     doAct({type:'finish', run:G.run, ms});
   }
   let scaleDpr=1;
-  function draw(dt){ ctx.setTransform(scaleDpr,0,0,scaleDpr,0,0); ctx.save(); drawScene(dt); ctx.restore(); hud(); }
+  function draw(dt){ ctx.setTransform(scaleDpr,0,0,scaleDpr,0,0); ctx.save(); drawScene(dt); ctx.restore(); WEATHER.post(ctx,W,H,lastYH,R.wx,R.wxs,dt,meSk().v); const p=R.play; if(!p||p.mode!=='hl') hud();
+    if(p&&p.mode==='hl'&&PHOTO){ const sk=meSk(), who=bare(pname(sk.k));
+      if(p.rt<2.6){ drawPhoto(p.rt/2.6,'🎬 Höjdpunkter',`${who} · ${G.disc==='gs'?'storslalom':'slalom'} · ${R.wx.icon} ${R.wx.name}`,Math.min(1,(2.6-p.rt)*3)); return; }
+      if(p.done&&p.outro>.6){ drawPhoto(Math.min(1,(p.outro-.6)/4),sk.dsq?'Nästa gång! 💪':`${sk.mood==='cheer'?'🏆 ':''}${fmt(sk.finish??0)}`,`${who} · åk ${G.run||1} · ${sk.missed?sk.missed+' missad'+(sk.missed>1?'e':'')+' port':'alla portar'}`,Math.min(1,(p.outro-.6)*2)); return; } }
+    if(p) REPLAY.overlay(ctx,W,H,{mode:p.mode, speed:p.speed, flash:p.flash, title:p.mode==='hl'&&!PHOTO?Math.max(0,1.8-p.rt):0, sub:`${G.disc==='gs'?'Storslalom':'Slalom'} · åk ${G.run||1}`, cap:p.cap, capA:p.capA, slow:p.slow&&p.playing}); }
   function fit(){ if(!cv) return; const host=cv.parentElement; const r=host.getBoundingClientRect(); const w=Math.round(Math.min(host.clientWidth, 700)), h=Math.round(Math.max(320, Math.min(window.innerHeight - r.top - 10, w*1.9)));
     const dpr=Math.min(2,window.devicePixelRatio||1); cv.style.width=w+'px'; cv.style.height=h+'px'; cv.width=Math.round(w*dpr); cv.height=Math.round(h*dpr); W=w; H=h; BDsize=''; scaleDpr=dpr; }
   window.addEventListener('resize',()=>{ if(G&&G.kind==='slalom'&&view==='game') fit(); });
@@ -665,6 +813,8 @@ const SLALOM = (()=>{
   }
   document.addEventListener('keydown',e=>{ if(G&&G.kind==='slalom'&&view==='game'&&['ArrowLeft','ArrowRight'].includes(e.code)){ keys[e.code]=true; e.preventDefault(); } });
   document.addEventListener('keyup',e=>{ keys[e.code]=false; });
+  document.addEventListener('keydown',e=>{ if(G&&G.kind==='slalom'&&view==='game'&&e.code==='KeyC') DRONE.setOn(DS,!DS.on); });
+  function toggleCam(){ camMode=camMode==='drone'?'rider':'drone'; lsSet('sl_cam',camMode); const b=document.querySelector('.sl-cam'); if(b) b.textContent=camMode==='drone'?'⛷️ Åkarvy':'🚁 Drönarvy'; sfx.bubble(); }
   document.addEventListener('visibilitychange',()=>{ if(document.hidden) sndOff(); });
 
   /* ---------- nätet ---------- */
@@ -710,12 +860,12 @@ const SLALOM = (()=>{
         over=`<div class="sl-over"><div class="gover ${solo?(tt!=null?'won':'lost'):g.winner===me?'won':g.winner===-1?'tie':'lost'}"><div class="gi">${solo?(tt!=null?'⛷️':'😬'):g.winner===me?'🏆':g.winner===-1?'🤝':'🎿'}</div>
           <h3>${solo?(tt!=null?'Båda åken klara!':'Ur!'):g.winner===me?'Du vann!':g.winner===-1?'Oavgjort':esc(bare(pname(g.winner)))+' vann'}</h3><p class="sl-pb">Åk 1 · åk 2 = totalt</p>${table()}
           ${g.std&&B.total?`<p class="sl-pb">Ditt rekord på standardbanan: <b>${fmt(B.total/1000)}</b></p>`:''}
-          <div class="gbtns"><button class="pri" data-g="rematch">🔄 Ny tävling</button><button data-act="lobby">🏠 Lobby</button></div></div></div>`; }
+          ${rpBtns()}<div class="gbtns"><button class="pri" data-g="rematch">🔄 Ny tävling</button><button data-act="lobby">🏠 Lobby</button></div></div></div>`; }
       else if(g.run===1 && runDone(g,0)){ const can = mode!=='online' || role==='host';
         over=`<div class="sl-over"><div class="gover tie"><div class="gi">⏱️</div><h3>Åk 1 klart</h3>${table()}
           <p class="sl-pb">Åk 2 har en ny bansättning${g.par?' och ni byter bana':''}.</p>
-          <div class="gbtns">${can?`<button class="pri" data-sl="next">▶️ Starta åk 2</button>`:'<p>Väntar på att värden startar åk 2…</p>'}</div></div></div>`; }
-      return `<div class="sl-wrap"><div id="slHost" class="sl-host"></div>${over}</div>
+          ${rpBtns()}<div class="gbtns">${can?`<button class="pri" data-sl="next">▶️ Starta åk 2</button>`:'<p>Väntar på att värden startar åk 2…</p>'}</div></div></div>`; }
+      return `<div class="sl-wrap ${R&&R.play?'rp-on'+(R.play.mode==='hl'?' rp-hl':''):''}"><div id="slHost" class="sl-host"></div>${DRONE.panel(DS)}${R&&R.play?REPLAY.bar('sl',R.play):''}${over}</div>
         <div class="ghint">${DISC[g.disc].name}${g.par?' · parallell':''} · ${g.std?'standardbana':'ny bana'} · åk ${g.run} av 2 · Dra fingret åt sidan (eller ← →) för att svänga, släpp för att åka rakt – då går du ned i fartställning. ${g.pen?'Missad port +3 s.':'Missad port = ur.'} ${g.over?'':KIT.resignHTML()}</div>`; },
     mounted(){ mount(); }
   };
@@ -726,9 +876,29 @@ const SLALOM = (()=>{
   const segP=()=>`<button data-sl="pen" data-v="1" class="${mPen?'sel':''}">+3 s straff</button><button data-sl="pen" data-v="0" class="${!mPen?'sel':''}">Riktiga regler: ur</button>`;
   let mStd=lsGet('sl_std')!=='0';
   const segS=()=>`<button data-sl="std" data-v="1" class="${mStd?'sel':''}">📌 Standardsättning</button><button data-sl="std" data-v="0" class="${!mStd?'sel':''}">🎲 Helt ny bana</button>`;
+  /* ---------- egen bild till höjdpunkterna – sparas bara i den här enheten ---------- */
+  let PHOTO=null; const loadPhoto=()=>{ const d=lsGet('sl_photo'); if(!d){ PHOTO=null; return; } const im=new Image(); im.onload=()=>{ PHOTO=im; }; im.src=d; }; loadPhoto();
+  function pickPhoto(){ const inp=document.createElement('input'); inp.type='file'; inp.accept='image/*';
+    inp.onchange=()=>{ const f=inp.files&&inp.files[0]; if(!f) return; const rd=new FileReader(); rd.onload=()=>{ const im=new Image(); im.onload=()=>{
+        const k=Math.min(1,1280/Math.max(im.width,im.height)), c=document.createElement('canvas'); c.width=Math.round(im.width*k); c.height=Math.round(im.height*k); c.getContext('2d').drawImage(im,0,0,c.width,c.height);
+        let q=.85, d=c.toDataURL('image/jpeg',q); while(d.length>900000&&q>.4){ q-=.1; d=c.toDataURL('image/jpeg',q); }
+        try{ lsSet('sl_photo',d); loadPhoto(); toast('📷 Bilden sparad i den här enheten'); }catch(e){ toast('Bilden var för stor att spara'); }
+        const t=document.getElementById('slPh'); if(t) t.innerHTML=photoHTML(); }; im.src=rd.result; }; rd.readAsDataURL(f); };
+    inp.click(); }
+  const photoHTML=()=>{ const d=lsGet('sl_photo'); return d?`<img src="${d}" alt="" class="sl-ph"><button data-sl="phx">🗑 Ta bort</button><button data-sl="ph">📷 Byt</button>`:`<button data-sl="ph">📷 Välj en bild</button>`; };
+  // bilden med långsam inzoomning (Ken Burns), som inledning och avslutning på höjdpunkterna
+  function drawPhoto(k,title,sub,a){
+    if(!PHOTO) return; const iw=PHOTO.width, ih=PHOTO.height, sc=Math.max(W/iw,H/ih)*(1+k*.08), fx=.45, fy=.5;
+    const dw=iw*sc, dh=ih*sc, x=clamp(W/2-fx*dw,W-dw,0), y=clamp(H/2-fy*dh,H-dh,0);
+    ctx.save(); ctx.globalAlpha=a; ctx.fillStyle='#000'; ctx.fillRect(0,0,W,H); ctx.drawImage(PHOTO,x,y,dw,dh);
+    const bar=H*.06, g=ctx.createLinearGradient(0,bar,0,bar+150); g.addColorStop(0,'rgba(2,6,23,.85)'); g.addColorStop(1,'rgba(2,6,23,0)'); ctx.fillStyle=g; ctx.fillRect(0,bar,W,150);
+    ctx.fillStyle='#000'; ctx.fillRect(0,0,W,bar); ctx.fillRect(0,H-bar,W,bar);
+    ctx.fillStyle='#facc15'; ctx.fillRect(22,bar+18,52,5); ctx.fillStyle='#fff'; ctx.font='900 26px system-ui'; ctx.textAlign='left'; ctx.textBaseline='alphabetic'; ctx.fillText(title,22,bar+54);
+    ctx.font='700 14px system-ui'; ctx.fillStyle='#e2e8f0'; ctx.fillText(sub,22,bar+78); ctx.restore(); }
   const lvlName={easy:'🐣 Lätt',medium:'🙂 Medel',hard:'🧠 Svår'};
   let mLvl=lsGet('sl_lvl')||'medium';
   const segL=()=>Object.entries(lvlName).map(([k,l])=>`<button data-sl="lvl" data-v="${k}" class="${mLvl===k?'sel':''}">${l}</button>`).join('');
+  const segU=()=>[['swe','🇸🇪 Team Sweden'],['own','🖤 Svart · turkos hjälm'],['red','❤️ Röd']].map(([k,l])=>`<button data-sl="suit" data-v="${k}" class="${(lsGet('sl_suit')||'swe')===k?'sel':''}">${l}</button>`).join('');
   function bestLine(){ const f=k=>{ try{ const b=JSON.parse(lsGet(k)); return b&&b.total?fmt(b.total/1000):'–'; }catch(e){ return '–'; } }; return `Rekord på standardbanan (två åk): storslalom ${f('sl_best3_gs_r0')} · slalom ${f('sl_best3_sl_r0')}`; }
   GINFO.slalom.menu=function(){
     openModal(`<h3>⛷️ Slalom i Vemdalsfjällen</h3><p>Två åk med olika bansättning – lägst sammanlagd tid vinner. Dra fingret åt sidan för att svänga; släpp och åk rakt så går du ned i fartställning.</p>
@@ -737,16 +907,23 @@ const SLALOM = (()=>{
       <label>Bana</label><div class="seg" id="slS">${segS()}</div>
       <label>Missad port</label><div class="seg" id="slP">${segP()}</div>
       <label>Datorns nivå (parallellslalom)</label><div class="seg" id="slL">${segL()}</div>
+      <label>Din dräkt</label><div class="seg" id="slU">${segU()}</div>
+      <label>Egen bild till höjdpunkterna</label><div class="sl-phrow" id="slPh">${photoHTML()}</div><div class="setnote">Bilden sparas bara i den här enheten – den laddas aldrig upp eller skickas till någon.</div>
       <div class="setnote">${bestLine()}</div>
       <div class="btns" style="flex-direction:column"><button class="pri" data-sl="solo">⏱️ Åk ensam mot klockan</button>
         <button class="pri" data-sl="ai" style="background:linear-gradient(135deg,#ef4444,#2563eb)">🤖 Parallellslalom mot datorn</button>
         <button class="pri" data-sl="host" style="background:linear-gradient(135deg,#f472b6,#a855f7)">🚀 Parallellslalom mot en kompis</button>
         <button data-act="close">Avbryt</button></div>`,'slmenu'); };
   document.addEventListener('click',e=>{ const b=e.target.closest('[data-sl]'); if(!b) return; const a=b.dataset.sl, nm=(document.getElementById('nm')?.value||'').trim();
+    if(a==='suit'){ lsSet('sl_suit',b.dataset.v); document.getElementById('slU').innerHTML=segU(); sfx.bubble(); return; }
+    if(a==='ph'){ pickPhoto(); return; }
+    if(a==='phx'){ try{ localStorage.removeItem((typeof DEV!=='undefined'&&DEV?'dev:':'')+'sl_photo'); }catch(e){} lsSet('sl_photo',''); loadPhoto(); document.getElementById('slPh').innerHTML=photoHTML(); return; }
     if(a==='disc'){ mDisc=b.dataset.v; lsSet('sl_disc',mDisc); document.getElementById('slD').innerHTML=segD(); sfx.bubble(); return; }
     if(a==='pen'){ mPen=b.dataset.v==='1'; lsSet('sl_pen',mPen?'1':'0'); document.getElementById('slP').innerHTML=segP(); sfx.bubble(); return; }
     if(a==='std'){ mStd=b.dataset.v==='1'; lsSet('sl_std',mStd?'1':'0'); document.getElementById('slS').innerHTML=segS(); sfx.bubble(); return; }
-    if(a==='next'){ unlockAudio(); doAct({type:'next'}); return; }
+    if(a==='next'){ unlockAudio(); if(R) { R.play=null; R.camO=false; } doAct({type:'next'}); return; }
+    if(a==='rp'||a==='hl'){ unlockAudio(); startPlay(a==='rp'?'replay':'hl'); return; }
+    if(a==='cam'){ toggleCam(); return; }
     if(a==='lvl'){ mLvl=b.dataset.v; lsSet('sl_lvl',mLvl); document.getElementById('slL').innerHTML=segL(); sfx.bubble(); return; }
     const n=nm||'Du'; lsSet('ry_name',n); unlockAudio();
     if(a==='solo'){ pend={disc:mDisc,par:false,pen:mPen,std:mStd}; fresh=true; KIT.startSolo('slalom',n); return; }
@@ -761,7 +938,9 @@ const SLALOM = (()=>{
 .sl-over .gover{max-width:330px;width:100%;background:rgba(11,16,40,.9);-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px)}
 .sl-res{display:flex;justify-content:space-between;padding:6px 12px;border-radius:10px;background:rgba(255,255,255,.06);margin:4px 0;font-variant-numeric:tabular-nums}
 .sl-res.win{background:rgba(250,204,21,.2);border:1px solid var(--gold)}
-.sl-pb{font-size:13px;opacity:.85}`; document.head.appendChild(st);
+.sl-pb{font-size:13px;opacity:.85}
+.sl-phrow{display:flex;align-items:center;gap:8px;flex-wrap:wrap}.sl-ph{width:64px;height:48px;object-fit:cover;border-radius:8px;border:1px solid rgba(255,255,255,.3)}
+.sl-cam{position:absolute;right:12px;bottom:48px;padding:7px 11px;border-radius:12px;border:1px solid rgba(255,255,255,.35);background:rgba(15,23,42,.6);color:#fff;font-size:12.5px;font-weight:700;z-index:2}`; document.head.appendChild(st);
 
   return { net:onNet, __test:(typeof DEV!=='undefined'&&DEV)?{setCourse,physics,aiInput,DISC,run:()=>R,newRun,mid,AILV,terrain:()=>T}:undefined };
 })();

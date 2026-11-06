@@ -88,7 +88,8 @@ function gMaybeAI(){
 function stats2(){ try{ return JSON.parse(lsGet('ry_stats2'))||{games:[]} }catch(e){ return {games:[]} } }
 function gFinish(d){
   const me=meSeat(), st=stats2();
-  if(!st.games.some(g=>g.id===d.id) && me!==null && me!==undefined){
+  const KD=KIND[d.kind]||{};
+  if(!(KD.noStats&&KD.noStats(d)) && !st.games.some(g=>g.id===d.id) && me!==null && me!==undefined){
     const res = d.winner===-1 ? 'T' : d.winner===me ? 'W' : 'L';
     const others=d.names.map((n,i)=>i).filter(i=>i!==me);
     const lvl = x => ({hard:'svår',medium:'medel'})[x]||'lätt';
@@ -99,8 +100,9 @@ function gFinish(d){
     lsSet('ry_stats2', JSON.stringify(st));
   }
   const won = d.winner===me;
-  setTimeout(()=>{ if(won){ celebrate('VINST!'); sfx.win(); sparkles(50); } else if(d.winner===-1){ sfx.pick(); sparkles(16); } else { tone(392,.3,'triangle',.1); tone(330,.4,'triangle',.1,.25); tone(262,.6,'triangle',.1,.5); } },400);
-  if(view!=='game') notice({icon:'🏁', title:`${GINFO[d.kind].name} är klar`, text: won?'Du vann! 🏆':d.winner===-1?'Oavgjort':'Se hur det gick', actions:[{label:'Visa', run:backToGame}]});
+  if(KD.overFx) setTimeout(()=>KD.overFx(d),400);   // spelet sköter sin egen avslutning (t.ex. träning)
+  else setTimeout(()=>{ if(won){ celebrate('VINST!'); sfx.win(); sparkles(50); } else if(d.winner===-1){ sfx.pick(); sparkles(16); } else { tone(392,.3,'triangle',.1); tone(330,.4,'triangle',.1,.25); tone(262,.6,'triangle',.1,.5); } },400);
+  if(view!=='game') notice({icon:'🏁', title:`${GINFO[d.kind].name} är klar`, text: KD.overFx?'Se hur det gick':won?'Du vann! 🏆':d.winner===-1?'Oavgjort':'Se hur det gick', actions:[{label:'Visa', run:backToGame}]});
 }
 function otherStatsHTML(){
   const st=stats2(); let h='';
