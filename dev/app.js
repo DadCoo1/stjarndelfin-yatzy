@@ -21,7 +21,7 @@
   if(!same || !/[?&]bot=1/.test(location.search)){ document.documentElement.innerHTML=''; throw new Error('Inramning blockerad'); }
 })();
 /* ================= Version & utvecklingsläge ================= */
-const APP_VERSION='2026.11.07.3-dev';
+const APP_VERSION='2026.11.07.4-dev';
 const DEV = /\/dev(\/|$)/.test(location.pathname);      // testversionen ligger i mappen /dev/
 const BOT = DEV && /[?&]bot=1/.test(location.search) && window.parent!==window;   // osynlig testkompis i en ram (bara dev)
 const LSP = DEV ? (BOT ? 'dev:bot:' : 'dev:') : '';    // egen sparad data i testversionen
@@ -1855,7 +1855,7 @@ function resumeLocal(){
 let lastWhere='';
 function rememberWhere(){
   if(BOT) return;
-  const w = view==='game' ? (mode==='local' ? 'local' : mode==='online' ? 'online' : 'lobby') : (view==='sol'||view==='inv') ? view : 'lobby';
+  const w = view==='game' ? (mode==='local' ? 'local' : mode==='online' ? 'online' : 'lobby') : (view==='sol'||view==='inv'||view==='race') ? view : 'lobby';
   if(w!==lastWhere){ lastWhere=w; lsSet('ry_where', JSON.stringify({w, t:Date.now()})); }
 }
 function restoreWhere(){
@@ -1864,11 +1864,13 @@ function restoreWhere(){
     if(r.w==='local'){ const g=JSON.parse(lsGet('ry_local')); if(g && !g.over) return resumeLocal(); }
     if(r.w==='sol'){ const sv=solLoad(); if(sv && !sv.won && sv.started){ openSol(); return view==='sol'; } }
     if(r.w==='inv' && typeof INV!=='undefined'){ INV.open(); return true; }
+    if(r.w==='race' && typeof RACE!=='undefined'){ RACE.open(); return true; }
   }catch(e){ console.error('restoreWhere',e); }
   return false;
 }
 function goLobby(){
   if(typeof INV!=='undefined') INV.stop();
+  if(typeof RACE!=='undefined' && view==='race') RACE.stop();
   clearTimeout(aiTimer); clearTimeout(solAutoT); stopBlink(); trayOpen=false; closeModal();
   if(mode==='online' && G && !G.over){ view='lobby'; render(); return; }   // Yatzy fortsätter i bakgrunden
   stopNet(); releaseWake(); view='lobby'; mode=null; G=null; gameId=null; render();
@@ -2011,6 +2013,7 @@ function render(){
   if(view==='stats'){ app.innerHTML=statsHTML(); dock.innerHTML=''; fitDock(); return; }
   if(view==='fr'){ dock.innerHTML=''; app.innerHTML=(typeof FR!=='undefined')?FR.html():''; app.style.paddingBottom='40px'; return; }
   if(view==='chat'){ view='lobby'; if(typeof CHAT!=='undefined') setTimeout(()=>CHAT.open(),0); }   // chatten bor i sidopanelen
+  if(view==='race'){ dock.innerHTML=''; if(!document.getElementById('raceRoot')){ app.innerHTML=RACE.html(); RACE.mount(); } app.style.paddingBottom='0px'; return; }
   if(view==='inv'){ dock.innerHTML=''; if(!document.getElementById('invRoot')){ app.innerHTML=INV.html(); INV.mount(); } app.style.paddingBottom='0px'; return; }
   if(view==='sol'){ dock.innerHTML=''; if(!document.getElementById('solRoot')){ app.innerHTML=solHTML(); solMount(); } else { solRefreshChrome(); } app.style.paddingBottom='0px'; return; }
   if(!G){ app.innerHTML=topbar()+`<div class="loading">${DOLPHIN('ld')}<p>Simmar till spelet <b>${esc(gameId||'')}</b>…</p><p style="font-size:14px">${netText()}</p><button class="bigbtn alt" data-act="lobby" style="max-width:260px;margin:20px auto">Avbryt</button></div>`; dock.innerHTML=''; return; }
@@ -2051,7 +2054,7 @@ const LOBBY_CATS=[
   ['♟️','Strategi & brädspel',['kina','othello','c4','gomoku','ships','mm']],
   ['🔤','Ordspel',['ordfajt','wordle','hang']],
   ['🧩','Pussel & minne',['sudoku','memory']],
-  ['⛷️','Sport & arkad',['slalom','skidskytte','pong','inv']]
+  ['⛷️','Sport & arkad',['race','slalom','skidskytte','pong','inv']]
 ];
 const TILE_DESC={ships:'Mot datorn eller en kompis', mm:'Knäck den hemliga färgkoden', hang:'Gissa ordet innan gubben hängs', kina:'2–6 spelare · online eller mot datorn',
   ordfajt:'Ordspel · svenska, norska, jamska', pong:'Mot datorn, två på en skärm eller online'};
@@ -2059,6 +2062,7 @@ function lobbyTilesHTML(svSol, invS){
   const tile=k=>{
     if(k==='yatzy') return `<button class="tile" style="--tg:linear-gradient(135deg,#22d3ee,#6366f1 60%,#a855f7)" data-act="yatzymenu"><span class="ti">🎲</span><b>Yatzy</b><small>1–4 spelare · online, datorn eller samma mobil</small></button>`;
     if(k==='sol') return `<button class="tile leo" data-act="opensol"><span class="ti">🃏</span><b>Patiens</b><small>Ensam · offline</small>${svSol && !svSol.won && svSol.started?'<span class="badge">↩︎ fortsätt</span>':''}</button>`;
+    if(k==='race'){ const rs=(typeof RACE!=='undefined')?RACE.stats():{best:0}; return `<button class="tile" style="--tg:linear-gradient(135deg,#f97316,#e11d48 45%,#4c1d95)" data-act="openrace"><span class="ti">🏎️</span><b>Sommarvägen</b><small>Ensam · roadtrip genom Sverige</small>${rs.best?`<span class="badge">🏆 ${rs.best.toLocaleString('sv-SE')}</span>`:''}</button>`; }
     if(k==='inv') return `<button class="tile" style="--tg:linear-gradient(135deg,#16a34a,#0f172a 75%)" data-act="openinv"><span class="ti">👾</span><b>Space Invaders</b><small>Ensam · 100+ nivåer</small>${invS.best?`<span class="badge">🏆 ${invS.best}</span>`:''}</button>`;
     const gi=typeof GINFO!=='undefined' && GINFO[k]; if(!gi) return '';
     const badge = gi.badge ? gi.badge() : '';
@@ -2221,6 +2225,7 @@ document.addEventListener('click', e=>{
     case 'yatzymenu': showYatzyMenu(); break;
     case 'gmenu': showGameMenu(b.dataset.k); break;
     case 'openinv': openInv(); break;
+    case 'openrace': openRace(); break;
     case 'frlist': FR.open(); break;
     case 'frnew': FR.open(); setTimeout(()=>document.querySelector('[data-fr="new"]')?.click(),0); break;
     case 'frbug': FR.open(); setTimeout(()=>document.querySelector('[data-fr="bug"]')?.click(),0); break;
@@ -2345,7 +2350,7 @@ document.addEventListener('DOMContentLoaded',()=>{
   if(!pendingOpen) return;
   const resumed = willResume && autoResume();                         // pågående onlinespel kopplar upp igen
   let w=''; try{ w=(JSON.parse(lsGet('ry_where'))||{}).w||''; }catch(e){}
-  if(w==='sol' || w==='inv'){ if(restoreWhere()) return; }           // patiens/invaders på skärmen, onlinespelet i bakgrunden
+  if(w==='sol' || w==='inv' || w==='race'){ if(restoreWhere()) return; }           // patiens/invaders på skärmen, onlinespelet i bakgrunden
   else if(!resumed && restoreWhere()) return;                         // spel mot datorn
   if(!resumed) render();                                              // annars lobbyn
 });
