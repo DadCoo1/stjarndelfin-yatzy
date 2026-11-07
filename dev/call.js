@@ -254,7 +254,22 @@ const CALL=(function(){
 
   /* ---------- skärmen ---------- */
   function close(){ if(el){ el.remove(); el=null; } }
-  function open(){ if(el) el.classList.remove('min'); }
+  function open(){ if(!el) return; el.classList.remove('min'); el.style.left=el.style.top=''; }
+  // minimerat: en liten knapp som går att dra dit den inte är i vägen (sparas till nästa samtal)
+  let dragged=false;
+  function minimize(){
+    if(!el) return; el.classList.add('min'); top();
+    let p=null; try{ p=JSON.parse(lsGet('call_pill')||'null'); }catch(e){}
+    place(p ? p.x*innerWidth : 8, p ? p.y*innerHeight : innerHeight*.42);
+  }
+  function place(x,y){ if(!el) return; const w=el.offsetWidth||150, h=el.offsetHeight||48;
+    el.style.left=Math.max(4,Math.min(innerWidth-w-4,x))+'px'; el.style.top=Math.max(4,Math.min(innerHeight-h-4,y))+'px'; }
+  function dragSetup(){
+    let sx=0, sy=0, ox=0, oy=0, on=false;
+    el.addEventListener('pointerdown',e=>{ if(!el.classList.contains('min')) return; on=true; dragged=false; sx=e.clientX; sy=e.clientY; ox=el.offsetLeft; oy=el.offsetTop; });
+    window.addEventListener('pointermove',e=>{ if(!on || !el) return; const dx=e.clientX-sx, dy=e.clientY-sy; if(!dragged && Math.hypot(dx,dy)<8) return; dragged=true; place(ox+dx, oy+dy); e.preventDefault(); },{passive:false});
+    window.addEventListener('pointerup',()=>{ if(!on || !el) return; on=false; if(dragged){ lsSet('call_pill',JSON.stringify({x:el.offsetLeft/innerWidth, y:el.offsetTop/innerHeight})); setTimeout(()=>{ dragged=false; },50); } });
+  }
   function build(){
     if(el) return el;
     el=document.createElement('div'); el.id='callUI'; el.className='cl';
@@ -264,10 +279,11 @@ const CALL=(function(){
       <div class="cl-top"><button class="cl-min" data-k="min" aria-label="Minimera">⌄</button><span class="cl-lock" data-k="sas">🔒 End-to-end-krypterat</span></div>
       <div class="cl-sas"></div>
       <div class="cl-bar"></div>
-      <button class="cl-pill" data-k="max"></button>`;
+      <div class="cl-pill"><button class="pm" data-k="mic" aria-label="Mikrofon"></button><button class="pt" data-k="max"></button></div>`;
     el.addEventListener('click',e=>{ const b=e.target.closest('[data-k]'); if(!b) return; e.stopPropagation();
-      ({min:()=>el.classList.add('min'), max:open, sas:()=>el.classList.toggle('showsas'), mic:toggleMic, cam:toggleCam, flip, end:hangup, rej:()=>finish('reject'), ans:()=>accept(false), ansv:()=>accept(true)})[b.dataset.k]?.(); });
-    document.body.appendChild(el);
+      if(dragged){ dragged=false; return; }
+      ({min:minimize, max:open, sas:()=>el.classList.toggle('showsas'), mic:toggleMic, cam:toggleCam, flip, end:hangup, rej:()=>finish('reject'), ans:()=>accept(false), ansv:()=>accept(true)})[b.dataset.k]?.(); });
+    document.body.appendChild(el); dragSetup();
     return el;
   }
   function bind(){
@@ -284,7 +300,10 @@ const CALL=(function(){
     const n=API().name(c.peer);
     const st = c.state==='live' ? mmss(Date.now()-c.t0) + (c.rmic===false?' · 🔇 '+n+' har stängt av mikrofonen':'') : (c.state==='incoming' ? (c.video?'📹 Videosamtal – ':'📞 Röstsamtal – ')+STATE.incoming : (STATE[c.state]||'')).replace('{n}',n);
     el.querySelector('.cl-st').textContent=st;
-    el.querySelector('.cl-pill').textContent=(c.state==='live'?'📞 '+mmss(Date.now()-c.t0):'📞 '+n)+' · tillbaka';
+    el.querySelector('.cl-pill .pt').textContent='📞 '+(c.state==='live'?mmss(Date.now()-c.t0):n);
+    el.querySelector('.cl-pill .pm').textContent=c.mic?'🎤':'🔇'; el.querySelector('.cl-pill .pm').classList.toggle('off',!c.mic);
+    // när ett spel startar under samtalet: krymp samtalet så att spelplanen syns
+    const v=typeof view!=='undefined'?view:null; if(v!==c.lastView){ const was=c.lastView; c.lastView=v; if(v==='game' && was!==undefined && !el.classList.contains('min') && c.state==='live') minimize(); }
   }
   function ui(){
     const c=cur; if(!c){ close(); return; }
@@ -336,9 +355,12 @@ const CALL=(function(){
 @keyframes clb{to{transform:scale(1.08)}}
 .cl-bar small{font-size:12.5px;opacity:.9}
 .cl-pill{display:none}
-.cl.min{top:max(66px,calc(env(safe-area-inset-top) + 60px));left:50%;right:auto;bottom:auto;transform:translateX(-50%);background:none;overflow:visible}
+.cl.min{right:auto;bottom:auto;background:none;overflow:visible;touch-action:none}
 .cl.min>*:not(.cl-pill){position:absolute!important;width:1px!important;height:1px!important;opacity:0!important;pointer-events:none!important;overflow:hidden}
-.cl.min .cl-pill{display:block;padding:12px 20px;border-radius:999px;background:#16a34a;color:#fff;font-size:16px;font-weight:600;box-shadow:0 8px 24px rgba(0,0,0,.45);white-space:nowrap}
+.cl.min .cl-pill{display:flex;align-items:center;border-radius:999px;background:#16a34a;box-shadow:0 6px 18px rgba(0,0,0,.45);white-space:nowrap;cursor:grab}
+.cl-pill button{color:#fff;font-weight:600;font-size:15px;padding:10px 12px 10px 6px}
+.cl-pill .pm{width:38px;height:38px;margin:4px 0 4px 4px;padding:0;border-radius:50%;background:rgba(0,0,0,.22);font-size:18px}
+.cl-pill .pm.off{background:#fff}
 `; document.head.appendChild(css);
 
   window.addEventListener('pagehide',()=>{ if(cur) finish(cur.dir==='in'&&cur.state==='incoming'?'reject':(cur.t0?'ended':'cancel')); });
