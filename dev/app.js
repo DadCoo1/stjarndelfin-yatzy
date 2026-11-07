@@ -21,7 +21,7 @@
   if(!same || !/[?&]bot=1/.test(location.search)){ document.documentElement.innerHTML=''; throw new Error('Inramning blockerad'); }
 })();
 /* ================= Version & utvecklingsläge ================= */
-const APP_VERSION='2026.11.05.16-dev';
+const APP_VERSION='2026.11.07.1-dev';
 const DEV = /\/dev(\/|$)/.test(location.pathname);      // testversionen ligger i mappen /dev/
 const BOT = DEV && /[?&]bot=1/.test(location.search) && window.parent!==window;   // osynlig testkompis i en ram (bara dev)
 const LSP = DEV ? (BOT ? 'dev:bot:' : 'dev:') : '';    // egen sparad data i testversionen
@@ -479,12 +479,23 @@ let peer=null, conn=null, net='off', role=null, retryT=null, myName='', lastHear
 const hostConns=new Set();
 const NETTXT={off:'',starting:'🟡 Startar…',waiting:'🟡 Väntar på spelare',connecting:'🟡 Ansluter…',connected:'🟢 Ansluten',lost:'🔴 Ingen kontakt – försöker igen…'};
 const NETERR=['network','server-error','socket-error','socket-closed','browser-incompatible','webrtc'];
+let netWhy='', netTips={};   // varför kontakten saknas: 'server' (kopplingsservern), 'direct' (direktkontakten), 'nogame' (fel kod)
+const NETWHY={server:'🔴 Når inte kopplingsservern – försöker igen…', direct:'🔴 Hittar spelet men når inte den andra mobilen – försöker igen…', nogame:'🔴 Hittar inget spel med den koden än – försöker igen…'};
+function netTip(k,txt){ if(netTips[k]) return; netTips[k]=1; toast(txt,6000); }
+function netFail(why){
+  netWhy=why;
+  if(why==='server') netTip('server','Når inte kopplingsservern 📡 Kolla att mobilen har internet. Ibland ligger den gratis servern nere en stund – appen försöker igen av sig själv.');
+  if(net!=='lost') setNet('lost'); else render();
+}
+function watchServer(p){ setTimeout(()=>{ if(peer===p && !p.open && !p.destroyed) netFail('server'); },10000); }
 function netText(){
+  if(net==='lost' && NETWHY[netWhy]) return NETWHY[netWhy];
   if(role==='host' && net==='connected'){ const n=[...hostConns].filter(c=>c.open && c._seat!=null).length; return `🟢 ${n} ${n===1?'ansluten':'anslutna'}`; }
   return NETTXT[net]||'';
 }
 function setNet(s){
   if(net===s) return;
+  if(s==='connected' || s==='waiting'){ netWhy=''; netTips={}; }
   const was=net; net=s;
   if(s==='connected' && was!=='connected' && G && ready() && role==='guest') toast('Ansluten! 🟢');
   render();
@@ -529,14 +540,14 @@ function startHost(){
   if(mode!=='online' || role!=='host') return;
   if(typeof Peer==='undefined'){ noPeerLib(); retry(startHost); return; }
   stopPeer(); setNet('starting');
-  const p = peer = new Peer(PREFIX+gameId, peerOpts());
-  p.on('open',()=>{ if(peer===p) updateHostNet(); });
+  const p = peer = new Peer(PREFIX+gameId, peerOpts()); watchServer(p);
+  p.on('open',()=>{ if(peer===p){ netWhy=''; updateHostNet(); } });
   p.on('connection',c=>{ if(peer===p) attachHost(c); });
   p.on('disconnected',()=>{ if(peer===p && !p.destroyed) setTimeout(()=>{ try{ p.reconnect() }catch(e){} },1500); });
   p.on('error',e=>{
     if(peer!==p) return;
     if(e.type==='unavailable-id'){ setNet('starting'); retry(startHost,4000); }   // gamla sessionen hänger kvar en stund
-    else if(NETERR.includes(e.type)){ setNet('lost'); retry(startHost,4000); }
+    else if(NETERR.includes(e.type)){ netFail(e.type==='webrtc'?'direct':'server'); retry(startHost,4000); }
   });
 }
 function updateHostNet(){
@@ -614,16 +625,16 @@ function startGuest(){
   if(mode!=='online' || role!=='guest') return;
   if(typeof Peer==='undefined'){ noPeerLib(); retry(startGuest); return; }
   stopPeer(); setNet('connecting');
-  const p = peer = new Peer(peerOpts());
-  p.on('open',()=>{ if(peer===p) connectGuest(); });
+  const p = peer = new Peer(peerOpts()); watchServer(p);
+  p.on('open',()=>{ if(peer===p){ netWhy=''; connectGuest(); } });
   p.on('disconnected',()=>{ if(peer===p && !p.destroyed) setTimeout(()=>{ try{ p.reconnect() }catch(e){} },1500); });
   p.on('error',e=>{
     if(peer!==p) return;
     if(e.type==='peer-unavailable'){
-      setNet('lost');
+      netFail('nogame');
       if(!G) toast(`Hittar inget spel med koden ${gameId} än – kolla koden 🔭`,3500);
       retry(connectGuest,4000);
-    } else if(NETERR.includes(e.type)){ setNet('lost'); retry(startGuest,4000); }
+    } else if(NETERR.includes(e.type)){ netFail(e.type==='webrtc'?'direct':'server'); retry(startGuest,4000); }
   });
 }
 function connectGuest(){
@@ -635,12 +646,16 @@ function connectGuest(){
   setNet('connecting');
   const c = peer.connect(PREFIX+gameId,{reliable:true});
   attachGuest(c);
-  setTimeout(()=>{ if(conn===c && !c.open){ try{ c.close() }catch(e){} conn=null; setNet('lost'); retry(connectGuest,2500); } },12000);
+  setTimeout(()=>{ if(conn===c && !c.open){ try{ c.close() }catch(e){} conn=null;
+    directFails++; netFail('direct');
+    if(directFails>=2) netTip('direct','Spelet finns men mobilerna når inte varandra 📶 Prova att båda kör på wifi – mobilnät stoppar ibland direktkontakten mellan telefoner.');
+    retry(connectGuest,2500); } },12000);
 }
+let directFails=0;
 function attachGuest(c){
   if(conn && conn!==c){ try{ conn.close() }catch(e){} }
   conn=c;
-  c.on('open',()=>{ if(conn!==c) return; lastHeard=Date.now(); setNet('connected'); sendTo(c,{t:'hello', seat:mySeat, name:myName, state:G, card:(typeof CHAT!=='undefined'?CHAT.card():null)}); });
+  c.on('open',()=>{ if(conn!==c) return; lastHeard=Date.now(); directFails=0; setNet('connected'); sendTo(c,{t:'hello', seat:mySeat, name:myName, state:G, card:(typeof CHAT!=='undefined'?CHAT.card():null)}); });
   c.on('data',d=>{ if(conn!==c) return; const m=parseMsg(d); if(m) onGuestMsg(m); });
   c.on('close',()=>{ if(conn!==c) return; conn=null; setNet('lost'); retry(connectGuest,2000); });
   c.on('error',()=>{});
