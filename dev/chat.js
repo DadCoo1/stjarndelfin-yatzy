@@ -425,6 +425,11 @@ const CHAT = (()=>{
         rotateMySK(g.id);
         if(vis()) refresh();
         break; }
+      case 'call': {                                         // samtalssignaler – bara i enskild chatt, aldrig i grupp
+        if(env.k!=='d' || p.gid!==undefined) return;
+        if(BOTMODE){ if(p.op==='offer' && typeof p.id==='string') queueDirect(from,{type:'call', op:'reject', id:p.id},true); return; }
+        if(typeof CALL!=='undefined') CALL.onSignal(from,p);
+        break; }
       case 'skd': {
         if(!isH(p.gid) || !GROUPS[p.gid] || !GROUPS[p.gid].members.includes(from) || !isB64(p.ck,60) || !isN(p.iter,1e7) || !isB64(p.spub,120)) return;
         const s=SKEYS[p.gid]||(SKEYS[p.gid]={mine:null,recv:{}}); s.recv[from]={ck:p.ck, iter:p.iter, spub:p.spub, skipped:{}}; saveG();
@@ -633,7 +638,7 @@ const CHAT = (()=>{
     return `<div class="wa-convwrap t-${th}">
       <div class="wa-head conv"><button class="wa-ib back" data-c="close" aria-label="Tillbaka">‹</button>${convAvatar(openCid,'sm')}
         <button class="wa-ht" data-c="info"><b>${esc(convTitle(openCid))}${openCid.startsWith('d:')?vdots(peerOfConv(openCid)):''}</b><small id="waStatus">${headStatus(openCid)}</small></button>
-        <button class="wa-ib" data-c="invite" aria-label="Bjud in till spel">🎮</button>${!CHATWIN && navigator.locks && window.innerWidth>=700 ? '<button class="wa-ib" data-c="popout" aria-label="Öppna i eget fönster" title="Öppna chatten i eget fönster">⧉</button>':''}<button class="wa-ib" data-c="info" aria-label="Meny">⋮</button></div>
+        ${openCid.startsWith('d:') && contacts[peerOfConv(openCid)] && typeof CALL!=='undefined' ? '<button class="wa-ib" data-c="call" data-v="1" aria-label="Videosamtal">📹</button><button class="wa-ib" data-c="call" aria-label="Röstsamtal">📞</button>':''}<button class="wa-ib" data-c="invite" aria-label="Bjud in till spel">🎮</button>${!CHATWIN && navigator.locks && window.innerWidth>=700 ? '<button class="wa-ib" data-c="popout" aria-label="Öppna i eget fönster" title="Öppna chatten i eget fönster">⧉</button>':''}<button class="wa-ib" data-c="info" aria-label="Meny">⋮</button></div>
       ${c.request?`<div class="wa-req">${esc(nameOf(peerOfConv(openCid)))} finns inte bland dina kontakter. <button data-c="addc" data-id="${peerOfConv(openCid)}">Lägg till</button><button data-c="block" data-id="${peerOfConv(openCid)}">Blockera</button></div>`:''}
       <div class="wa-msgs" id="waMsgs">${msgsHTML(openCid)}</div>
       ${pickerOpen?emojiPickerHTML():''}
@@ -1129,6 +1134,7 @@ const CHAT = (()=>{
       case 'leave': closeModal(); leaveGroup(b.dataset.gid); toast('Du lämnade gruppen'); break;
       case 'sharecard': shareCard(); break;
       case 'invite': showInvite(openCid); break;
+      case 'call': { const p=peerOfConv(openCid); if(p && typeof CALL!=='undefined') CALL.start(p, !!b.dataset.v); break; }
       case 'invitegame': inviteToGame(b.dataset.cid, b.dataset.k); break;
       case 'join': { const code=String(b.dataset.code||''); if(!/^[A-Z0-9]{4}$/.test(code)) break; const name=lsGet('ry_name')||ME.name; joinGame(code, name); break; }
     }
@@ -1149,6 +1155,18 @@ const CHAT = (()=>{
     myId:()=>ME && ME.id,
     html, mount, refresh, open:()=>openPanel(), openChat, close:()=>closePanel(), isOpen:()=>panelOpen, docked:()=>panelOpen && dockable(), seenCards, card:()=>myCard(), unread:totalUnread,
     hasIdentity:()=>!!ME,
+    // samtal: signalerna går krypterade genom samma dubbla ratchet som meddelandena
+    call:{
+      send:(to,p)=>{ if(ME && owner && !BOTMODE) queueDirect(to,{...p, type:'call'},true); },
+      ok:id=>!!ME && !!contacts[id] && !blocked.includes(id),
+      name:id=>nameOf(id), emoji:id=>emoOf(id), myId:()=>ME && ME.id,
+      online:id=>conns.has(id), connect:id=>connectTo(id),
+      owner:()=>owner && !BOTMODE && !!ME,
+      log:(id,text)=>{ sysMsg('d:'+id,text); if(vis()) refresh(); else if(typeof render==='function' && view==='lobby') render(); },
+      unread:id=>{ const c=conv('d:'+id); c.unread=(c.unread||0)+1; saveConvs(); },
+      openChat:id=>openChat('d:'+id),
+      ice:()=>{ const o=cpeer && cpeer.options && cpeer.options.config; return (o && Array.isArray(o.iceServers)) ? {iceServers:o.iceServers} : {iceServers:[{urls:'stun:stun.l.google.com:19302'}]}; }
+    },
     // bara i testversionen: krokar för automatiska säkerhetstester
     __test: DEV ? {queueDirect, conns:()=>[...conns.keys()], typing:()=>({...typing}), groups:()=>GROUPS, convs:()=>convs, contacts:()=>contacts, scan:t=>onScanText(t),
       zombie:id=>{ const c=conns.get(id); if(c){ c.removeAllListeners('data'); c.on('data',()=>{}); } },   // anslutningen ser öppen ut men tar inte emot
