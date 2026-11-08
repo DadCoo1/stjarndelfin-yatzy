@@ -21,7 +21,7 @@
   if(!same || !/[?&]bot=1/.test(location.search)){ document.documentElement.innerHTML=''; throw new Error('Inramning blockerad'); }
 })();
 /* ================= Version & utvecklingsläge ================= */
-const APP_VERSION='2026.11.08.1-dev';
+const APP_VERSION='2026.11.08.3-dev';
 const DEV = /\/dev(\/|$)/.test(location.pathname);      // testversionen ligger i mappen /dev/
 const BOT = DEV && /[?&]bot=1/.test(location.search) && window.parent!==window;   // osynlig testkompis i en ram (bara dev)
 const LSP = DEV ? (BOT ? 'dev:bot:' : 'dev:') : '';    // egen sparad data i testversionen
@@ -505,22 +505,108 @@ function setNet(s){
    går det inte direkt skickas den krypterade trafiken via servern. */
 const NET_SERVER = window.__NET_SERVER || '';
 let NET_ICE=null, NET_ICE_EXP=0, NET_ICE_FAIL=0, netIceP=null;
+let SRV_TOK=lsGet('srv_tok')||'', SRV_USER=lsGet('srv_user')||'', srvWait=[];
 function netBase(){ const s=NET_SERVER; if(!s) return null; const [h,pt]=s.split(':'); const local=/^(127\.|localhost)/.test(h); return {host:h, port:+(pt||(local?9000:443)), secure:!local}; }
+const srvUrl=p=>{ const b=netBase(); return (b.secure?'https://':'http://')+b.host+':'+b.port+p; };
+// anrop till spelservern med inloggning; 401 = logga in igen
+async function srvFetch(p, body){
+  const b=netBase(); if(!b || !SRV_TOK) return null;
+  try{
+    const r=await Promise.race([fetch(srvUrl(p),{method:body?'POST':'GET', cache:'no-store', headers:{'Authorization':'Bearer '+SRV_TOK, ...(body?{'Content-Type':'application/json'}:{})}, body:body?JSON.stringify(body):undefined}), new Promise((_,j)=>setTimeout(()=>j(new Error('tid')),8000))]);
+    if(r.status===401){ srvLoggedOut(); return null; }
+    return r.ok ? await r.json() : null;
+  }catch(e){ return null; }
+}
+function srvLoggedOut(){ SRV_TOK=''; lsSet('srv_tok',''); NET_ICE=null; srvAskLogin(); }
+// väntar tills användaren har loggat in (visar inloggningsrutan en gång)
+function srvReady(){ if(!netBase() || SRV_TOK) return Promise.resolve(true); return new Promise(r=>{ srvWait.push(r); srvAskLogin(); }); }
+let srvAsking=false;
+function srvAskLogin(){
+  if(srvAsking || !netBase()) return; srvAsking=true;
+  const show=()=>{ if(document.querySelector('#modal.show')){ setTimeout(show,1500); return; }
+    openModal(`<h2>🔐 Logga in på spelservern</h2>
+      <p class="sub">Onlinespel, chatt och samtal går via familjens egen server. Logga in med ditt användarnamn och den sexsiffriga koden från din TOTP-app.</p>
+      <p class="sub" style="font-size:12.5px">Inget konto? Konton skapas bara via en inbjudningslänk – be den som har hand om servern om en.</p>
+      <form id="srvLogin" autocomplete="on" action="#">
+        <input id="srvU" style="display:block;width:100%;box-sizing:border-box;margin:8px 0;padding:12px 14px;border-radius:12px;border:1px solid rgba(255,255,255,.25);background:rgba(255,255,255,.08);color:inherit;font:inherit;font-size:17px" placeholder="Användarnamn" autocomplete="username" autocapitalize="none" spellcheck="false" maxlength="32" value="${esc(SRV_USER)}">
+        <input id="srvC" style="display:block;width:100%;box-sizing:border-box;margin:8px 0;padding:12px 14px;border-radius:12px;border:1px solid rgba(255,255,255,.25);background:rgba(255,255,255,.08);color:inherit;font:inherit;font-size:22px;letter-spacing:6px;text-align:center" placeholder="Kod (6 siffror)" inputmode="numeric" pattern="[0-9]*" autocomplete="one-time-code" maxlength="6">
+        <div id="srvErr" class="sub" style="color:#fca5a5;min-height:1.2em"></div>
+        <div class="btns"><button class="pri" id="srvGo" type="button">Logga in</button><button data-act="close" type="button">Senare</button></div>
+      </form>`,'login');
+    const u=document.getElementById('srvU'), c=document.getElementById('srvC'), err=document.getElementById('srvErr'), go=document.getElementById('srvGo');
+    (SRV_USER?c:u).focus();
+    document.getElementById('srvLogin').addEventListener('submit',e=>{ e.preventDefault(); go.click(); });
+    [u,c].forEach(x=>x.addEventListener('keydown',e=>{ if(e.key==='Enter'){ e.preventDefault(); go.click(); } }));
+    c.addEventListener('input',()=>{ c.value=c.value.replace(/\D/g,'').slice(0,6); if(c.value.length===6 && u.value.trim()) go.click(); });
+    go.addEventListener('click',async()=>{
+      if(go.disabled) return;
+      const user=u.value.trim().toLowerCase(), code=c.value.trim(); if(!user || code.length!==6){ err.textContent='Fyll i användarnamn och sex siffror.'; return; }
+      go.disabled=true; err.textContent='Loggar in…';
+      try{ const r=await fetch(srvUrl('/auth/login'),{method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({user, code})}); const j=await r.json().catch(()=>({}));
+        if(!r.ok || !j.token){ err.textContent=j.error||'Det gick inte att logga in.'; go.disabled=false; c.value=''; c.focus(); return; }
+        SRV_TOK=j.token; SRV_USER=j.user; lsSet('srv_tok',SRV_TOK); lsSet('srv_user',SRV_USER); srvAsking=false; closeModal(); toast('✅ Inloggad som '+SRV_USER);
+        const w=srvWait; srvWait=[]; w.forEach(f=>f(true)); ensureIce(); if(typeof CHAT!=='undefined' && CHAT.reconnect) CHAT.reconnect();
+      }catch(e){ err.textContent='Når inte servern. Kolla internet och försök igen.'; go.disabled=false; }
+    });
+    document.querySelector('#modal [data-act=close]')?.addEventListener('click',()=>{ srvAsking=false; setTimeout(()=>{ if(!SRV_TOK){ const w=srvWait; srvWait=[]; w.forEach(f=>f(false)); } },0); },{once:true});
+  };
+  show();
+}
+/* ---------- inbjudningslänk: enda sättet att skapa ett konto ----------
+   Länken (#invite=…) skapas av administratören på servern. Här får man en egen TOTP-nyckel,
+   lägger in den i sin TOTP-app och bekräftar med en kod. Länken fungerar bara en gång. */
+async function srvInvite(tok){
+  try{ history.replaceState(null,'',location.pathname+location.search); }catch(e){}
+  if(!netBase()){ toast('Inbjudan gäller spelservern, men den här versionen är inte kopplad till någon server än.',5000); return; }
+  const post=(p,b)=>fetch(srvUrl(p),{method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(b)}).then(async r=>({ok:r.ok, j:await r.json().catch(()=>({}))}));
+  let st; try{ st=await post('/invite/start',{token:tok}); }catch(e){ toast('Når inte spelservern. Kolla internet och öppna länken igen.',5000); return; }
+  if(!st.ok){ openModal(`<h2>🔐 Inbjudan</h2><p class="sub">${esc(st.j.error||'Inbjudan gick inte att använda.')}</p><div class="btns"><button class="pri" data-act="close">OK</button></div>`,'login'); return; }
+  const {user, secret, uri}=st.j;
+  let qr=''; try{ if(!window.qrcode) await new Promise((res,rej)=>{ const sc=document.createElement('script'); sc.src='qr.js'; sc.onload=res; sc.onerror=rej; document.head.appendChild(sc); }); const q=qrcode(0,'M'); q.addData(uri,'Byte'); q.make(); qr=q.createSvgTag({cellSize:4, margin:3, scalable:true}); }catch(e){}
+  const inp='display:block;width:100%;box-sizing:border-box;margin:8px 0;padding:12px 14px;border-radius:12px;border:1px solid rgba(255,255,255,.25);background:rgba(255,255,255,.08);color:inherit;font:inherit;font-size:22px;letter-spacing:6px;text-align:center';
+  openModal(`<h2>🔐 Välkommen, ${esc(user)}!</h2>
+    <p class="sub">Du har blivit inbjuden till spelservern. Lägg till kontot i din TOTP-app (t.ex. Google Authenticator, Microsoft Authenticator, 2FAS eller Aegis).</p>
+    <p><b>1.</b> Tryck på knappen – eller skanna QR-koden med telefonen om du är på en annan enhet.</p>
+    <div class="btns" style="margin:6px 0"><a class="pri" href="${esc(uri)}" style="text-decoration:none;display:inline-block;padding:10px 16px;border-radius:12px">📲 Öppna i TOTP-appen</a></div>
+    ${qr?`<div style="background:#fff;border-radius:12px;padding:8px;width:min(220px,70%);margin:8px auto">${qr}</div>`:''}
+    <details class="sub"><summary>Skriv in nyckeln för hand</summary><code style="user-select:all;-webkit-user-select:all;font-size:15px;letter-spacing:1px">${secret.match(/.{1,4}/g).join(' ')}</code></details>
+    <p><b>2.</b> Skriv den sexsiffriga koden som appen visar:</p>
+    <input id="invC" style="${inp}" placeholder="000000" inputmode="numeric" pattern="[0-9]*" autocomplete="one-time-code" maxlength="6">
+    <div id="invErr" class="sub" style="color:#fca5a5;min-height:1.2em"></div>
+    <div class="btns"><button class="pri" id="invGo" type="button">Skapa kontot</button><button data-act="close" type="button">Senare</button></div>
+    <p class="sub" style="font-size:12px">Länken fungerar bara en gång och går ut efter 7 dagar. Spara inte nyckeln någon annanstans än i TOTP-appen.</p>`,'login');
+  const c=document.getElementById('invC'), go=document.getElementById('invGo'), err=document.getElementById('invErr');
+  c.addEventListener('input',()=>{ c.value=c.value.replace(/\D/g,'').slice(0,6); if(c.value.length===6) go.click(); });
+  c.addEventListener('keydown',e=>{ if(e.key==='Enter'){ e.preventDefault(); go.click(); } });
+  go.addEventListener('click',async()=>{
+    if(go.disabled) return; if(c.value.length!==6){ err.textContent='Skriv sex siffror.'; return; }
+    go.disabled=true; err.textContent='Kontrollerar…';
+    try{ const r=await post('/invite/finish',{token:tok, code:c.value});
+      if(!r.ok || !r.j.token){ err.textContent=r.j.error||'Det gick inte.'; go.disabled=false; c.value=''; c.focus(); return; }
+      SRV_TOK=r.j.token; SRV_USER=r.j.user; lsSet('srv_tok',SRV_TOK); lsSet('srv_user',SRV_USER); srvAsking=false; closeModal();
+      toast('🎉 Kontot är klart – du är inloggad som '+SRV_USER,4000);
+      const w=srvWait; srvWait=[]; w.forEach(f=>f(true)); ensureIce(); if(typeof CHAT!=='undefined' && CHAT.reconnect) CHAT.reconnect();
+    }catch(e){ err.textContent='Når inte servern. Försök igen.'; go.disabled=false; }
+  });
+}
+function checkInvite(){ const m=(location.hash||'').match(/^#invite=([A-Za-z0-9_-]{24,64})$/); if(m) setTimeout(()=>srvInvite(m[1]),500); return !!m; }
+window.addEventListener('hashchange',checkInvite);
+setTimeout(checkInvite,0);
+function srvLogout(){ const t=SRV_TOK; if(t && netBase()) fetch(srvUrl('/auth/logout'),{method:'POST', headers:{'Authorization':'Bearer '+t}}).catch(()=>{}); SRV_TOK=''; lsSet('srv_tok',''); NET_ICE=null; toast('Utloggad från spelservern'); }
 function ensureIce(){
-  const b=netBase(); if(!b) return Promise.resolve();
+  const b=netBase(); if(!b || !SRV_TOK) return Promise.resolve();
   if(NET_ICE && Date.now()<NET_ICE_EXP) return Promise.resolve();
   if(netIceP) return netIceP;
-  const url=(b.secure?'https://':'http://')+b.host+':'+b.port+'/turn';
-  netIceP=Promise.race([fetch(url,{cache:'no-store'}).then(r=>r.ok?r.json():null), new Promise(r=>setTimeout(()=>r(null),5000))])
-    .then(j=>{ if(j && Array.isArray(j.iceServers)){ NET_ICE=j.iceServers; NET_ICE_EXP=Date.now()+(+j.ttl||3600)*500; } else NET_ICE_FAIL=Date.now(); })
-    .catch(()=>{ NET_ICE_FAIL=Date.now(); }).finally(()=>{ netIceP=null; });
+  netIceP=srvFetch('/turn').then(j=>{ if(j && Array.isArray(j.iceServers)){ NET_ICE=j.iceServers; NET_ICE_EXP=Date.now()+(+j.ttl||3600)*500; } else NET_ICE_FAIL=Date.now(); })
+    .finally(()=>{ netIceP=null; });
   return netIceP;
 }
-const needIce=()=>!!netBase() && !(NET_ICE && Date.now()<NET_ICE_EXP) && Date.now()-NET_ICE_FAIL>60000;
-if(NET_SERVER){ ensureIce(); setInterval(ensureIce, 20*60*1000); }
+const needIce=()=>!!netBase() && (!SRV_TOK || (!(NET_ICE && Date.now()<NET_ICE_EXP) && Date.now()-NET_ICE_FAIL>60000));
+function iceReady(){ return srvReady().then(ok=>ok ? ensureIce() : null); }
+if(NET_SERVER){ setTimeout(()=>{ if(SRV_TOK) ensureIce(); }, 300); setInterval(ensureIce, 20*60*1000); }
 function peerOpts(){
   const b=netBase(), o={debug:0};
-  if(b){ Object.assign(o,{host:b.host, port:b.port, secure:b.secure, path:'/peer', key:'peerjs'});
+  if(b){ Object.assign(o,{host:b.host, port:b.port, secure:b.secure, path:'/peer', key:SRV_TOK||'x'});
     o.config={iceServers:[...(NET_ICE||[]), {urls:'stun:stun.l.google.com:19302'}]};
     if(window.__FORCE_RELAY) o.config.iceTransportPolicy='relay'; }
   return Object.assign(o, window.__PEER_OPTS||{});
@@ -563,7 +649,7 @@ function hostGame(name, order, kind){
 function startHost(){
   if(mode!=='online' || role!=='host') return;
   if(typeof Peer==='undefined'){ noPeerLib(); retry(startHost); return; }
-  if(needIce()){ ensureIce().then(()=>{ if(mode==='online' && role==='host' && !peer) startHost(); }); return; }
+  if(needIce()){ iceReady().then(()=>{ if(mode==='online' && role==='host' && !peer && SRV_TOK) startHost(); }); return; }
   stopPeer(); setNet('starting');
   const p = peer = new Peer(PREFIX+gameId, peerOpts()); watchServer(p);
   p.on('open',()=>{ if(peer===p){ netWhy=''; updateHostNet(); } });
@@ -649,7 +735,7 @@ function joinGame(code,name){
 function startGuest(){
   if(mode!=='online' || role!=='guest') return;
   if(typeof Peer==='undefined'){ noPeerLib(); retry(startGuest); return; }
-  if(needIce()){ ensureIce().then(()=>{ if(mode==='online' && role==='guest' && !peer) startGuest(); }); return; }
+  if(needIce()){ iceReady().then(()=>{ if(mode==='online' && role==='guest' && !peer && SRV_TOK) startGuest(); }); return; }
   stopPeer(); setNet('connecting');
   const p = peer = new Peer(peerOpts()); watchServer(p);
   p.on('open',()=>{ if(peer===p){ netWhy=''; connectGuest(); } });
@@ -1979,6 +2065,7 @@ function showSettings(){
       <div class="setnote">Status: ${permTxt}. Ljud, vibration och en stor "Din tur!"-skylt kommer alltid. Systemaviseringar fungerar bara om webbläsaren tillåter det.</div></div>
     <div class="setrow"><div class="lbl">☀️ Håll skärmen tänd under onlinespel</div>${onoff('setwake',wakeOn)}
       <div class="setnote">Rekommenderas – då tappar mobilerna inte kontakten och du märker direkt när det är din tur.</div></div>
+    ${netBase()?`<div class="appver" style="margin:10px 0">🖧 Spelserver ${esc(NET_SERVER)}: ${SRV_TOK?`inloggad som <b>${esc(SRV_USER)}</b> · <a href="#" data-act="srvout">Logga ut</a>`:`inte inloggad · <a href="#" data-act="srvin">Logga in</a>`}</div>`:''}
     <div class="btns"><button class="pri" data-act="close">Klar</button></div><div class="appver">Version ${APP_VERSION}${DEV?' · DEV':''}</div>`,'settings');
 }
 const BOT_NAMES=['Blixt 🤖','Bubbla 🤖','Kosmo 🤖','Nova 🤖'];
@@ -2252,6 +2339,8 @@ document.addEventListener('click', e=>{
     case 'gmenu': showGameMenu(b.dataset.k); break;
     case 'openinv': openInv(); break;
     case 'openrace': openRace(); break;
+    case 'srvout': srvLogout(); closeModal(); break;
+    case 'srvin': closeModal(); srvAskLogin(); break;
     case 'frlist': FR.open(); break;
     case 'frnew': FR.open(); setTimeout(()=>document.querySelector('[data-fr="new"]')?.click(),0); break;
     case 'frbug': FR.open(); setTimeout(()=>document.querySelector('[data-fr="bug"]')?.click(),0); break;

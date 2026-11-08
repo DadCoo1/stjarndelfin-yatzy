@@ -1,6 +1,6 @@
 // Samtal: två mobiler blir kontakter, ringer röst- och videosamtal, avvisar, missar och lägger på.
 const {chromium}=require('playwright'); const sleep=ms=>new Promise(r=>setTimeout(r,ms));
-const OPTS= process.env.OWN ? "window.__NET_SERVER='127.0.0.1:9000'; window.__FORCE_RELAY=true;" : "window.__PEER_OPTS={host:'127.0.0.1',port:9000,path:'/peer',secure:false,config:{iceServers:[]}};";
+const OPTS= process.env.OWN ? "window.__NET_SERVER='127.0.0.1:9000'; window.__FORCE_RELAY=true;" : "window.__PEER_OPTS={host:'127.0.0.1',port:9001,path:'/',secure:false,config:{iceServers:[]}};";
 (async()=>{ const b=await chromium.launch({args:['--use-fake-device-for-media-stream','--use-fake-ui-for-media-stream','--autoplay-policy=no-user-gesture-required']});
   const errs=[]; let fails=0; const ok=(c,m)=>{ console.log((c?'✓ ':'✗ ')+m); if(!c) fails++; };
   async function mk(name){ const c=await b.newContext({viewport:{width:390,height:844}, permissions:['camera','microphone']}); await c.addInitScript(OPTS);

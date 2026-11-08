@@ -1,0 +1,55 @@
+#!/usr/bin/env node
+/* Hantera användare på spelservern. Konton skapas bara via inbjudningslänkar.
+     sudo spel-user invite <namn>    skapa en inbjudningslänk (gäller 7 dagar, en gång) – lägg till --dev för testversionen
+     sudo spel-user list             lista användare och öppna inbjudningar
+     sudo spel-user reset <namn>     ny inbjudningslänk för en befintlig användare (ny TOTP-nyckel, alla enheter loggas ut)
+     sudo spel-user revoke <namn>    ta bort öppna inbjudningar för namnet
+     sudo spel-user logout <namn>    logga ut användaren på alla enheter
+     sudo spel-user disable <namn>   stäng av användaren
+     sudo spel-user enable <namn>    slå på användaren igen
+     sudo spel-user remove <namn>    ta bort användaren */
+'use strict';
+const fs = require('fs'), path = require('path'), crypto = require('crypto'), { execFileSync } = require('child_process');
+const DATA = process.env.DATA_DIR || '/var/lib/spelserver', F = path.join(DATA, 'users.json'), FI = path.join(DATA, 'invites.json');
+const APP = (process.env.APP_URL || 'https://dadcoo1.github.io/stjarndelfin-yatzy/').replace(/\/?$/, '/');
+let DOMAIN = 'spelserver'; try { const m = fs.readFileSync('/etc/spelserver.env', 'utf8').match(/^DOMAIN=(.*)$/m); if (m) DOMAIN = m[1].trim(); } catch (e) {}
+const loadF = (f, d) => { try { return JSON.parse(fs.readFileSync(f, 'utf8')); } catch (e) { return d; } };
+const load = () => loadF(F, { users: {} });
+function saveF(f, o) { fs.mkdirSync(DATA, { recursive: true }); const t = f + '.tmp'; fs.writeFileSync(t, JSON.stringify(o, null, 1), { mode: 0o600 }); fs.renameSync(t, f);
+  try { const st = fs.statSync(DATA); fs.chownSync(f, st.uid, st.gid); } catch (e) {} }
+const save = o => saveF(F, o);
+function makeInvite(name, dev) {
+  const inv = loadF(FI, { invites: {} }); inv.invites = inv.invites || {};
+  for (const [h, x] of Object.entries(inv.invites)) if (x.user === name || x.exp < Date.now()) delete inv.invites[h];
+  const tok = crypto.randomBytes(24).toString('base64url');
+  const h = crypto.createHash('sha256').update('inv|' + tok).digest('hex');
+  inv.invites[h] = { user: name, exp: Date.now() + 7 * 864e5, created: Date.now() };
+  saveF(FI, inv);
+  const link = APP + (dev ? 'dev/' : '') + '#invite=' + tok;
+  console.log(`\nInbjudan till ${name} (gäller 7 dagar och kan bara användas en gång):\n\n  ${link}\n`);
+  try { console.log(execFileSync('qrencode', ['-t', 'ansiutf8', '-m', '2', link]).toString()); } catch (e) {}
+  console.log('Skicka länken till personen, gärna i ett krypterat meddelande. Den som öppnar länken får skapa kontot.');
+  console.log('Personen behöver en TOTP-app, t.ex. Google Authenticator, Microsoft Authenticator, 2FAS eller Aegis.\n');
+}
+function b32(buf) { const A = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567'; let bits = 0, val = 0, out = ''; for (const b of buf) { val = (val << 8) | b; bits += 8; while (bits >= 5) { out += A[(val >>> (bits - 5)) & 31]; bits -= 5; } } if (bits) out += A[(val << (5 - bits)) & 31]; return out; }
+const args = process.argv.slice(2), dev = args.includes('--dev'), [cmd, raw] = args.filter(a => a !== '--dev'), name = String(raw || '').trim().toLowerCase();
+const okName = /^[a-z0-9åäö._-]{2,32}$/.test(name);
+const db = load(); db.users = db.users || {};
+switch (cmd) {
+  case 'invite': {
+    if (!okName) { console.log('Namnet får innehålla a–ö, siffror, punkt, bindestreck och understreck (2–32 tecken).'); process.exit(1); }
+    if (db.users[name]) { console.log(`${name} finns redan. Använd "reset" om personen behöver en ny TOTP-nyckel.`); process.exit(1); }
+    makeInvite(name, dev); break; }
+  case 'reset': {
+    if (!db.users[name]) { console.log('Finns ingen sådan användare.'); process.exit(1); }
+    db.users[name].revokedBefore = Date.now(); save(db); console.log(`${name} är utloggad på alla enheter. Den gamla nyckeln gäller tills den nya är bekräftad.`);
+    makeInvite(name, dev); break; }
+  case 'revoke': { const inv = loadF(FI, { invites: {} }); let n = 0; for (const [h, x] of Object.entries(inv.invites || {})) if (x.user === name) { delete inv.invites[h]; n++; } saveF(FI, inv); console.log(`${n} inbjudan/inbjudningar borttagna.`); break; }
+  case 'logout': if (!db.users[name]) { console.log('Finns ingen sådan användare.'); process.exit(1); } db.users[name].revokedBefore = Date.now(); save(db); console.log(`${name} är utloggad på alla enheter.`); break;
+  case 'disable': case 'enable': if (!db.users[name]) { console.log('Finns ingen sådan användare.'); process.exit(1); } db.users[name].disabled = cmd === 'disable'; save(db); console.log(`${name} är ${cmd === 'disable' ? 'avstängd' : 'påslagen'}.`); break;
+  case 'remove': if (!db.users[name]) { console.log('Finns ingen sådan användare.'); process.exit(1); } delete db.users[name]; save(db); console.log(`${name} är borttagen.`); break;
+  case 'list': { const u = db.users; const ks = Object.keys(u).sort(); if (!ks.length) console.log('Inga användare än. Bjud in någon med: sudo spel-user invite <namn>');
+    const inv = loadF(FI, { invites: {} }); for (const x of Object.values(inv.invites || {})) if (x.exp > Date.now()) console.log(`(inbjudan) ${x.user.padEnd(10)} gäller till ${new Date(x.exp).toLocaleString('sv-SE')}`);
+    for (const k of ks) console.log(`${k.padEnd(20)} ${u[k].disabled ? 'AVSTÄNGD ' : ''}skapad ${new Date(u[k].created).toLocaleDateString('sv-SE')}${u[k].lastLogin ? ', senast inloggad ' + new Date(u[k].lastLogin).toLocaleString('sv-SE') : ''}`); break; }
+  default: console.log(fs.readFileSync(__filename, 'utf8').split('\n').slice(1, 11).join('\n').replace(/^\/\*|\*\/$/g, ''));
+}
