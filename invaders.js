@@ -70,7 +70,7 @@ const INV = (()=>{
     st.shields=[]; const ns=L.shields; for(let k=0;k<ns;k++){ const cx=(W/(ns+1))*(k+1); for(let y=0;y<4;y++) for(let x=0;x<8;x++){ if((y===3&&(x===2||x===3||x===4||x===5))||(y===0&&(x===0||x===7))) continue; st.shields.push({x:cx-24+x*6, y:H-120+y*6, hp:3}); } }
   }
   function newGame(lv){
-    const sv=save(); sv.games++; store(sv);
+    const sv=save(); sv.games++; store(sv); if(typeof srvStat==='function') srvStat('game',{game:'inv', title:'Space Invaders', mode:'solo'});
     st={score:0, lives:3, p:{x:W/2, y:H-46, cd:0, inv:2}, pow:{double:0,rapid:0,shield:0}, parts:[], stars:makeStars(), kills:0, startLevel:lv, live:true};
     newLevel(lv); overlay=null; paused=false; showOverlay(); hud(); start();
   }

@@ -124,9 +124,9 @@
   function bindLink(){ const b=$('#cp'); if(b) b.onclick=async()=>{ try{ await navigator.clipboard.writeText(lastLink.link); toast('Kopierad'); }catch(e){ const r=document.createRange(); r.selectNodeContents($('#lnk')); getSelection().removeAllRanges(); getSelection().addRange(r); toast('Markerad – kopiera med Ctrl/Cmd+C'); } }; }
   async function invites(){
     const {invites:list}=await api('invites');
-    $('#main').innerHTML=`<div class="card"><h2>Ny inbjudan</h2><p class="muted">Konton kan bara skapas via inbjudningslänkar. Den som öppnar länken lägger in en egen nyckel i sin TOTP-app och bekräftar med en kod.</p>
+    $('#main').innerHTML=`<div class="card"><h2>Ny inbjudan</h2><p class="muted">Konton kan bara skapas via inbjudningslänkar. Kontot gäller både i vanliga versionen och testversionen – kryssrutan styr bara vilken som öppnas. Den som öppnar länken lägger in en egen nyckel i sin TOTP-app och bekräftar med en kod.</p>
         <input id="in" placeholder="Användarnamn, t.ex. elsa" autocapitalize="none" spellcheck="false" maxlength="32">
-        <label class="chk"><input type="checkbox" id="idev"> testversionen (dev)</label><label class="chk"><input type="checkbox" id="iadm"> admin</label>
+        <label class="chk"><input type="checkbox" id="idev"> öppna i testversionen (dev) – annars den vanliga versionen</label><label class="chk"><input type="checkbox" id="iadm"> admin</label>
         <button class="b pri" id="ig">Skapa länk</button><div class="err" id="ie"></div></div>
       ${linkBox()}
       <div class="card" style="margin-top:12px"><h2>Öppna inbjudningar (${list.length})</h2>${list.length?`<table><tr><th>Namn</th><th>Typ</th><th>Skapad</th><th>Går ut</th><th>Status</th><th></th></tr>
