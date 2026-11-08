@@ -29,6 +29,8 @@ MYIP="$(curl -fsS4 https://api.ipify.org || true)"
 DNSIP="$(getent ahostsv4 "$DOMAIN" | awk 'NR==1{print $1}' || true)"
 echo "Serverns IP: ${MYIP:-okänd}   $DOMAIN pekar på: ${DNSIP:-ingenting}"
 if [ -n "$MYIP" ] && [ "$MYIP" != "$DNSIP" ]; then echo "Domänen pekar inte på den här servern än. Lägg in en A-post och vänta några minuter."; exit 1; fi
+AAAA="$(getent ahostsv6 "$DOMAIN" | awk '$1 !~ /^::ffff:/ {print $1; exit}' || true)"
+if [ -n "$AAAA" ]; then echo "Varning: $DOMAIN har en IPv6-adress ($AAAA). Servern använder bara IPv4 – ta bort IPv6-adressen (AAAA) hos DNS-leverantören, annars når många mobiler inte servern."; fi
 
 say "Paket"
 export DEBIAN_FRONTEND=noninteractive
@@ -43,6 +45,8 @@ fi
 say "Säkerhet: automatiska uppdateringar, fail2ban, brandvägg"
 dpkg-reconfigure -f noninteractive unattended-upgrades >/dev/null 2>&1 || true
 systemctl enable --now fail2ban
+# bara IPv4: inga IPv6-regler, och tjänsterna lyssnar bara på IPv4
+sed -i 's/^IPV6=.*/IPV6=no/' /etc/default/ufw
 ufw default deny incoming >/dev/null; ufw default allow outgoing >/dev/null
 ufw allow OpenSSH >/dev/null
 ufw allow 80/tcp >/dev/null; ufw allow 443/tcp >/dev/null
@@ -94,6 +98,9 @@ systemctl daemon-reload; systemctl enable --now spelserver; systemctl restart sp
 
 say "Caddy (HTTPS)"
 cat > /etc/caddy/Caddyfile <<EOF
+{
+	default_bind 0.0.0.0
+}
 $DOMAIN {
 	encode gzip
 	header {
@@ -163,6 +170,8 @@ EXT="$MYIP"; [ -n "$LOCALIP" ] && [ "$LOCALIP" != "$MYIP" ] && EXT="$MYIP/$LOCAL
 cat > /etc/turnserver.conf <<EOF
 # Skapad av install.sh
 listening-port=3478
+listening-ip=$LOCALIP
+relay-ip=$LOCALIP
 tls-listening-port=5349
 ${EXT:+external-ip=$EXT}
 realm=$DOMAIN
