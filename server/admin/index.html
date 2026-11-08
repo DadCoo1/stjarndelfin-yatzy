@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="sv">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex,nofollow">
+<title>Spelservern · Admin</title>
+<style>
+:root{--bg:#0b1020;--card:#141b31;--line:#25304f;--txt:#e5e9f5;--dim:#94a0c0;--acc:#38bdf8;--ok:#22c55e;--warn:#f59e0b;--bad:#ef4444;--pink:#f472b6}
+*{box-sizing:border-box}
+body{margin:0;font:15px/1.45 system-ui,-apple-system,"Segoe UI",sans-serif;background:var(--bg);color:var(--txt)}
+header{display:flex;align-items:center;gap:12px;padding:14px 18px;border-bottom:1px solid var(--line);position:sticky;top:0;background:rgba(11,16,32,.95);z-index:5}
+header h1{font-size:18px;margin:0;flex:1}
+header h1 span{color:var(--dim);font-weight:400}
+nav{display:flex;gap:4px;padding:10px 18px;border-bottom:1px solid var(--line);overflow-x:auto}
+nav button{background:none;border:0;color:var(--dim);padding:8px 14px;border-radius:999px;font:inherit;cursor:pointer;white-space:nowrap}
+nav button.on{background:var(--card);color:var(--txt)}
+main{padding:18px;max-width:1150px;margin:0 auto}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:12px;margin-bottom:16px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px}
+.kpi b{display:block;font-size:28px;line-height:1.1}
+.kpi small{color:var(--dim)}
+h2{font-size:16px;margin:4px 0 10px}
+.row2{display:grid;grid-template-columns:2fr 1fr;gap:12px;margin-bottom:16px}
+@media(max-width:800px){.row2{grid-template-columns:1fr}}
+table{width:100%;border-collapse:collapse;font-size:14px}
+th,td{text-align:left;padding:8px 6px;border-bottom:1px solid var(--line);vertical-align:middle}
+th{color:var(--dim);font-weight:500;font-size:12.5px}
+td.n,th.n{text-align:right;font-variant-numeric:tabular-nums}
+.tag{display:inline-block;padding:1px 8px;border-radius:999px;font-size:12px;background:#22304f;color:var(--dim);margin-left:4px}
+.tag.ok{background:rgba(34,197,94,.18);color:#86efac}.tag.bad{background:rgba(239,68,68,.18);color:#fca5a5}.tag.acc{background:rgba(56,189,248,.18);color:#7dd3fc}.tag.warn{background:rgba(245,158,11,.18);color:#fcd34d}
+.dot{display:inline-block;width:9px;height:9px;border-radius:50%;background:#475569;margin-right:6px}.dot.on{background:var(--ok);box-shadow:0 0 6px var(--ok)}
+button.b{background:#22304f;border:1px solid var(--line);color:var(--txt);border-radius:9px;padding:6px 10px;font:inherit;font-size:13px;cursor:pointer;margin:2px}
+button.b:hover{border-color:var(--acc)}
+button.pri{background:var(--acc);color:#04111f;border-color:var(--acc);font-weight:600}
+button.red{color:#fca5a5}
+input,select{background:#0e1529;border:1px solid var(--line);color:var(--txt);border-radius:10px;padding:9px 12px;font:inherit}
+label.chk{display:inline-flex;align-items:center;gap:6px;color:var(--dim);margin-right:12px}
+.login{max-width:360px;margin:12vh auto;text-align:center}
+.login input{display:block;width:100%;margin:10px 0}
+.login .code{font-size:24px;letter-spacing:6px;text-align:center}
+.err{color:#fca5a5;min-height:1.3em}
+.muted{color:var(--dim)}
+.legend{display:flex;flex-wrap:wrap;gap:10px;font-size:12.5px;color:var(--dim);margin-top:8px}
+.legend i{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:5px;vertical-align:-1px}
+.linkbox{background:#0e1529;border:1px dashed var(--acc);border-radius:12px;padding:12px;margin-top:12px;word-break:break-all}
+.linkbox .qr{background:#fff;border-radius:10px;padding:6px;width:200px;margin:10px auto 0}
+.bars .bar{display:flex;align-items:center;gap:8px;margin:5px 0;font-size:13.5px}
+.bars .bar span:first-child{flex:none;width:130px;color:var(--dim);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.bars .bar div{height:12px;border-radius:6px;background:linear-gradient(90deg,var(--acc),var(--pink))}
+.audit li{padding:6px 0;border-bottom:1px solid var(--line);list-style:none}
+.audit{padding:0;margin:0}
+.toast{position:fixed;bottom:18px;left:50%;transform:translateX(-50%);background:#1e293b;border:1px solid var(--line);padding:10px 16px;border-radius:12px;display:none}
+.scroll{overflow-x:auto}
+</style>
+</head>
+<body>
+<div id="app"></div>
+<div id="toast" class="toast"></div>
+<script src="/admin/qr.js"></script>
+<script src="/admin/admin.js"></script>
+</body>
+</html>

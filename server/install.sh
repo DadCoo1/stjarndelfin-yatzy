@@ -61,7 +61,8 @@ SECRET="$(grep '^TURN_SECRET=' /etc/spelserver.env | cut -d= -f2)"
 say "Spelservern"
 id spelserver >/dev/null 2>&1 || useradd --system --home /opt/spelserver --shell /usr/sbin/nologin spelserver
 mkdir -p /opt/spelserver
-for f in app.js package.json spel-user; do curl -fsSL "$REPO_RAW/$f" -o "/opt/spelserver/$f"; done
+mkdir -p /opt/spelserver/admin
+for f in app.js package.json spel-user admin/index.html admin/admin.js admin/qr.js; do curl -fsSL "$REPO_RAW/$f" -o "/opt/spelserver/$f"; done
 (cd /opt/spelserver && npm install --omit=dev --no-audit --no-fund --loglevel=error)
 chown -R root:root /opt/spelserver
 install -m 755 /opt/spelserver/spel-user /usr/local/sbin/spel-user
@@ -97,6 +98,8 @@ $DOMAIN {
 	reverse_proxy /turn 127.0.0.1:9000
 	reverse_proxy /auth/* 127.0.0.1:9000
 	reverse_proxy /invite/* 127.0.0.1:9000
+	reverse_proxy /stats 127.0.0.1:9000
+	reverse_proxy /admin* 127.0.0.1:9000
 	reverse_proxy /mbox/* 127.0.0.1:9000
 	reverse_proxy /presence 127.0.0.1:9000
 	reverse_proxy /health 127.0.0.1:9000
@@ -199,9 +202,11 @@ cat <<EOF
 
 Klart! Säg till Claude att servern är igång på $DOMAIN, så kopplas appen dit.
 
-Konton skapas bara via inbjudningslänkar. Skapa en länk per person:
-  sudo spel-user invite elsa          (lägg till --dev för testversionen)
-  sudo spel-user list
+Konton skapas bara via inbjudningslänkar. Börja med ditt eget adminkonto:
+  sudo spel-user invite dittnamn --admin
+Öppna länken, lägg in nyckeln i din TOTP-app och logga sedan in på admin-sidan:
+  https://$DOMAIN/admin
+Där bjuder du in fler, ser statistik och hanterar konton.
 
 Tips för säkerheten:
   - Logga in med SSH-nyckel och stäng av lösenordsinloggning:

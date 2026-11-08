@@ -10,9 +10,21 @@ Gör så att onlinespel, chatt och samtal fungerar även på mobilnät, med VPN 
 - **Brevlåda** (`/mbox`): krypterade chattmeddelanden sparas tills mottagaren är online igen. Servern kan inte läsa dem. Sparas högst 45 dagar.
 - **Närvaro** (`/presence`): visar vilka kontakter som är uppkopplade.
 
+## Admin-sidan
+
+`https://<domän>/admin` – bara för konton med admin-flagga. Logga in med användarnamn och TOTP-kod (gäller 8 timmar).
+
+- **Översikt:** vem som är online, spelomgångar per dag och spel, populäraste spelen, online/mot datorn/ensam, samtal, inloggningar, meddelanden i brevlådan, upptid
+- **Användare:** logga ut på alla enheter, ny nyckel (ny inbjudningslänk), stäng av/slå på, gör till admin, ta bort
+- **Inbjudningar:** skapa länk (med QR-kod), se öppna, dra tillbaka
+- **Händelser:** logg över admininloggningar, misslyckade försök och ändringar
+
+Statistiken är bara räknare per dag (vilket spel och hur man spelade, antal samtal och minuter). Meddelandens innehåll kan servern aldrig se.
+
 ## Konton
 
 ```
+sudo spel-user invite pappa --admin  # första adminkontot
 sudo spel-user invite elsa        # inbjudningslänk till appen (lägg till --dev för testversionen)
 sudo spel-user list               # användare och öppna inbjudningar
 sudo spel-user reset elsa         # ny länk och ny TOTP-nyckel, loggar ut alla enheter

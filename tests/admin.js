@@ -1,0 +1,26 @@
+// Admin-sidan: inloggning (bara admin), översikt, användare, inbjudningar, händelser.
+const {chromium}=require('playwright'); const {execFileSync}=require('child_process'); const sleep=ms=>new Promise(r=>setTimeout(r,ms));
+const fs=require('fs'); const sec=u=>fs.readFileSync('/tmp/srvtest/sec_'+u,'utf8').trim();
+const code=(s,d=0)=>execFileSync('python3',['/tmp/srvtest/totp2.py',s,String(d)]).toString().trim();
+(async()=>{ const b=await chromium.launch(); const errs=[]; let fails=0; const ok=(c,m)=>{ console.log((c?'✓ ':'✗ ')+m); if(!c) fails++; };
+  const p=await b.newPage({viewport:{width:1200,height:900}}); p.on('pageerror',e=>errs.push(e.message)); p.on('console',m=>{ if(m.type()==='error') errs.push(m.text()); });
+  p.on('dialog',d=>d.accept());
+  await p.goto('http://127.0.0.1:9000/admin'); await sleep(600);
+  await p.fill('#lu','elsa'); await p.fill('#lc',code(sec('elsa'),1)); await sleep(900);
+  ok(/inte admin/.test(await p.textContent('#le')), 'vanlig användare kommer inte in: '+await p.textContent('#le'));
+  await p.fill('#lu','pappa'); await p.fill('#lc',code(sec('pappa'),1)); await sleep(1500);
+  ok(await p.$('nav'), 'admin är inloggad'); await p.screenshot({path:'/tmp/adm_overview.png', fullPage:true});
+  await p.click('[data-tab=users]'); await sleep(800); await p.screenshot({path:'/tmp/adm_users.png', fullPage:true});
+  ok((await p.textContent('#main')).includes('kompis'), 'användarlistan visar alla konton');
+  await p.click('[data-u=kompis][data-a=disable]'); await sleep(700);
+  ok(/avstängd/.test(await p.textContent('#main')), 'kompis kan stängas av');
+  const t=fs.readFileSync('/tmp/srvtest/tok_kompis','utf8').trim();
+  ok((await (await fetch('http://127.0.0.1:9000/auth/me',{headers:{Authorization:'Bearer '+t}})).status)===401, 'avstängd användare kan inte använda servern');
+  await p.click('[data-u=kompis][data-a=enable]'); await sleep(700);
+  await p.click('[data-tab=invites]'); await sleep(600); await p.fill('#in','mormor'); await p.click('#ig'); await sleep(900);
+  const link=await p.textContent('#lnk'); ok(/#invite=/.test(link), 'inbjudningslänk skapad: '+link.slice(0,50)+'…');
+  await p.screenshot({path:'/tmp/adm_invites.png', fullPage:true});
+  await p.click('[data-tab=audit]'); await sleep(600); const au=await p.textContent('#main');
+  ok(/bjöd in mormor/.test(au) && /stängde av kompis/.test(au) && /misslyckad admininloggning/.test(au), 'händelseloggen visar vad som hänt');
+  await p.screenshot({path:'/tmp/adm_audit.png'});
+  console.log('errs',errs); console.log(fails?fails+' FEL':'alla admintester ok'); await b.close(); process.exit(fails?1:0); })();
