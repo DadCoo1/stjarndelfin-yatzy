@@ -198,9 +198,10 @@ const CHAT = (()=>{
   /* ---------- konversationer ---------- */
   let convs=ld('convs',{}), outbox=ld('outbox',[]), relayQ=ld('relay',[]), seen=new Set(ld('seen',[])), pendingG=[];
   let saveT=0; function saveConvs(){ clearTimeout(saveT); saveT=setTimeout(()=>{ sv('convs',convs); sv('outbox',outbox); sv('relay',relayQ); sv('seen',[...seen].slice(-3000)); },150); }
-  function conv(id, init){ if(!convs[id]){ convs[id]={id, type:id.startsWith('g:')?'grp':'dm', msgs:[], unread:0, timer:0, theme:null, lastTs:0, ...(init||{})}; } return convs[id]; }
+  function conv(id, init){ if(!convs[id]){ convs[id]={id, type:id.startsWith('g:')?'grp':id.startsWith('n:')?'note':'dm', msgs:[], unread:0, timer:0, theme:null, lastTs:0, ...(init||{})}; } return convs[id]; }
   const peerOfConv = cid => cid.startsWith('d:') ? cid.slice(2) : null;
-  const recipients = cid => cid.startsWith('g:') ? (GROUPS[cid.slice(2)]?.members||[]).filter(x=>x!==ME.id) : [peerOfConv(cid)];
+  const isNote = cid => typeof cid==='string' && cid.startsWith('n:');   // anteckningar till mig själv – lämnar aldrig enheten
+  const recipients = cid => isNote(cid) ? [] : cid.startsWith('g:') ? (GROUPS[cid.slice(2)]?.members||[]).filter(x=>x!==ME.id) : [peerOfConv(cid)];
   function addMsg(cid, m){ const c=conv(cid); if(c.msgs.some(x=>x.mid===m.mid)) return false; c.msgs.push(m); c.msgs.sort((a,b)=>a.ts-b.ts); if(c.msgs.length>600) c.msgs=c.msgs.slice(-600); c.lastTs=Math.max(c.lastTs,m.ts); saveConvs(); return true; }
   function sysMsg(cid,text){ addMsg(cid,{mid:uid(), sys:true, text, ts:Date.now()}); }
   const TIMERS=[[0,'Av'],[300,'5 minuter'],[3600,'1 timme'],[86400,'24 timmar'],[604800,'7 dagar']];
@@ -530,6 +531,8 @@ const CHAT = (()=>{
   function sendMsg(cid, text, invite){
     text=String(text||'').trim(); if(!text && !invite) return;
     const c=conv(cid), rec=recipients(cid); if(!rec.length && cid.startsWith('g:')){ toast('Gruppen har inga andra medlemmar'); return; }
+    if(isNote(cid)){ if(invite) return; const m={mid:uid(), from:ME.id, text, ts:Date.now(), exp:c.timer||0, out:true, note:true, st:{}, reactions:{}}; if(m.exp) m.expireAt=m.ts+m.exp*1000;
+      addMsg(cid,m); saveConvs(); tone(660,.05,'sine',.04); refresh(); return; }
     const m={mid:uid(), from:ME.id, text, ts:Date.now(), exp:c.timer||0, invite:invite||null, out:true, st:{}, reactions:{}};
     if(m.exp) m.expireAt=m.ts+m.exp*1000;
     addMsg(cid,m); rec.forEach(id=>m.st[id]='queued');
@@ -655,11 +658,11 @@ const CHAT = (()=>{
   function dayLabel(ts){ const d=new Date(ts), n=new Date(); const k=x=>x.toDateString(); if(k(d)===k(n)) return 'Idag'; const y=new Date(n); y.setDate(n.getDate()-1); if(k(d)===k(y)) return 'Igår'; return d.toLocaleDateString('sv-SE',{weekday:'long', day:'numeric', month:'long'}); }
   const hue = id => (parseInt(String(id).replace(/[^0-9a-f]/g,'').slice(0,6),16)||0)%360;
   const avatar = (emoji, id, size, online) => `<span class="wa-av ${size||''}" style="--h:${hue(id||'0')}">${esc(emoji)}${online?'<i class="wa-on"></i>':''}</span>`;
-  function convTitle(cid){ if(cid.startsWith('g:')){ const g=GROUPS[cid.slice(2)]; return g?`${g.emoji} ${g.name}`:'Grupp'; } return nameOf(cid.slice(2)); }
-  function convAvatar(cid,size){ if(cid.startsWith('g:')){ const g=GROUPS[cid.slice(2)]; return avatar(g?g.emoji:'👥', cid, size); } const id=cid.slice(2); return avatar(emoOf(id), id, size, conns.has(id)); }
+  function convTitle(cid){ if(isNote(cid)) return '📝 Anteckningar'; if(cid.startsWith('g:')){ const g=GROUPS[cid.slice(2)]; return g?`${g.emoji} ${g.name}`:'Grupp'; } return nameOf(cid.slice(2)); }
+  function convAvatar(cid,size){ if(isNote(cid)) return avatar('📝', cid, size); if(cid.startsWith('g:')){ const g=GROUPS[cid.slice(2)]; return avatar(g?g.emoji:'👥', cid, size); } const id=cid.slice(2); return avatar(emoOf(id), id, size, conns.has(id)); }
   function preview(c){ const m=[...c.msgs].reverse().find(x=>!x.hidden); if(!m) return c.type==='grp'?'Ny grupp':'Säg hej! 👋'; if(m.sys) return esc(m.text);
     if(m.revoked) return '🚫 <i>'+(m.out?'Du tog bort ett meddelande':'Meddelandet togs bort')+'</i>';
-    const who = c.type==='grp' && !m.out ? nameOf(m.from)+': ' : ''; const tick = m.out ? tickHTML(aggStatus(m,c.id))+' ' : '';
+    const who = c.type==='grp' && !m.out ? nameOf(m.from)+': ' : ''; const tick = m.out && !isNote(c.id) ? tickHTML(aggStatus(m,c.id))+' ' : '';
     return tick + esc(who + (m.invite ? `🎮 Inbjudan: ${m.invite.gname}` : m.text)); }
   function tickHTML(st){ return st==='queued' ? '<i class="tk q">🕓</i>' : st==='sent' ? '<i class="tk">✓</i>' : st==='delivered' ? '<i class="tk">✓✓</i>' : '<i class="tk rd">✓✓</i>'; }
 
@@ -680,7 +683,7 @@ const CHAT = (()=>{
       ${CHATWIN?'':'<button class="wa-link" data-c="hide">Tillbaka</button>'}</div>`;
   }
   function sideHTML(){
-    const list = Object.values(convs).filter(c=>c.type==='dm' ? !blocked.includes(peerOfConv(c.id)) : !!GROUPS[c.id.slice(2)]).sort((a,b)=>(b.lastTs||0)-(a.lastTs||0));
+    const list = Object.values(convs).filter(c=>c.type==='note' ? c.msgs.length>0 : c.type==='dm' ? !blocked.includes(peerOfConv(c.id)) : !!GROUPS[c.id.slice(2)]).sort((a,b)=>(b.lastTs||0)-(a.lastTs||0));
     const fr=Object.entries(friends).filter(([id])=>!contacts[id]);
     let body='';
     if(tab==='chats'){
@@ -690,11 +693,12 @@ const CHAT = (()=>{
     } else {
       const cs=Object.values(contacts).sort((a,b)=>nameOf(a.id).localeCompare(nameOf(b.id),'sv'));
       body = `<button class="wa-row act" data-c="newgroup"><span class="wa-av ic">👥</span><span class="wa-rt"><b>Ny grupp</b></span></button>
+        <button class="wa-row act" data-c="open" data-id="n:self"><span class="wa-av ic" style="background:#0f766e">📝</span><span class="wa-rt"><b>Anteckningar</b><small class="wa-sub">Bara till dig själv – sparas på den här enheten och skickas aldrig</small></span></button>
         <button class="wa-row act" data-c="scanqr"><span class="wa-av ic">📷</span><span class="wa-rt"><b>Skanna QR-kod</b><small class="wa-sub">Lägg till eller verifiera någon öga mot öga</small></span></button>
         <button class="wa-row act" data-c="myqr"><span class="wa-av ic">🔳</span><span class="wa-rt"><b>Min QR-kod</b><small class="wa-sub">Visa för en kompis som står bredvid</small></span></button>
         <button class="wa-row act" data-c="sharecard"><span class="wa-av ic">🔗</span><span class="wa-rt"><b>Dela min kontakt</b><small class="wa-sub">Skicka en länk så kan någon lägga till dig</small></span></button>
         ${fr.length?`<div class="wa-sec">Spelkompisar – lägg till som kontakt</div>`+fr.map(([id,f])=>`<div class="wa-row">${avatar(f.card.emoji,id)}<span class="wa-rt"><b>${esc(f.card.name)}</b><small class="wa-sub">Från ${esc(f.where)}</small></span><button class="wa-add" data-c="addc" data-id="${id}">＋ Lägg till</button></div>`).join(''):''}
-        ${!BOTMODE && !ld('botid',null) ? `<button class="wa-row act" data-c="mkbot"><span class="wa-av ic" style="background:#b45309">🤖</span><span class="wa-rt"><b>Skapa testkompis</b><small class="wa-sub">Bara i testversionen – svarar, läser, ändrar och tar bort</small></span></button>`:''}
+        ${!BOTMODE && !ld('botid',null) ? `<button class="wa-row act" data-c="mkbot"><span class="wa-av ic" style="background:#b45309">🤖</span><span class="wa-rt"><b>Skapa ekokompis</b><small class="wa-sub">Testa chatt och samtal – svarar via servern och ekar ljud och bild</small></span></button>`:''}
         <div class="wa-sec">Kontakter${cs.length?` (${cs.length})`:''}</div>
         ${cs.length?cs.map(c=>`<button class="wa-row" data-c="opendm" data-id="${c.id}">${avatar(c.emoji,c.id,'',isOnline(c.id))}<span class="wa-rt"><b>${esc(nameOf(c.id))}${vdots(c.id)}</b><small class="wa-sub">${c.bot?'🤖 testkompis · ':''}${conns.has(c.id)?'online':'🔒 krypterad'}</small></span></button>`).join(''):'<div class="wa-empty">Spela ett onlinespel med någon – då dyker de upp här som spelkompisar.</div>'}`;
     }
@@ -708,6 +712,7 @@ const CHAT = (()=>{
   function headStatus(cid){
     const t=typing[cid]; if(t && t.until>Date.now()) return `<span class="wa-typing">${cid.startsWith('g:')?esc(nameOf(t.who))+' ':''}skriver…</span>`;
     if(cid.startsWith('g:')){ const g=GROUPS[cid.slice(2)]; return g? esc(g.members.map(nameOf).join(', ')) : ''; }
+    if(isNote(cid)) return '🔒 bara på den här enheten – skickas aldrig';
     const id=cid.slice(2); const pt=pingSt[id]; if(pt && pt.s==='checking' && Date.now()-pt.t<11000) return '📡 kollar…';
     if(pt && pt.s==='ok' && Date.now()-pt.t<8000) return '✅ online – svarade nyss';
     if(isOnline(id)) return 'online';
@@ -719,7 +724,7 @@ const CHAT = (()=>{
     return `<div class="wa-convwrap t-${th}">
       <div class="wa-head conv"><button class="wa-ib back" data-c="close" aria-label="Tillbaka">‹</button>${convAvatar(openCid,'sm')}
         <button class="wa-ht" data-c="info"><b>${esc(convTitle(openCid))}${openCid.startsWith('d:')?vdots(peerOfConv(openCid)):''}</b><small id="waStatus">${headStatus(openCid)}</small></button>
-        ${openCid.startsWith('d:') && contacts[peerOfConv(openCid)] && typeof CALL!=='undefined' ? '<button class="wa-ib" data-c="call" data-v="1" aria-label="Videosamtal">📹</button><button class="wa-ib" data-c="call" aria-label="Röstsamtal">📞</button>':''}<button class="wa-ib" data-c="invite" aria-label="Bjud in till spel">🎮</button>${!CHATWIN && navigator.locks && window.innerWidth>=700 ? '<button class="wa-ib" data-c="popout" aria-label="Öppna i eget fönster" title="Öppna chatten i eget fönster">⧉</button>':''}<button class="wa-ib" data-c="info" aria-label="Meny">⋮</button></div>
+        ${openCid.startsWith('d:') && contacts[peerOfConv(openCid)] && typeof CALL!=='undefined' ? '<button class="wa-ib" data-c="call" data-v="1" aria-label="Videosamtal">📹</button><button class="wa-ib" data-c="call" aria-label="Röstsamtal">📞</button>':''}${isNote(openCid)?'':'<button class="wa-ib" data-c="invite" aria-label="Bjud in till spel">🎮</button>'}${!CHATWIN && navigator.locks && window.innerWidth>=700 ? '<button class="wa-ib" data-c="popout" aria-label="Öppna i eget fönster" title="Öppna chatten i eget fönster">⧉</button>':''}<button class="wa-ib" data-c="info" aria-label="Meny">⋮</button></div>
       ${c.request?`<div class="wa-req">${esc(nameOf(peerOfConv(openCid)))} finns inte bland dina kontakter. <button data-c="addc" data-id="${peerOfConv(openCid)}">Lägg till</button><button data-c="block" data-id="${peerOfConv(openCid)}">Blockera</button></div>`:''}
       <div class="wa-msgs" id="waMsgs">${msgsHTML(openCid)}</div>
       ${pickerOpen?emojiPickerHTML():''}
@@ -729,7 +734,8 @@ const CHAT = (()=>{
         <button class="wa-send" data-c="send" aria-label="${editing?'Spara':'Skicka'}">${editing && editing.cid===openCid?'✓':'➤'}</button></div></div>`;
   }
   function msgsHTML(cid){
-    const c=convs[cid]; let h=`<div class="wa-sys lock" data-c="safety">🔒 Meddelanden och samtal är end-to-end-krypterade. Ingen utanför den här chatten kan läsa dem. Tryck för att se säkerhetsnumret.</div>`;
+    const c=convs[cid]; let h= isNote(cid) ? `<div class="wa-sys lock">📝 Anteckningar till dig själv. De sparas bara på den här enheten och skickas aldrig någonstans – inte till servern och inte till någon annan.</div>`
+      : `<div class="wa-sys lock" data-c="safety">🔒 Meddelanden och samtal är end-to-end-krypterade. Ingen utanför den här chatten kan läsa dem. Tryck för att se säkerhetsnumret.</div>`;
     if(c.timer) h+=`<div class="wa-sys">⏱ Försvinnande meddelanden är på: ${timerName(c.timer)}</div>`;
     let lastDay='', lastFrom='';
     c.msgs.forEach(m=>{
@@ -741,7 +747,7 @@ const CHAT = (()=>{
         : `<div class="wa-tx ${/^\p{Extended_Pictographic}{1,3}$/u.test(m.text)?'big':''}">${linkify(m.text)}</div>`;
       h+=`<div class="wa-msg ${m.out?'out':'in'} ${first?'first':''}" data-mid="${m.mid}">
         <div class="wa-bub">${!m.out && c.type==='grp' && first?`<span class="wa-from" style="--h:${hue(m.from)}">${esc(nameOf(m.from))}</span>`:''}${body}
-          <span class="wa-meta">${m.exp?'<i>⏱</i>':''}${m.edited?'<i class="wa-ed">redigerat</i>':''}${fmtT(m.ts)}${m.out?' '+tickHTML(aggStatus(m,cid)):''}</span></div>
+          <span class="wa-meta">${m.exp?'<i>⏱</i>':''}${m.edited?'<i class="wa-ed">redigerat</i>':''}${fmtT(m.ts)}${m.out && !isNote(cid)?' '+tickHTML(aggStatus(m,cid)):''}</span></div>
         ${reacts.length?`<div class="wa-reacts">${esc(Object.entries(rc).map(([e,n])=>e+(n>1?n:'')).join(' '))}</div>`:''}
         ${menuFor===m.mid?`<div class="wa-menu">${m.revoked?'':`<div class="wa-rbar">${['❤️','😂','😮','😭','🙏','👍'].map(e=>`<button data-c="react" data-mid="${m.mid}" data-e="${e}">${e}</button>`).join('')}</div>`}
           <button data-c="minfo" data-mid="${m.mid}">ℹ️ Info</button>
