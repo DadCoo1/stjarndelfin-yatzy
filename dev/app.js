@@ -21,7 +21,7 @@
   if(!same || !/[?&]bot=1/.test(location.search)){ document.documentElement.innerHTML=''; throw new Error('Inramning blockerad'); }
 })();
 /* ================= Version & utvecklingsläge ================= */
-const APP_VERSION='2026.11.08.5-dev';
+const APP_VERSION='2026.11.08.6-dev';
 const DEV = /\/dev(\/|$)/.test(location.pathname);      // testversionen ligger i mappen /dev/
 const BOT = DEV && /[?&]bot=1/.test(location.search) && window.parent!==window;   // osynlig testkompis i en ram (bara dev)
 const LSP = DEV ? (BOT ? 'dev:bot:' : 'dev:') : '';    // egen sparad data i testversionen
@@ -503,7 +503,7 @@ function setNet(s){
 /* ---------- egen spelserver: kopplingsserver + reservserver (TURN) ----------
    Tom NET_SERVER = PeerJS gratisserver. Med egen server når telefonerna varandra även på mobilnät och med VPN:
    går det inte direkt skickas den krypterade trafiken via servern. */
-const NET_SERVER = window.__NET_SERVER || '';
+const NET_SERVER = window.__NET_SERVER!==undefined ? window.__NET_SERVER : 'kleinboard.duckdns.org';   // familjens egen spelserver
 let NET_ICE=null, NET_ICE_EXP=0, NET_ICE_FAIL=0, netIceP=null;
 let SRV_TOK=lsGet('srv_tok')||'', SRV_USER=lsGet('srv_user')||'', srvWait=[];
 function netBase(){ const s=NET_SERVER; if(!s) return null; const [h,pt]=s.split(':'); const local=/^(127\.|localhost)/.test(h); return {host:h, port:+(pt||(local?9000:443)), secure:!local}; }
