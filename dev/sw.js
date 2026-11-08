@@ -2,7 +2,7 @@
 // Release och testversion (/dev/) har varsin cache och rör aldrig varandras.
 const DEV = /\/dev\//.test(self.location.pathname);
 const PFX = DEV ? 'fl-dev-' : 'stjarndelfin-';
-const CACHE = PFX + 'v68';
+const CACHE = PFX + 'v69';
 const FILES = ['./', './index.html', './manifest.webmanifest', './icon-192.png', './icon-512.png', './icon-180.png', './games.js', './invaders.js', './race.js', './chat.js', './call.js', './app.js', './peerjs.min.js', './qr.js', './fr.js', './kina.js', './ordfajt.js', './pong.js', './kit.js', './strat.js', './family.js', './cards.js', './puzzle.js', './drone.js', './replay.js', './weather.js', './slalom.js', './biathlon.js'];
 self.addEventListener('install', e => { e.waitUntil(caches.open(CACHE).then(c => c.addAll(FILES.map(u => new Request(u, {cache: 'reload'})))).then(() => self.skipWaiting())); });
 self.addEventListener('activate', e => {
