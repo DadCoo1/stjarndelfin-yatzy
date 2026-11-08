@@ -6,6 +6,20 @@ Gör så att onlinespel, chatt och samtal fungerar även på mobilnät, med VPN 
 - **Reservserver** (coturn) skickar vidare trafiken när telefonerna inte når varandra direkt.
   Trafiken är redan end-to-end-krypterad, så servern ser bara krypterade paket.
 - **`/turn`** ger tillfälliga inloggningar till reservservern (gäller 6 timmar). Hemligheten skapas på servern och lämnar den aldrig.
+- **Inloggning** med användarnamn och sexsiffrig kod från en TOTP-app. Konton kan **bara** skapas via en inbjudningslänk (gäller 7 dagar, en gång).
+- **Brevlåda** (`/mbox`): krypterade chattmeddelanden sparas tills mottagaren är online igen. Servern kan inte läsa dem. Sparas högst 45 dagar.
+- **Närvaro** (`/presence`): visar vilka kontakter som är uppkopplade.
+
+## Konton
+
+```
+sudo spel-user invite elsa        # inbjudningslänk till appen (lägg till --dev för testversionen)
+sudo spel-user list               # användare och öppna inbjudningar
+sudo spel-user reset elsa         # ny länk och ny TOTP-nyckel, loggar ut alla enheter
+sudo spel-user logout elsa        # logga ut på alla enheter
+sudo spel-user disable elsa       # stäng av kontot
+sudo spel-user remove elsa        # ta bort kontot
+```
 
 ## Installation
 

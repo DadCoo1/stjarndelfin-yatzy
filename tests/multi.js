@@ -1,5 +1,5 @@
 const {chromium}=require('playwright');
-const OPTS= process.env.OWN ? "window.__NET_SERVER='127.0.0.1:9000'; window.__FORCE_RELAY=true;" : "window.__PEER_OPTS={host:'127.0.0.1',port:9000,path:'/peer',secure:false,config:{iceServers:[]}};";
+const OPTS= process.env.OWN ? "window.__NET_SERVER='127.0.0.1:9000'; window.__FORCE_RELAY=true;" : "window.__PEER_OPTS={host:'127.0.0.1',port:9001,path:'/',secure:false,config:{iceServers:[]}};";
 const URL='http://127.0.0.1:8811/dev/'; const sleep=ms=>new Promise(r=>setTimeout(r,ms));
 const [kind,NP,MAXSTEPS]=[process.argv[2],+process.argv[3],+(process.argv[4]||400)];
 (async()=>{ const b=await chromium.launch(); const errs=[]; const pages=[], ctxs=[];

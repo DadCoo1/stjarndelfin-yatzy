@@ -33,7 +33,7 @@ if [ -n "$MYIP" ] && [ "$MYIP" != "$DNSIP" ]; then echo "Domänen pekar inte på
 say "Paket"
 export DEBIAN_FRONTEND=noninteractive
 apt-get update -q
-apt-get install -y -q curl gnupg debian-keyring debian-archive-keyring apt-transport-https ufw unattended-upgrades fail2ban coturn nodejs npm openssl
+apt-get install -y -q curl gnupg debian-keyring debian-archive-keyring apt-transport-https ufw unattended-upgrades fail2ban coturn nodejs npm openssl qrencode
 if ! command -v caddy >/dev/null; then
   curl -fsSL 'https://dl.cloudsmith.io/public/caddy/stable/gpg.key' | gpg --dearmor -o /usr/share/keyrings/caddy-stable-archive-keyring.gpg
   curl -fsSL 'https://dl.cloudsmith.io/public/caddy/stable/debian.deb.txt' > /etc/apt/sources.list.d/caddy-stable.list
@@ -61,9 +61,10 @@ SECRET="$(grep '^TURN_SECRET=' /etc/spelserver.env | cut -d= -f2)"
 say "Spelservern"
 id spelserver >/dev/null 2>&1 || useradd --system --home /opt/spelserver --shell /usr/sbin/nologin spelserver
 mkdir -p /opt/spelserver
-for f in app.js package.json; do curl -fsSL "$REPO_RAW/$f" -o "/opt/spelserver/$f"; done
+for f in app.js package.json spel-user; do curl -fsSL "$REPO_RAW/$f" -o "/opt/spelserver/$f"; done
 (cd /opt/spelserver && npm install --omit=dev --no-audit --no-fund --loglevel=error)
 chown -R root:root /opt/spelserver
+install -m 755 /opt/spelserver/spel-user /usr/local/sbin/spel-user
 chown root:spelserver /etc/spelserver.env; chmod 640 /etc/spelserver.env
 cat > /etc/systemd/system/spelserver.service <<EOF
 [Unit]
@@ -73,6 +74,9 @@ After=network-online.target
 User=spelserver
 EnvironmentFile=/etc/spelserver.env
 WorkingDirectory=/opt/spelserver
+StateDirectory=spelserver
+StateDirectoryMode=0700
+Environment=DATA_DIR=/var/lib/spelserver
 ExecStart=/usr/bin/node app.js
 Restart=always
 RestartSec=3
@@ -91,6 +95,10 @@ $DOMAIN {
 	encode gzip
 	reverse_proxy /peer* 127.0.0.1:9000
 	reverse_proxy /turn 127.0.0.1:9000
+	reverse_proxy /auth/* 127.0.0.1:9000
+	reverse_proxy /invite/* 127.0.0.1:9000
+	reverse_proxy /mbox/* 127.0.0.1:9000
+	reverse_proxy /presence 127.0.0.1:9000
 	reverse_proxy /health 127.0.0.1:9000
 	respond / "Spelservern är igång" 200
 }
@@ -190,6 +198,10 @@ curl -fsS "https://$DOMAIN/health" && echo || echo "HTTPS svarar inte än – v�
 cat <<EOF
 
 Klart! Säg till Claude att servern är igång på $DOMAIN, så kopplas appen dit.
+
+Konton skapas bara via inbjudningslänkar. Skapa en länk per person:
+  sudo spel-user invite elsa          (lägg till --dev för testversionen)
+  sudo spel-user list
 
 Tips för säkerheten:
   - Logga in med SSH-nyckel och stäng av lösenordsinloggning:

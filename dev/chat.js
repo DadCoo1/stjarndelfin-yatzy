@@ -219,6 +219,7 @@ const CHAT = (()=>{
   }
   async function flushTo(id){
     const c=conns.get(id);
+    outbox=outbox.filter(o=>!(o.to===id && o.payload && (o.payload.type==='ping'||o.payload.type==='pong') && Date.now()-o.ts>15000));
     const items=outbox.filter(o=>o.to===id);
     if(!items.length) return;
     // inte kvitterat på länge via chattanslutningen? prova spelets anslutning också
@@ -226,8 +227,10 @@ const CHAT = (()=>{
     if(c && c.open){
       for(const o of items){ if(o.acked || Date.now()-(o.lastSend||0)<15000) continue; try{ const env=await makeEnv(o); sendRaw(c, env); o.lastSend=Date.now(); if(o.status==='queued'){ o.status='sent'; if(!o.ctl) markStatus(o.cid||'', o.mid, id, 'sent'); } }catch(e){ if(!/väntar/.test(e.message)) console.warn('chatt: kunde inte kryptera', e.message); } }
       saveConvs();
+      mbPush(id, items.filter(o=>!o.acked && o.lastSend && Date.now()-o.lastSend>20000));
     } else {
       connectTo(id);
+      mbPush(id, items);
       // lämna till en kompis som reläar
       const relays=[...conns.keys()].filter(x=>x!==id && (BOTMODE || !conns.get(x)._local)).sort((a,b)=>sharesGroup(b,id)-sharesGroup(a,id)).slice(0,2);
       for(const o of items){ if(o.status!=='queued' || !relays.length || Date.now()-(o.relayTry||0)<5*60e3) continue; o.relayTry=Date.now();
@@ -237,6 +240,54 @@ const CHAT = (()=>{
   }
   const sharesGroup=(a,b)=>Object.values(GROUPS).some(g=>g.members.includes(a)&&g.members.includes(b))?1:0;
   function flushAll(){ new Set(outbox.map(o=>o.to)).forEach(flushTo); relayQ=relayQ.filter(r=>r.until>Date.now()); new Set(relayQ.map(r=>r.to)).forEach(id=>{ const c=conns.get(id); if(c&&c.open){ relayQ.filter(r=>r.to===id).forEach(r=>sendRaw(c,r.env)); relayQ=relayQ.filter(r=>r.to!==id); saveConvs(); } else connectTo(id); }); }
+  /* ---------- brevlåda och närvaro på spelservern ----------
+     Krypterade kuvert sparas på servern tills mottagaren hämtar dem (servern kan inte läsa dem).
+     Samma kuvert kan också komma direkt – dubbletter känns igen och ignoreras. */
+  const MB = () => typeof srvFetch==='function' && typeof netBase==='function' && !!netBase() && !!SRV_TOK && !!ME && owner && !BOTMODE;
+  const NOMB = new Set(['call','ping','pong','typing']);
+  let mbClaimed=false, mbBusy=false;
+  async function mbPull(){
+    if(!MB() || mbBusy) return; mbBusy=true;
+    try{
+      if(!mbClaimed){ const r=await srvFetch('/mbox/claim',{ids:[ME.id]}); if(!(r && r.ids && r.ids.includes(ME.id))) return; mbClaimed=true; }
+      const r=await srvFetch('/mbox/fetch',{ids:[ME.id]}); if(!r || !Array.isArray(r.items) || !r.items.length) return;
+      const keys=[]; for(const it of r.items){ try{ await receiveEnv(it.env, null); }catch(e){} keys.push(it.k); }
+      await srvFetch('/mbox/ack',{ids:[ME.id], keys});
+      if(vis()) refresh(); flushAll();
+    }finally{ mbBusy=false; }
+  }
+  async function mbPush(id, items){
+    if(!MB() || !items.length) return;
+    const send=items.filter(o=>!o.mbox && !NOMB.has(o.payload && o.payload.type)); if(!send.length) return;
+    send.forEach(o=>o.mbox=-1);
+    const list=[]; for(const o of send){ try{ list.push({to:id, env:await makeEnv(o)}); }catch(e){} }
+    const r=list.length ? await srvFetch('/mbox/send',{items:list}) : null;
+    for(const o of send){ if(r && r.stored){ o.mbox=Date.now(); if(o.status==='queued'){ o.status='sent'; if(!o.ctl) markStatus(o.cid||'', o.mid, id, 'sent'); } } else o.mbox=0; }
+    saveConvs();
+  }
+  let srvPres={};
+  async function presPull(){
+    if(!MB()) return; const ids=Object.keys(contacts).slice(0,150); if(!ids.length) return;
+    const r=await srvFetch('/presence',{peers:ids.map(i=>CPREFIX+i)}); if(!r || !r.peers) return;
+    const skew=Date.now()-(+r.now||Date.now()), np={};
+    for(const id of ids){ const v=r.peers[CPREFIX+id]; if(v===0) np[id]=0; else if(v) np[id]=v+skew; }
+    srvPres=np; let ch=false; for(const [id,v] of Object.entries(np)) if(v && (!lastSeen[id] || lastSeen[id]<v)){ lastSeen[id]=v; ch=true; }
+    if(ch) sv('lastseen',lastSeen); if(vis()){ refreshHead(); }
+  }
+  const isOnline = id => conns.has(id) || srvPres[id]===0;
+  setInterval(()=>{ if(!document.hidden){ mbPull(); presPull(); } }, 20000);
+  document.addEventListener('visibilitychange',()=>{ if(!document.hidden){ mbPull(); presPull(); } });
+  // autosvar: telefonen svarar automatiskt på en "ping" – så syns det direkt om kontakten är nåbar
+  const pings={}, pingSt={};
+  function pingContact(id, quiet){
+    if(!ME || !contacts[id] || blocked.includes(id)) return;
+    const n=uid(), t0=Date.now(); pings[n]={id,t0}; pingSt[id]={s:'checking', t:t0, quiet};
+    connectTo(id); queueDirect(id,{type:'ping', n, at:t0}, true); if(vis()) refreshHead();
+    setTimeout(()=>{ if(pings[n]){ delete pings[n]; pingSt[id]={s:'none', t:Date.now()}; if(!quiet) toast(`${nameOf(id)} svarar inte just nu. Meddelanden sparas och levereras när ${nameOf(id)} är online.`,5000); if(vis()) refreshHead(); infoPing(id); } }, 10000);
+  }
+  function infoPing(id){ const el=document.getElementById('waPing'); if(el) el.innerHTML=pingText(id)||''; }
+  function pingText(id){ const p=pingSt[id]; if(!p || Date.now()-p.t>60000) return '';
+    return p.s==='checking' ? '📡 kollar om telefonen svarar…' : p.s==='ok' ? `✅ telefonen svarade direkt (${(p.ms/1000).toFixed(1).replace('.',',')} s)` : '💤 svarar inte just nu – meddelanden levereras senare'; }
   function sendReceipt(to, mids, kind, gid){ if(!mids.length || !to) return; queueDirect(to, {type:'receipt', mids, kind, gid, at:Date.now()}, true); }
 
   /* ---------- transport (PeerJS, direkt mellan enheter) ---------- */
@@ -246,9 +297,9 @@ const CHAT = (()=>{
   function startTransport(){
     if(testNoNet) return;
     if(!owner || BOTMODE || cpeer || !ME || typeof Peer==='undefined') return;
-    if(typeof needIce==='function' && needIce()){ ensureIce().then(()=>startTransport()); return; }
+    if(typeof needIce==='function' && needIce()){ iceReady().then(()=>{ if(!cpeer && (SRV_TOK || !netBase())) startTransport(); }); return; }
     const p=cpeer=new Peer(CPREFIX+ME.id, peerOpts());
-    p.on('open',()=>{ flushAll(); presenceSweep(); });
+    p.on('open',()=>{ flushAll(); presenceSweep(); mbPull(); presPull(); });
     p.on('connection',c=>attach(c,null));
     p.on('disconnected',()=>{ if(cpeer===p && !p.destroyed) setTimeout(()=>{ try{ p.reconnect() }catch(e){} },2000); });
     p.on('error',e=>{
@@ -431,6 +482,8 @@ const CHAT = (()=>{
         if(BOTMODE){ if(p.op==='offer' && typeof p.id==='string') queueDirect(from,{type:'call', op:'reject', id:p.id},true); return; }
         if(typeof CALL!=='undefined') CALL.onSignal(from,p);
         break; }
+      case 'ping': { if(env.k==='d' && isH(p.n)) queueDirect(from,{type:'pong', n:p.n, at:Date.now()},true); break; }
+      case 'pong': { const q=isH(p.n) && pings[p.n]; if(q && q.id===from){ delete pings[p.n]; pingSt[from]={s:'ok', ms:Date.now()-q.t0, t:Date.now()}; if(vis()) refreshHead(); infoPing(from); } break; }
       case 'skd': {
         if(!isH(p.gid) || !GROUPS[p.gid] || !GROUPS[p.gid].members.includes(from) || !isB64(p.ck,60) || !isN(p.iter,1e7) || !isB64(p.spub,120)) return;
         const s=SKEYS[p.gid]||(SKEYS[p.gid]={mine:null,recv:{}}); s.recv[from]={ck:p.ck, iter:p.iter, spub:p.spub, skipped:{}}; saveG();
@@ -618,7 +671,7 @@ const CHAT = (()=>{
         ${fr.length?`<div class="wa-sec">Spelkompisar – lägg till som kontakt</div>`+fr.map(([id,f])=>`<div class="wa-row">${avatar(f.card.emoji,id)}<span class="wa-rt"><b>${esc(f.card.name)}</b><small class="wa-sub">Från ${esc(f.where)}</small></span><button class="wa-add" data-c="addc" data-id="${id}">＋ Lägg till</button></div>`).join(''):''}
         ${DEV && !BOTMODE && !ld('botid',null) ? `<button class="wa-row act" data-c="mkbot"><span class="wa-av ic" style="background:#b45309">🤖</span><span class="wa-rt"><b>Skapa testkompis</b><small class="wa-sub">Bara i testversionen – svarar, läser, ändrar och tar bort</small></span></button>`:''}
         <div class="wa-sec">Kontakter${cs.length?` (${cs.length})`:''}</div>
-        ${cs.length?cs.map(c=>`<button class="wa-row" data-c="opendm" data-id="${c.id}">${avatar(c.emoji,c.id,'',conns.has(c.id))}<span class="wa-rt"><b>${esc(nameOf(c.id))}${vdots(c.id)}</b><small class="wa-sub">${c.bot?'🤖 testkompis · ':''}${conns.has(c.id)?'online':'🔒 krypterad'}</small></span></button>`).join(''):'<div class="wa-empty">Spela ett onlinespel med någon – då dyker de upp här som spelkompisar.</div>'}`;
+        ${cs.length?cs.map(c=>`<button class="wa-row" data-c="opendm" data-id="${c.id}">${avatar(c.emoji,c.id,'',isOnline(c.id))}<span class="wa-rt"><b>${esc(nameOf(c.id))}${vdots(c.id)}</b><small class="wa-sub">${c.bot?'🤖 testkompis · ':''}${conns.has(c.id)?'online':'🔒 krypterad'}</small></span></button>`).join(''):'<div class="wa-empty">Spela ett onlinespel med någon – då dyker de upp här som spelkompisar.</div>'}`;
     }
     return `<div class="wa-head">${CHATWIN?'':`<button class="wa-back" data-c="hide" aria-label="Tillbaka till ${view==='lobby'?'lobbyn':'spelet'}">‹ <span>${view==='lobby'?'Lobby':'Spelet'}</span></button>`}<b class="wa-title">Chattar</b>
         ${!CHATWIN && navigator.locks ? '<button class="wa-ib" data-c="popout" aria-label="Öppna i eget fönster" title="Öppna chatten i eget fönster">⧉</button>':''}
@@ -630,7 +683,9 @@ const CHAT = (()=>{
   function headStatus(cid){
     const t=typing[cid]; if(t && t.until>Date.now()) return `<span class="wa-typing">${cid.startsWith('g:')?esc(nameOf(t.who))+' ':''}skriver…</span>`;
     if(cid.startsWith('g:')){ const g=GROUPS[cid.slice(2)]; return g? esc(g.members.map(nameOf).join(', ')) : ''; }
-    const id=cid.slice(2); if(conns.has(id)) return 'online';
+    const id=cid.slice(2); const pt=pingSt[id]; if(pt && pt.s==='checking' && Date.now()-pt.t<11000) return '📡 kollar…';
+    if(pt && pt.s==='ok' && Date.now()-pt.t<8000) return '✅ online – svarade nyss';
+    if(isOnline(id)) return 'online';
     return lastSeen[id] ? `senast online ${dayLabel(lastSeen[id]).toLowerCase()} ${fmtT(lastSeen[id])}` : '🔒 end-to-end-krypterad';
   }
   function mainHTML(){
@@ -912,7 +967,8 @@ const CHAT = (()=>{
   }
   function openPanel(cid){
     buildChrome();
-    if(cid){ openCid=cid; conv(cid); pickerOpen=false; menuFor=null; editing=null; }
+    if(cid){ openCid=cid; conv(cid); pickerOpen=false; menuFor=null; editing=null;
+      const pid=cid.startsWith('d:')?cid.slice(2):null; if(pid && contacts[pid] && !conns.has(pid) && !(pingSt[pid] && Date.now()-pingSt[pid].t<30000)) setTimeout(()=>pingContact(pid,true),300); }
     const pn=document.getElementById('chatPanel');
     if(!panelOpen){
       panelOpen=true;
@@ -1005,7 +1061,7 @@ const CHAT = (()=>{
   async function showInfo(cid){
     const c=convs[cid], g=cid.startsWith('g:')?GROUPS[cid.slice(2)]:null, peer=peerOfConv(cid);
     const safety = peer ? await safetyNumber(peer) : '';
-    openModal(`<div style="text-align:center">${convAvatar(cid,'xl')}<h3 style="margin:8px 0 2px">${esc(convTitle(cid))}</h3><p>${g?`Grupp · ${g.members.length} medlemmar`:conns.has(peer)?'online':'🔒 krypterad'}</p></div>
+    openModal(`<div style="text-align:center">${convAvatar(cid,'xl')}<h3 style="margin:8px 0 2px">${esc(convTitle(cid))}</h3><p>${g?`Grupp · ${g.members.length} medlemmar`:isOnline(peer)?'online':'🔒 krypterad'}</p>${!g&&peer&&contacts[peer]?`<p id="waPing" class="sub">${pingText(peer)}</p><div class="chips" style="justify-content:center"><button data-c="ping" data-id="${peer}">📡 Kolla om ${esc(nameOf(peer))} är online</button></div>`:''}</div>
       <label>⏱ Försvinnande meddelanden</label><div class="chips">${TIMERS.map(([s,l])=>`<button data-c="timer" data-s="${s}" data-cid="${cid}" class="${(c.timer||0)===s?'sel':''}">${l}</button>`).join('')}</div>
       <label>🎨 Tema</label><div class="chips"><button data-c="themefor" data-cid="${cid}">Välj tema för chatten</button></div>
       ${g?`<label>👥 Medlemmar</label><div class="wa-mem">${g.members.map(id=>`<span>${avatar(emoOf(id),id,'sm')} ${esc(nameOf(id))}${id!==ME.id?vdots(id):''}${id===g.admin?' <em>admin</em>':''}</span>`).join('')}</div>
@@ -1135,6 +1191,7 @@ const CHAT = (()=>{
       case 'leave': closeModal(); leaveGroup(b.dataset.gid); toast('Du lämnade gruppen'); break;
       case 'sharecard': shareCard(); break;
       case 'invite': showInvite(openCid); break;
+      case 'ping': pingContact(b.dataset.id); infoPing(b.dataset.id); break;
       case 'call': { const p=peerOfConv(openCid); if(p && typeof CALL!=='undefined') CALL.start(p, !!b.dataset.v); break; }
       case 'invitegame': inviteToGame(b.dataset.cid, b.dataset.k); break;
       case 'join': { const code=String(b.dataset.code||''); if(!/^[A-Z0-9]{4}$/.test(code)) break; const name=lsGet('ry_name')||ME.name; joinGame(code, name); break; }
@@ -1156,12 +1213,13 @@ const CHAT = (()=>{
     myId:()=>ME && ME.id,
     html, mount, refresh, open:()=>openPanel(), openChat, close:()=>closePanel(), isOpen:()=>panelOpen, docked:()=>panelOpen && dockable(), seenCards, card:()=>myCard(), unread:totalUnread,
     hasIdentity:()=>!!ME,
+    reconnect:()=>{ if(!cpeer || cpeer.destroyed){ cpeer=null; startTransport(); } mbPull(); presPull(); },
     // samtal: signalerna går krypterade genom samma dubbla ratchet som meddelandena
     call:{
       send:(to,p)=>{ if(ME && owner && !BOTMODE) queueDirect(to,{...p, type:'call'},true); },
       ok:id=>!!ME && !!contacts[id] && !blocked.includes(id),
       name:id=>nameOf(id), emoji:id=>emoOf(id), myId:()=>ME && ME.id,
-      online:id=>conns.has(id), connect:id=>connectTo(id),
+      online:id=>isOnline(id), connect:id=>connectTo(id),
       owner:()=>owner && !BOTMODE && !!ME,
       log:(id,text)=>{ sysMsg('d:'+id,text); if(vis()) refresh(); else if(typeof render==='function' && view==='lobby') render(); },
       unread:id=>{ const c=conv('d:'+id); c.unread=(c.unread||0)+1; saveConvs(); },
@@ -1169,7 +1227,7 @@ const CHAT = (()=>{
       ice:()=>{ const o=cpeer && cpeer.options && cpeer.options.config; return (o && Array.isArray(o.iceServers)) ? {iceServers:o.iceServers} : {iceServers:[{urls:'stun:stun.l.google.com:19302'}]}; }
     },
     // bara i testversionen: krokar för automatiska säkerhetstester
-    __test: DEV ? {queueDirect, conns:()=>[...conns.keys()], typing:()=>({...typing}), groups:()=>GROUPS, convs:()=>convs, contacts:()=>contacts, scan:t=>onScanText(t),
+    __test: DEV ? {mbPull, presPull, ping:id=>pingContact(id,true), pingSt:()=>pingSt, srvPres:()=>srvPres, outbox:()=>outbox, queueDirect, conns:()=>[...conns.keys()], typing:()=>({...typing}), groups:()=>GROUPS, convs:()=>convs, contacts:()=>contacts, scan:t=>onScanText(t),
       zombie:id=>{ const c=conns.get(id); if(c){ c.removeAllListeners('data'); c.on('data',()=>{}); } },   // anslutningen ser öppen ut men tar inte emot
       noNet:()=>{ testNoNet=true; try{ cpeer && cpeer.destroy() }catch(e){} cpeer=null; conns.clear(); }} : undefined
   };

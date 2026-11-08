@@ -108,6 +108,8 @@ const CALL=(function(){
     }catch(e){ console.warn('samtal: kunde inte starta', e); if(cur===c) finish('failed'); return; }
     if(A.online(peer)) c.state='calling'; else { c.state='reach'; A.connect(peer); }
     ring('out'); ui();
+    // autosvar: kontaktens telefon svarar "det ringer" direkt om den är nåbar – annars säger vi det
+    c.reachT=setTimeout(()=>{ if(cur===c && !c.answered && (c.state==='reach'||c.state==='calling')){ c.state='unreach'; ui(); } },10000);
     c.ringT=setTimeout(()=>{ if(cur===c && !c.answered){ A.send(c.peer,{op:'cancel', id:c.id}); finish('noanswer'); } }, RING_MS);
   }
 
@@ -205,7 +207,7 @@ const CALL=(function(){
     finish(c.t0 ? 'ended' : (c.dir==='out' ? 'cancel' : 'ended'));
   }
   function drop(c){                                           // tyst nedläggning (samtidig uppringning)
-    clearTimeout(c.ringT); clearTimeout(c.connT); clearTimeout(c.discT); clearInterval(c.tick); stopRing();
+    clearTimeout(c.ringT); clearTimeout(c.connT); clearTimeout(c.reachT); clearTimeout(c.discT); clearInterval(c.tick); stopRing();
     try{ c.pc && c.pc.close(); }catch(e){} try{ c.local && c.local.getTracks().forEach(t=>t.stop()); }catch(e){}
     if(cur===c) cur=null;
   }
@@ -228,6 +230,7 @@ const CALL=(function(){
     A.log(c.peer, log);
     if(reason==='failed') msg='Samtalet kom inte fram 📶 Telefonerna når inte varandra – vanligt på mobilnät eller med VPN. Prova att båda kör på wifi.';
     else if(reason==='lost') msg='Samtalet bröts – kontakten försvann 📶';
+    else if(reason==='noanswer' && c.state==='unreach') msg=`${n} är inte nåbar just nu – telefonen är offline eller appen stängd`;
     else if(reason==='busy') msg=`${n} är upptagen i ett annat samtal`;
     else if(reason==='rejected') msg=`${n} kan inte svara just nu`;
     else if(reason==='noanswer') msg=`${n} svarade inte`;
@@ -294,7 +297,7 @@ const CALL=(function(){
     lv.classList.toggle('back', c.facing==='environment');
     ui();
   }
-  const STATE={media:'Startar mikrofonen…', prep:'Krypterar…', reach:'Söker {n}…', calling:'Ringer…', ringing:'Det ringer hos {n}…', incoming:'ringer dig…', connecting:'Kopplar upp…', reconnect:'Återansluter…'};
+  const STATE={media:'Startar mikrofonen…', prep:'Krypterar…', reach:'Söker {n}…', unreach:'{n} svarar inte – telefonen verkar vara offline…', calling:'Ringer…', ringing:'Det ringer hos {n}…', incoming:'ringer dig…', connecting:'Kopplar upp…', reconnect:'Återansluter…'};
   function top(){
     const c=cur; if(!c || !el) return;
     const n=API().name(c.peer);
