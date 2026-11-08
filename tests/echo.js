@@ -1,0 +1,25 @@
+// Ekokompisen via servern: chatt-eko, ping och samtal som ekar tillbaka.
+const {chromium}=require('playwright'); const sleep=ms=>new Promise(r=>setTimeout(r,ms));
+const TOK=process.env.TOK;
+(async()=>{ const b=await chromium.launch({args:['--use-fake-device-for-media-stream','--use-fake-ui-for-media-stream','--autoplay-policy=no-user-gesture-required']}); const errs=[]; let fails=0; const ok=(c,m)=>{ console.log((c?'✓ ':'✗ ')+m); if(!c) fails++; };
+  const c=await b.newContext({viewport:{width:390,height:844}, permissions:['camera','microphone']});
+  await c.addInitScript(`window.__NET_SERVER='127.0.0.1:9000'; try{ if(!localStorage.getItem('dev:srv_tok')){ localStorage.setItem('dev:srv_tok','${TOK}'); localStorage.setItem('dev:srv_user','ekotest'); } }catch(e){}`);
+  const p=await c.newPage(); p.on('pageerror',e=>errs.push(e.message)); await p.goto('http://127.0.0.1:8811/dev/'); await sleep(1200);
+  await p.evaluate(()=>CHAT.open()); await sleep(400); await p.fill('#waName','Elsa'); await p.click('[data-c=create]'); await sleep(2500);
+  await p.evaluate(()=>closeModal()); await p.evaluate(()=>CHAT.open()); await sleep(300);
+  await p.click('[data-c=tab][data-t=contacts]'); await sleep(400); await p.click('[data-c=mkbot]'); 
+  let id=null; for(let i=0;i<30;i++){ await sleep(500); id=await p.evaluate(()=>{ const k=Object.keys(localStorage).find(k=>k==='dev:chat:botid'||k.endsWith(':botid')); return k?JSON.parse(localStorage.getItem(k)):null; }); if(id && await p.evaluate(id=>CHAT.__test.conns().includes(id),id)) break; }
+  ok(id && await p.evaluate(id=>CHAT.__test.conns().includes(id),id), 'ekokompisen är uppkopplad');
+  await sleep(2000);
+  await p.fill('#waText','hej eko'); await p.click('[data-c=send]'); await sleep(6000);
+  const msgs=await p.evaluate(id=>CHAT.__test.convs()['d:'+id].msgs.filter(m=>!m.out).map(m=>m.text),id);
+  ok(msgs.some(t=>/Eko .*via servern.*hej eko/.test(t||'')), 'ekot kom tillbaka via servern: '+msgs.slice(-1));
+  await p.fill('#waText','ping'); await p.click('[data-c=send]'); await sleep(4000);
+  const m2=await p.evaluate(id=>CHAT.__test.convs()['d:'+id].msgs.filter(m=>!m.out).map(m=>m.text).pop(),id); ok(/pong/.test(m2||''), m2);
+  await p.evaluate(id=>CALL.start(id,true),id); await sleep(14000);
+  const st=await p.evaluate(()=>CALL.__state()); ok(st && st.state==='live', 'ekokompisen svarade i telefon ('+(st&&st.state)+')');
+  const v=await p.evaluate(()=>{ const r=document.querySelector('#callUI .cl-rv'); return r && r.srcObject ? [r.srcObject.getAudioTracks().length, r.srcObject.getVideoTracks().length, r.videoWidth] : null; });
+  ok(v && v[0]>0 && v[1]>0, 'ljud och bild kommer tillbaka: '+JSON.stringify(v));
+  await p.screenshot({path:'/tmp/echo_call.png'});
+  await p.click('#callUI [data-k=end]'); await sleep(1500);
+  console.log('errs',errs); console.log(fails?fails+' FEL':'alla ekotester ok'); await b.close(); process.exit(fails?1:0); })();
