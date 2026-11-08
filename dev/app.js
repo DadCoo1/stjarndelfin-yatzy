@@ -21,7 +21,7 @@
   if(!same || !/[?&]bot=1/.test(location.search)){ document.documentElement.innerHTML=''; throw new Error('Inramning blockerad'); }
 })();
 /* ================= Version & utvecklingsläge ================= */
-const APP_VERSION='2026.11.08.6-dev';
+const APP_VERSION='2026.11.09.1-dev';
 const DEV = /\/dev(\/|$)/.test(location.pathname);      // testversionen ligger i mappen /dev/
 const BOT = DEV && /[?&]bot=1/.test(location.search) && window.parent!==window;   // osynlig testkompis i en ram (bara dev)
 const LSP = DEV ? (BOT ? 'dev:bot:' : 'dev:') : '';    // egen sparad data i testversionen
@@ -268,7 +268,7 @@ const pname = i => (G && G.names[i]) || '…';
 function commit(patch){
   Object.assign(G, JSON.parse(JSON.stringify(patch)));
   G.updatedAt = Date.now(); G.seq = (G.seq||0)+1;
-  if(mode==='local'){ lsSet('ry_local', JSON.stringify(G)); render(); return; }
+  if(mode==='local'){ saveLocal(); render(); return; }
   saveNet(); render();
   send({t:'state', state:G});
 }
@@ -618,7 +618,115 @@ function saveNet(){
   if(mode!=='online') return;
   lsSet('ry_net', JSON.stringify({code:gameId, role, seat:mySeat, name:myName}));
   if(G) lsSet('ry_net_state', JSON.stringify(G));
+  sgPut();
 }
+function saveLocal(){ if(mode!=='local' || !G) return; if(!G.sgid) G.sgid='loc:'+Date.now().toString(36)+Math.random().toString(36).slice(2,6); lsSet('ry_local', JSON.stringify(G)); sgPut(); }
+
+/* ================= Pågående spel: flera samtidigt, i en sidopanel =================
+   Varje oavslutat spel (online, mot datorn eller ensam) sparas här. Man kan hoppa mellan dem
+   och avsluta dem. Arkadspelen sparas inte. */
+const SG_KEY='ry_games', SG_MAX=20;
+function sgAll(){ try{ const o=JSON.parse(lsGet(SG_KEY)); return o && typeof o==='object' && !Array.isArray(o) ? o : {}; }catch(e){ return {}; } }
+function sgSave(o){ lsSet(SG_KEY, JSON.stringify(o)); }
+function sgPut(){
+  if(!G || BOT) return;
+  const all=sgAll(); let id, e;
+  if(mode==='online' && gameId){ id='net:'+gameId; e={t:'net', code:gameId, role, seat:mySeat, name:myName, G}; }
+  else if(mode==='local' && G.sgid){ id=G.sgid; e={t:'local', G}; }
+  else return;
+  if(G.over){ if(all[id]){ delete all[id]; sgSave(all); sgBadge(); } return; }     // färdiga spel försvinner av sig själva
+  e.at=Date.now(); all[id]=e;
+  Object.keys(all).sort((a,b)=>all[b].at-all[a].at).slice(SG_MAX).forEach(k=>delete all[k]);
+  sgSave(all); sgBadge();
+}
+// första gången: ta med spel som sparades av tidigare versioner
+function sgMigrate(){ try{
+  if(lsGet('ry_games_mig')==='1') return; const all=sgAll();
+  const n=JSON.parse(lsGet('ry_net')||'null'), s=JSON.parse(lsGet('ry_net_state')||'null');
+  if(n && n.code && s && !s.over && !all['net:'+n.code]) all['net:'+n.code]={t:'net', code:n.code, role:n.role, seat:n.seat, name:n.name, G:s, at:s.updatedAt||Date.now()};
+  const g=JSON.parse(lsGet('ry_local')||'null');
+  if(g && !g.over && validState(g)){ if(!g.sgid){ g.sgid='loc:'+Date.now().toString(36); lsSet('ry_local',JSON.stringify(g)); } if(!all[g.sgid]) all[g.sgid]={t:'local', G:g, at:g.updatedAt||Date.now()}; }
+  sgSave(all); lsSet('ry_games_mig','1');
+}catch(e){} }
+setTimeout(sgMigrate,0);
+const sgCount=()=>Object.keys(sgAll()).length;
+function sgBadge(){ const n=sgCount(); document.querySelectorAll('[data-sgbadge]').forEach(el=>{ el.textContent=n||''; el.classList.toggle('on',n>0); }); }
+function sgIsCurrent(id,e){ return e.t==='net' ? (mode==='online' && gameId===e.code) : (mode==='local' && !!G && G.sgid===id); }
+function sgInfo(id,e){
+  const g=e.G||{}, k=g.kind && g.kind!=='yatzy' && typeof GINFO!=='undefined' && GINFO[g.kind] ? GINFO[g.kind] : null;
+  const icon=k?k.icon:'🎲', name=k?k.name:'Yatzy', names=Array.isArray(g.names)?g.names:[];
+  const me = e.t==='net' ? e.seat : 0;
+  const others=names.filter((_,i)=>i!==me);
+  const ai=Array.isArray(g.ai)&&g.ai.some(Boolean);
+  const how = e.t==='net' ? `Online · kod ${esc(e.code)}` : ai ? 'Mot datorn' : names.length>1 ? 'På samma telefon' : 'Ensam';
+  let st='';
+  if(g.started===false) st=`Väntar på start · ${names.length} spelare`;
+  else if(typeof g.cur==='number'){ const mine = e.t==='net' ? g.cur===me : !(Array.isArray(g.ai) && g.ai[g.cur]); st = mine ? '<b class="sg-turn">Din tur</b>' : `${esc(names[g.cur]||'…')}s tur`; }
+  return {icon, name, how, who: others.length ? 'mot '+others.map(esc).join(', ') : '', st};
+}
+function sgAgo(t){ const m=Math.round((Date.now()-t)/60000); if(m<1) return 'nyss'; if(m<60) return m+' min sedan'; const h=Math.round(m/60); if(h<24) return h+' tim sedan'; const d=Math.round(h/24); return d+(d===1?' dag':' dagar')+' sedan'; }
+let sgConfirm=null;
+function sgHTML(){
+  const all=sgAll(), ids=Object.keys(all).sort((a,b)=>all[b].at-all[a].at);
+  const list = ids.length ? ids.map(id=>{ const e=all[id], i=sgInfo(id,e), cur=sgIsCurrent(id,e);
+    return `<div class="sg-item ${cur?'cur':''}"><div class="sg-ic">${i.icon}</div><div class="sg-t"><b>${esc(i.name)}</b> <span>${i.who}</span><small>${i.how} · ${sgAgo(e.at)}</small>${i.st?`<small>${i.st}</small>`:''}</div>
+      <div class="sg-b">${sgConfirm===id
+        ? `<button class="sg-del" data-act="sgdel" data-id="${esc(id)}">Ta bort</button><button class="sg-no" data-act="sgno">Ångra</button>`
+        : `${cur?'<span class="sg-now">Spelas nu</span>':`<button class="sg-go" data-act="sgresume" data-id="${esc(id)}">Fortsätt</button>`}<button class="sg-x" data-act="sgask" data-id="${esc(id)}" aria-label="Avsluta och ta bort">✕</button>`}</div></div>`; }).join('')
+    : '<p class="sg-empty">Inga pågående spel. Starta ett spel så hamnar det här – du kan ha flera igång samtidigt.</p>';
+  return `<div class="sg-bg" data-act="sgclose"></div><aside class="sg-panel" role="dialog" aria-label="Pågående spel"><header><b>🎮 Pågående spel</b><button class="sg-close" data-act="sgclose" aria-label="Stäng">✕</button></header>
+    <div class="sg-list">${list}</div><p class="sg-note">Spel som är klara försvinner av sig själva. ✕ avslutar ett spel och tar bort det${ids.some(id=>all[id].t==='net')?' – i ett onlinespel kan de andra då inte fortsätta med dig':''}.</p></aside>`;
+}
+function sgOpen(on){
+  let el=document.getElementById('sgWrap');
+  if(on===false){ if(el) el.classList.remove('show'); sgConfirm=null; return; }
+  if(!el){ el=document.createElement('div'); el.id='sgWrap'; document.body.appendChild(el); }
+  el.innerHTML=sgHTML(); requestAnimationFrame(()=>el.classList.add('show'));
+}
+function sgRefresh(){ const el=document.getElementById('sgWrap'); if(el && el.classList.contains('show')) el.innerHTML=sgHTML(); }
+function sgResume(id){
+  const e=sgAll()[id]; if(!e) return; sgOpen(false);
+  if(sgIsCurrent(id,e)){ view='game'; render(); return; }
+  if(mode==='online') saveNet(); else if(mode==='local') saveLocal();
+  if(e.t==='net'){ lsSet('ry_net', JSON.stringify({code:e.code, role:e.role, seat:e.seat, name:e.name})); lsSet('ry_net_state', JSON.stringify(e.G)); resumeNet(); }
+  else { lsSet('ry_local', JSON.stringify(e.G)); resumeLocal(); }
+}
+function sgRemove(id){
+  const all=sgAll(), e=all[id]; sgConfirm=null; if(!e) return sgRefresh();
+  const cur=sgIsCurrent(id,e);
+  delete all[id]; sgSave(all);
+  try{ if(e.t==='net'){ const n=JSON.parse(lsGet('ry_net')||'null'); if(n && n.code===e.code){ lsSet('ry_net',''); lsSet('ry_net_state',''); } }
+       else { const g=JSON.parse(lsGet('ry_local')||'null'); if(g && g.sgid===id) lsSet('ry_local',''); } }catch(_){}
+  if(cur){ if(mode==='online'){ stopNet(); try{ releaseWake(); }catch(_){} } clearTimeout(aiTimer); mode=null; G=null; gameId=null; view='lobby'; render(); }
+  sgBadge(); sgRefresh(); toast('Spelet är avslutat och borttaget');
+}
+(function(){ const st=document.createElement('style'); st.textContent=`
+#sgWrap{position:fixed;top:0;right:0;bottom:0;left:0;z-index:60;pointer-events:none}
+#sgWrap .sg-bg{position:absolute;top:0;right:0;bottom:0;left:0;background:rgba(2,6,23,.55);opacity:0;transition:opacity .25s}
+#sgWrap .sg-panel{position:absolute;top:0;bottom:0;left:0;width:min(380px,88vw);background:linear-gradient(180deg,#0f1b3d,#16113a);color:#e0e7ff;box-shadow:8px 0 30px rgba(0,0,0,.5);transform:translateX(-102%);transition:transform .28s cubic-bezier(.2,.8,.2,1);display:flex;flex-direction:column;padding-top:env(safe-area-inset-top);padding-bottom:env(safe-area-inset-bottom)}
+#sgWrap.show{pointer-events:auto}
+#sgWrap.show .sg-bg{opacity:1}
+#sgWrap.show .sg-panel{transform:none}
+.sg-panel header{display:flex;align-items:center;justify-content:space-between;padding:16px 16px 10px;font-size:18px}
+.sg-close{width:36px;height:36px;border-radius:50%;background:rgba(255,255,255,.1);color:#fff;font-size:16px}
+.sg-list{flex:1;overflow:auto;padding:0 10px}
+.sg-item{display:flex;gap:10px;align-items:center;padding:10px;margin:6px 0;border-radius:14px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.08)}
+.sg-item.cur{border-color:rgba(253,224,71,.6);background:rgba(253,224,71,.08)}
+.sg-ic{font-size:28px;width:40px;text-align:center;flex:none}
+.sg-t{flex:1;min-width:0;line-height:1.3}
+.sg-t b{font-size:15px}.sg-t span{font-size:13px;color:#c7d2fe}
+.sg-t small{display:block;font-size:12px;color:#a5b4fc}
+.sg-turn{color:#fde047}
+.sg-b{display:flex;flex-direction:column;gap:6px;flex:none;align-items:stretch}
+.sg-b button{padding:7px 12px;border-radius:10px;font-size:13px;font-weight:600;color:#fff;background:rgba(255,255,255,.12)}
+.sg-b .sg-go{background:linear-gradient(135deg,#22c55e,#0ea5e9)}
+.sg-b .sg-x{background:none;color:#fca5a5;font-size:15px;padding:4px}
+.sg-b .sg-del{background:#ef4444}
+.sg-now{font-size:12px;color:#fde047;text-align:center;padding:4px 0}
+.sg-empty,.sg-note{font-size:13px;color:#a5b4fc;padding:10px 16px;line-height:1.45}
+.sgbtn{position:relative}
+`; document.head.appendChild(st); })();
+
 function sendTo(c,m){
   try{
     if(!c || !c.open) return;
@@ -1960,7 +2068,7 @@ function startLocal(names,order,ai){
   stopNet(); clearTimeout(aiTimer); aiPlan=null;
   mode='local'; gameId=null; mySeat=null; G=newState(names,0,order,0,ai); shown=G.dice.slice(); freshCell=null; view='game';
   srvStat('game',{game:'yatzy', title:'Yatzy', mode:(ai||[]).some(Boolean)?'ai':'solo'});
-  G.hr4=chosenHR; lsSet('ry_local',JSON.stringify(G)); render();
+  G.hr4=chosenHR; G.sgid=null; saveLocal(); render();
   toast(names.length===1 ? 'Lycka till! Sikta mot rekordet 🏆' : `${names[0]} börjar! 🚀`);
 }
 function resumeLocal(){
@@ -2164,7 +2272,7 @@ window.addEventListener('resize', ()=>{ const d=isDesk(); if(d!==lastDesk){ last
 function topbar(){
   return `<div class="topbar"><button class="iconbtn" data-act="lobby" aria-label="Tillbaka">‹</button>
     <div class="tb-title">${isKind()?`${gIcon()} <b>${gName()}</b>`:'🎲 <b>Yatzy</b>'}${mode==='online'&&gameId?` · ${esc(gameId)}`:''}${mode==='online'?`<div class="net ns-${net}">${netText()}</div>`:''}</div>
-    <button class="iconbtn chatic" data-c="toggle" aria-label="Chatt">💬<i class="cbadge ${chatUnread()?'on':''}" data-cbadge>${chatUnread()||''}</i></button><button class="iconbtn ${spPlaying?'sp-on':''}" data-act="sptoggle" aria-label="Musik" style="margin-right:-2px">🎵</button><button class="iconbtn" data-act="settings" aria-label="Inställningar">⚙️</button></div>`;
+    <button class="iconbtn sgbtn" data-act="sgopen" aria-label="Pågående spel">🎮<i class="cbadge ${sgCount()?'on':''}" data-sgbadge>${sgCount()||''}</i></button><button class="iconbtn chatic" data-c="toggle" aria-label="Chatt">💬<i class="cbadge ${chatUnread()?'on':''}" data-cbadge>${chatUnread()||''}</i></button><button class="iconbtn ${spPlaying?'sp-on':''}" data-act="sptoggle" aria-label="Musik" style="margin-right:-2px">🎵</button><button class="iconbtn" data-act="settings" aria-label="Inställningar">⚙️</button></div>`;
 }
 /* ---------- lobbyn: spelen i kategorier ---------- */
 const LOBBY_CATS=[
@@ -2202,9 +2310,10 @@ function lobbyHTML(){
     const n=JSON.parse(lsGet('ry_net')), s=JSON.parse(lsGet('ry_net_state'));
     if(n && n.code && !(s && s.over)){
       const other = s && s.names && s.names.length>1 ? s.names.filter((_,i)=>i!==n.seat).join(', ') : '…';
-      h += `<button class="bigbtn" data-act="resumenet">↩︎ Fortsätt spelet ${esc(n.code)} mot ${esc(other)}</button>`;
+      if(!sgCount()) h += `<button class="bigbtn" data-act="resumenet">↩︎ Fortsätt spelet ${esc(n.code)} mot ${esc(other)}</button>`;
     }
   }catch(e){}
+  { const n=sgCount(); if(n) h += `<button class="bigbtn" data-act="sgopen" style="background:linear-gradient(135deg,#f472b6,#a855f7 60%,#6366f1)">🎮 Pågående spel <small>${n} st – fortsätt där du var</small></button>`; }
   const svSol=S||solLoad(), invS=(typeof INV!=='undefined')?INV.stats():{best:0};
   h += `<h2 class="sec"><span class="leopill"><i>🐆</i>Välj spel</span></h2>${lobbyTilesHTML(svSol, invS)}
     `;
@@ -2221,7 +2330,7 @@ function lobbyHTML(){
 function updateFrBadge(){ const n=(typeof FR!=='undefined')?FR.unread():0; document.querySelectorAll('[data-frbadge]').forEach(el=>{ el.textContent=n||''; el.classList.toggle('on',n>0); }); }
 function topbarLobby(){
   return `<div class="topbar"><div class="popc" id="popc" title="Poppade bubblor">🫧 ${popCount}</div><div class="tb-title" style="font-size:12px">Poppa bubblorna! 🫧</div>
-    <button class="iconbtn" data-act="settings" aria-label="Inställningar">⚙️</button></div>`;
+    <button class="iconbtn sgbtn" data-act="sgopen" aria-label="Pågående spel">🎮<i class="cbadge ${sgCount()?'on':''}" data-sgbadge>${sgCount()||''}</i></button><button class="iconbtn" data-act="settings" aria-label="Inställningar">⚙️</button></div>`;
 }
 function playersHTML(){
   const cards = G.names.map((nm,i)=>{
@@ -2392,6 +2501,12 @@ document.addEventListener('click', e=>{
     case 'newonline': chosenOrder='free'; showCreate(); break;
     case 'joinonline': showJoin(); break;
     case 'resumenet': resumeNet(); break;
+    case 'sgopen': sgOpen(true); break;
+    case 'sgclose': sgOpen(false); break;
+    case 'sgresume': sgResume(b.dataset.id); break;
+    case 'sgask': sgConfirm=b.dataset.id; sgRefresh(); break;
+    case 'sgno': sgConfirm=null; sgRefresh(); break;
+    case 'sgdel': sgRemove(b.dataset.id); break;
     case 'hr4': { chosenHR=!chosenHR; const t=document.getElementById('hrtog'); if(t){ t.classList.toggle('on',chosenHR); t.innerHTML=hrInner(); } sfx.bubble(); break; }
     case 'ord': chosenOrder=b.dataset.o; document.getElementById('seg').innerHTML=segHTML(); sfx.bubble(); break;
     case 'newlocal': chosenOrder='free'; slots=[]; showMulti(); break;
