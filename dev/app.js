@@ -21,7 +21,7 @@
   if(!same || !/[?&]bot=1/.test(location.search)){ document.documentElement.innerHTML=''; throw new Error('Inramning blockerad'); }
 })();
 /* ================= Version & utvecklingsläge ================= */
-const APP_VERSION='2026.11.08.3-dev';
+const APP_VERSION='2026.11.08.4-dev';
 const DEV = /\/dev(\/|$)/.test(location.pathname);      // testversionen ligger i mappen /dev/
 const BOT = DEV && /[?&]bot=1/.test(location.search) && window.parent!==window;   // osynlig testkompis i en ram (bara dev)
 const LSP = DEV ? (BOT ? 'dev:bot:' : 'dev:') : '';    // egen sparad data i testversionen
@@ -592,6 +592,8 @@ async function srvInvite(tok){
 function checkInvite(){ const m=(location.hash||'').match(/^#invite=([A-Za-z0-9_-]{24,64})$/); if(m) setTimeout(()=>srvInvite(m[1]),500); return !!m; }
 window.addEventListener('hashchange',checkInvite);
 setTimeout(checkInvite,0);
+// räknare till adminens statistik (vilket spel, ensam/datorn/online) – bara när man är inloggad på servern
+function srvStat(ev, data){ try{ if(netBase() && SRV_TOK) srvFetch('/stats',{ev, ...data}); }catch(e){} }
 function srvLogout(){ const t=SRV_TOK; if(t && netBase()) fetch(srvUrl('/auth/logout'),{method:'POST', headers:{'Authorization':'Bearer '+t}}).catch(()=>{}); SRV_TOK=''; lsSet('srv_tok',''); NET_ICE=null; toast('Utloggad från spelservern'); }
 function ensureIce(){
   const b=netBase(); if(!b || !SRV_TOK) return Promise.resolve();
@@ -896,6 +898,7 @@ function startOnlineGame(){
   if(role!=='host' || !G || G.started!==false) return;
   if(G.names.length<2){ toast('Vänta tills minst en till har gått med 🔭'); return; }
   unlockAudio();
+  { const k=G.kind||'yatzy'; srvStat('game',{game:k, title:(typeof GINFO!=='undefined' && GINFO[k] && GINFO[k].name)||'Yatzy', mode:'online'}); }
   if(isKind()){ gStartOnline(); toast('Nu kör vi! 🚀'); sfx.turn(); return; }
   commit({started:true, cur:0, starter:0, rolls:0, held:F5(), scores:G.names.map(()=>({}))});
   toast(`Nu kör vi! Du börjar 🚀`); sfx.turn();
@@ -1955,6 +1958,7 @@ window.addEventListener('hashchange',()=>{
 function startLocal(names,order,ai){
   stopNet(); clearTimeout(aiTimer); aiPlan=null;
   mode='local'; gameId=null; mySeat=null; G=newState(names,0,order,0,ai); shown=G.dice.slice(); freshCell=null; view='game';
+  srvStat('game',{game:'yatzy', title:'Yatzy', mode:(ai||[]).some(Boolean)?'ai':'solo'});
   G.hr4=chosenHR; lsSet('ry_local',JSON.stringify(G)); render();
   toast(names.length===1 ? 'Lycka till! Sikta mot rekordet 🏆' : `${names[0]} börjar! 🚀`);
 }

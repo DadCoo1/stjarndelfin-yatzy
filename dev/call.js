@@ -220,6 +220,7 @@ const CALL=(function(){
       else if(reason==='ended' || reason==='lost' || reason==='failed'){ try{ c.dc && c.dc.readyState==='open' && c.dc.send(JSON.stringify({end:1})); }catch(e){} A.send(c.peer,{op:'end', id:c.id}); }
     }
     const dur = c.t0 ? Date.now()-c.t0 : 0;
+    if(c.t0 && c.dir==='out' && typeof srvStat==='function') srvStat('call',{video:!!c.video, sec:Math.round(dur/1000)});
     drop(c); letOff(); close();
     if(!A) return;
     const k=kind(c), n=A.name(c.peer);

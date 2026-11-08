@@ -253,7 +253,7 @@ const RACE=(function(){
     st={pos:0, x:0, speed:0, time:D.t, score:0, stage:0, sky:0, near:0, crash:0, spin:0, bump:0, shake:0, over:false, fin:false, finT:0, run:true, started:0, cd:3.2,
       pops:[], parts:[], wave:0, nm:0, cps:0, startAt:Date.now(), banner:{t:2.8, a:T[0].name, b:'Etapp 1 av 5 · '+T[0].sub}, steer:0, lean:0, cheer:0, hair:0, prevT:0, tFade:1};
     overlay=null; showOverlay(); radio.play(cfg.radio); engine.start();
-    const s=stats(); s.games++; saveStats(s);
+    const s=stats(); s.games++; saveStats(s); if(typeof srvStat==='function') srvStat('game',{game:'race', title:'Sommarvägen', mode:'solo'});
   }
 
   /* ---------- uppdatering ---------- */
