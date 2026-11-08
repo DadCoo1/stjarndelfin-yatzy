@@ -53,9 +53,10 @@ ufw status | sed -n '1,30p'
 
 say "Hemlighet för TURN (skapas bara första gången)"
 if [ ! -f /etc/spelserver.env ]; then
-  umask 077
-  printf 'TURN_SECRET=%s\nDOMAIN=%s\nALLOW_ORIGINS=%s\nPORT=9000\n' "$(openssl rand -hex 32)" "$DOMAIN" "$ORIGINS" > /etc/spelserver.env
+  ( umask 077
+  printf 'TURN_SECRET=%s\nDOMAIN=%s\nALLOW_ORIGINS=%s\nPORT=9000\n' "$(openssl rand -hex 32)" "$DOMAIN" "$ORIGINS" > /etc/spelserver.env )
 fi
+umask 022
 SECRET="$(grep '^TURN_SECRET=' /etc/spelserver.env | cut -d= -f2)"
 
 say "Spelservern"
@@ -65,6 +66,7 @@ mkdir -p /opt/spelserver/admin
 for f in app.js package.json spel-user admin/index.html admin/admin.js admin/qr.js; do curl -fsSL "$REPO_RAW/$f" -o "/opt/spelserver/$f"; done
 (cd /opt/spelserver && npm install --omit=dev --no-audit --no-fund --loglevel=error)
 chown -R root:root /opt/spelserver
+chmod -R a+rX /opt/spelserver
 install -m 755 /opt/spelserver/spel-user /usr/local/sbin/spel-user
 chown root:spelserver /etc/spelserver.env; chmod 640 /etc/spelserver.env
 cat > /etc/systemd/system/spelserver.service <<EOF
@@ -113,6 +115,7 @@ $DOMAIN {
 	respond / "Spelservern är igång" 200
 }
 EOF
+chmod 644 /etc/caddy/Caddyfile
 systemctl enable --now caddy; systemctl reload caddy || systemctl restart caddy
 
 say "Väntar på certifikatet"
