@@ -46,3 +46,22 @@ curl -fsSL https://raw.githubusercontent.com/DadCoo1/stjarndelfin-yatzy/main/ser
 4. Säg till Claude vilket domännamn servern har, så kopplas appen dit (konstanten `NET_SERVER` i `app.js` och adressen i sidans `connect-src`).
 
 Portar som öppnas: 22, 80, 443 (TCP), 3478 (UDP och TCP), 5349 (TCP) och 49160–49400 (UDP).
+
+## Säkerhet och metadata
+
+**All trafik är krypterad:**
+- Telefon ↔ server: HTTPS och WSS (TLS 1.2+, HSTS). Reservservern: TURN över UDP/TCP eller TLS (5349).
+- Telefon ↔ telefon: WebRTC med DTLS (spel, chatt) och DTLS-SRTP (samtal). Det gäller också när trafiken går via reservservern – den ser bara krypterade paket.
+- Chatt: end-to-end med dubbel ratchet. Samtalens nycklar (DTLS-fingeravtryck) skickas genom chattens kryptering, så inte ens servern kan sitta emellan.
+
+**Metadata som servern ser, och vad som har gjorts för att minimera den:**
+- **Brevlådan** tar bara emot *förseglade* kuvert: allt utom mottagarens chatt-ID krypteras med en engångsnyckel till mottagaren. Avsändare, meddelande-ID och tid syns inte, och storleken fylls ut till fasta steg (1, 2, 4 … 256 kB). Tiden avrundas till timmen, och allt raderas efter hämtning eller senast efter 30 dagar.
+- **Brevlådan är inte kopplad till användarnamn.** Hämtning bevisas med chatt-identitetens egen nyckel (ECDH-utmaning), inte med kontot.
+- **Närvaro:** appen skickar aldrig sin kontaktlista. Servern ger ut hashade ID:n (nytt salt varje dygn) för dem som är online, och jämförelsen görs i telefonen.
+- **TURN-inloggningarna** innehåller inget användarnamn, bara en slumpad etikett.
+- **Loggar:** Caddy har ingen åtkomstlogg, coturn loggar inte anslutningar och spelservern skriver inte ut IP-adresser. Misslyckade admininloggningar sparas med förkortad IP-adress.
+- **Sessioner** sparas bara som hash, utan webbläsarinformation.
+- **Statistik** är räknare per dag och sparas i 35 dagar. Händelseloggen sparas i 90 dagar.
+- **IP-adresser mellan telefoner:** med "Dölj min IP-adress" i appens inställningar går all trafik via servern, så andra aldrig ser ens IP-adress.
+
+**Det som inte går att dölja för servern:** att ett konto är inloggat och online, och att två telefoner kopplar upp mot varandra (kopplingsservern måste veta vart den ska skicka uppkopplingen). Det sparas aldrig och finns bara i minnet medan anslutningen pågår.

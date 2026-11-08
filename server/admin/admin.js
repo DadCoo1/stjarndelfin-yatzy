@@ -97,17 +97,17 @@
   async function users(){
     const {users:list}=await api('users');
     $('#main').innerHTML=`${linkBox()}<div class="card scroll"><h2>Användare (${list.length})</h2>
-      ${list.length?`<table><tr><th>Namn</th><th>Status</th><th>Senast inloggad</th><th class="n">Enheter</th><th class="n">Spel 30 d</th><th class="n">Samtal 30 d</th><th class="n">Väntande</th><th>Åtgärder</th></tr>
+      ${list.length?`<table><tr><th>Namn</th><th>Status</th><th>Senast inloggad</th><th class="n">Enheter</th><th class="n">Spel 30 d</th><th class="n">Samtal 30 d</th><th>Åtgärder</th></tr>
       ${list.map(u=>`<tr><td><span class="dot ${u.online?'on':''}" title="${u.online?'online':'offline'}"></span><b>${esc(u.name)}</b>${u.admin?'<span class="tag acc">admin</span>':''}</td>
         <td>${u.disabled?'<span class="tag bad">avstängd</span>':'<span class="tag ok">aktiv</span>'}</td><td>${fmtT(u.lastLogin)}</td><td class="n">${u.sessions}</td>
-        <td class="n">${u.last30.games}</td><td class="n">${u.last30.calls}${u.last30.sec?` <span class="muted">(${mins(u.last30.sec)})</span>`:''}</td><td class="n">${u.pending}</td>
+        <td class="n">${u.last30.games}</td><td class="n">${u.last30.calls}${u.last30.sec?` <span class="muted">(${mins(u.last30.sec)})</span>`:''}</td>
         <td>${u.name===ME?'<span class="muted">du</span>':`
           <button class="b" data-u="${esc(u.name)}" data-a="logout" title="Logga ut på alla enheter">⏏ Logga ut</button>
           <button class="b" data-u="${esc(u.name)}" data-a="reset" title="Ny inbjudningslänk med ny TOTP-nyckel">🔑 Ny nyckel</button>
           <button class="b" data-u="${esc(u.name)}" data-a="${u.disabled?'enable':'disable'}">${u.disabled?'▶ Slå på':'⏸ Stäng av'}</button>
           <button class="b" data-u="${esc(u.name)}" data-a="${u.admin?'unadmin':'admin'}">${u.admin?'Ta bort admin':'Gör till admin'}</button>
           <button class="b red" data-u="${esc(u.name)}" data-a="remove">🗑 Ta bort</button>`}</td></tr>`).join('')}</table>`:'<p class="muted">Inga användare ännu. Skapa en inbjudan under Inbjudningar.</p>'}
-      <p class="muted" style="font-size:13px">Grön prick = uppkopplad just nu. "Väntande" = krypterade meddelanden i brevlådan som användaren inte har hämtat än.</p></div>`;
+      <p class="muted" style="font-size:13px">Grön prick = uppkopplad just nu. Brevlådan är inte kopplad till användarnamn, så väntande meddelanden visas bara som totalsumma på översikten.</p></div>`;
     $('#main').querySelectorAll('[data-a]').forEach(b=>b.onclick=async()=>{
       const u=b.dataset.u, a=b.dataset.a, Q={remove:`Ta bort ${u}? Kontot och väntande meddelanden raderas.`, disable:`Stänga av ${u}? Personen loggas ut och kan inte logga in.`, reset:`Skapa en ny nyckel för ${u}? Alla enheter loggas ut och personen behöver öppna en ny inbjudningslänk.`, logout:`Logga ut ${u} på alla enheter?`, admin:`Göra ${u} till admin?`, unadmin:`Ta bort admin från ${u}?`};
       if(Q[a] && !confirm(Q[a])) return;

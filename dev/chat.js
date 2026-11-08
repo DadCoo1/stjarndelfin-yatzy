@@ -51,6 +51,22 @@ const CHAT = (()=>{
     return b64(iv)+'.'+b64(await crypto.subtle.encrypt({name:'AES-GCM',iv,additionalData:ad},k,pt)); }
   async function aesDec(key,s,ad){ const [iv,ct]=s.split('.'); const k=await crypto.subtle.importKey('raw',key,'AES-GCM',false,['decrypt']);
     return new Uint8Array(await crypto.subtle.decrypt({name:'AES-GCM',iv:ub64(iv),additionalData:ad},k,ub64(ct))); }
+  /* förseglat kuvert: allt utom mottagarens ID krypteras till mottagarens identitetsnyckel med en engångsnyckel,
+     och längden fylls ut till fasta storlekar. Används när ett kuvert går via servern eller via en kompis. */
+  const PADS=[1024,2048,4096,8192,16384,32768,65536,131072,262144];
+  async function seal(env, toId){
+    const card=cardOf(toId); if(!card) throw new Error('okänd mottagare');
+    const eph=await genKP(card.curve), key=await hkdf(await dh(card.curve, eph, card.ik), te.encode(toId), 'FL-Seal-v1', 32);
+    const pt=te.encode(JSON.stringify(env)), L=PADS.find(n=>n>=pt.length+4)||(pt.length+4);
+    const buf=crypto.getRandomValues(new Uint8Array(L)); new DataView(buf.buffer).setUint32(0,pt.length); buf.set(pt,4);
+    return {t:'sealed', to:toId, e:eph.pub, c:await aesEnc(key, buf, te.encode('seal|'+toId+'|'+eph.pub))};
+  }
+  async function unseal(s){
+    if(!s || s.t!=='sealed' || s.to!==ME.id || !isB64(s.e,100) || typeof s.c!=='string' || s.c.length>360000) return null;
+    const key=await hkdf(await dh(ME.curve, ME.ik, s.e), te.encode(ME.id), 'FL-Seal-v1', 32);
+    const buf=await aesDec(key, s.c, te.encode('seal|'+ME.id+'|'+s.e)), n=new DataView(buf.buffer, buf.byteOffset).getUint32(0);
+    if(n>buf.length-4) return null; return JSON.parse(new TextDecoder().decode(buf.subarray(4,4+n)));
+  }
   async function idFromPub(pub){ const h=new Uint8Array(await crypto.subtle.digest('SHA-256',ub64(pub))); return Array.from(h.slice(0,8),x=>x.toString(16).padStart(2,'0')).join(''); }
 
   /* ---------- identitet & kontakter ---------- */
@@ -234,7 +250,7 @@ const CHAT = (()=>{
       // lämna till en kompis som reläar
       const relays=[...conns.keys()].filter(x=>x!==id && (BOTMODE || !conns.get(x)._local)).sort((a,b)=>sharesGroup(b,id)-sharesGroup(a,id)).slice(0,2);
       for(const o of items){ if(o.status!=='queued' || !relays.length || Date.now()-(o.relayTry||0)<5*60e3) continue; o.relayTry=Date.now();
-        try{ const env=await makeEnv(o); relays.forEach(r=>sendRaw(conns.get(r), {t:'relay', to:id, env})); }catch(e){} }
+        try{ const env=await seal(await makeEnv(o), id); relays.forEach(r=>sendRaw(conns.get(r), {t:'relay', to:id, mid:o.mid, env})); }catch(e){} }
       saveConvs();
     }
   }
@@ -249,10 +265,14 @@ const CHAT = (()=>{
   async function mbPull(){
     if(!MB() || mbBusy) return; mbBusy=true;
     try{
-      if(!mbClaimed){ const r=await srvFetch('/mbox/claim',{ids:[ME.id]}); if(!(r && r.ids && r.ids.includes(ME.id))) return; mbClaimed=true; }
-      const r=await srvFetch('/mbox/fetch',{ids:[ME.id]}); if(!r || !Array.isArray(r.items) || !r.items.length) return;
-      const keys=[]; for(const it of r.items){ try{ await receiveEnv(it.env, null); }catch(e){} keys.push(it.k); }
-      await srvFetch('/mbox/ack',{ids:[ME.id], keys});
+      if(!mbClaimed){ const r=await srvFetch('/mbox/claim',{id:ME.id, curve:ME.curve, pub:ME.ik.pub}); if(!(r && r.ok)) return; mbClaimed=true; }
+      // hämtning bevisas med chatt-nyckeln, inte med kontot – servern kan inte koppla brevlådan till ett användarnamn
+      const post=(p,b)=>fetch(srvUrl(p),{method:'POST', cache:'no-store', headers:{'Content-Type':'application/json'}, body:JSON.stringify(b)}).then(r=>r.ok?r.json():null).catch(()=>null);
+      const ch=await post('/mbox/challenge',{id:ME.id, curve:ME.curve}); if(!ch || !/^[0-9a-f]{32}$/.test(ch.n||'') || !isB64(ch.e,100)) return;
+      const proof=b64(await hmac(await dh(ME.curve, ME.ik, ch.e), te.encode('FL-mbox-v1|'+ME.id+'|'+ch.n)));
+      const r=await post('/mbox/fetch',{id:ME.id, n:ch.n, proof}); if(!r || !Array.isArray(r.items) || !r.items.length) return;
+      const keys=[]; for(const it of r.items){ try{ const env=await unseal(it.env); if(env) await receiveEnv(env, null); }catch(e){ console.warn('brevlåda: kunde inte öppna kuvert', e && e.message); } keys.push(it.k); }
+      await post('/mbox/ack',{ack:r.ack, keys});
       if(vis()) refresh(); flushAll();
     }finally{ mbBusy=false; }
   }
@@ -260,17 +280,19 @@ const CHAT = (()=>{
     if(!MB() || !items.length) return;
     const send=items.filter(o=>!o.mbox && !NOMB.has(o.payload && o.payload.type)); if(!send.length) return;
     send.forEach(o=>o.mbox=-1);
-    const list=[]; for(const o of send){ try{ list.push({to:id, env:await makeEnv(o)}); }catch(e){} }
+    const list=[]; for(const o of send){ try{ list.push({to:id, env:await seal(await makeEnv(o), id)}); }catch(e){} }
     const r=list.length ? await srvFetch('/mbox/send',{items:list}) : null;
     for(const o of send){ if(r && r.stored){ o.mbox=Date.now(); if(o.status==='queued'){ o.status='sent'; if(!o.ctl) markStatus(o.cid||'', o.mid, id, 'sent'); } } else o.mbox=0; }
     saveConvs();
   }
   let srvPres={};
   async function presPull(){
-    if(!MB()) return; const ids=Object.keys(contacts).slice(0,150); if(!ids.length) return;
-    const r=await srvFetch('/presence',{peers:ids.map(i=>CPREFIX+i)}); if(!r || !r.peers) return;
-    const skew=Date.now()-(+r.now||Date.now()), np={};
-    for(const id of ids){ const v=r.peers[CPREFIX+id]; if(v===0) np[id]=0; else if(v) np[id]=v+skew; }
+    if(!MB()) return; const ids=Object.keys(contacts).slice(0,300); if(!ids.length) return;
+    // kontaktlistan lämnar aldrig telefonen: servern skickar hashade ID:n och jämförelsen görs här
+    const r=await srvFetch('/presence'); if(!r || !Array.isArray(r.on) || typeof r.salt!=='string') return;
+    const on=new Set(r.on), last=r.last||{}, skew=Date.now()-(+r.now||Date.now()), np={};
+    const H=async p=>Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256', te.encode(r.salt+'|'+p))).slice(0,8),x=>x.toString(16).padStart(2,'0')).join('');
+    for(const id of ids){ const h=await H(CPREFIX+id); if(on.has(h)) np[id]=0; else if(+last[h]) np[id]=+last[h]+skew; }
     srvPres=np; let ch=false; for(const [id,v] of Object.entries(np)) if(v && (!lastSeen[id] || lastSeen[id]<v)){ lastSeen[id]=v; ch=true; }
     if(ch) sv('lastseen',lastSeen); if(vis()){ refreshHead(); }
   }
@@ -376,9 +398,12 @@ const CHAT = (()=>{
       lock(c._id, async()=>{ delete SESS[c._id]; saveS(); }).then(()=>requeueFor(c._id)); return; }
     if(m.t==='env'){ if(m.to===ME.id) receiveEnv(m, c); return; }
     if(m.t==='ack'){ if(!isH(m.mid)) return; let ch=false; outbox=outbox.filter(o=>{ if(o.mid!==m.mid || o.to!==c._id) return true; ch=true; if(o.ctl) return false; o.acked=true; if(!o.ctl) markStatus(o.cid||'',o.mid,o.to,'sent'); return true; }); if(ch) saveConvs(); return; }
-    if(m.t==='relay'){ if(!isH(m.to) || !m.env || typeof m.env!=='object' || !isH(m.env.mid) || m.env.to!==m.to) return; if(!contacts[c._id] && !sharesGroup(c._id,m.to)) return; if(m.to===ME.id){ receiveEnv(m.env,null); return; }
-      if(!relayQ.some(r=>r.env.mid===m.env.mid && r.to===m.to)){ relayQ.push({to:m.to, env:m.env, until:Date.now()+7*864e5}); if(relayQ.length>300) relayQ=relayQ.slice(-300); saveConvs(); }
-      sendRaw(c,{t:'rack', mid:m.env.mid, to:m.to}); connectTo(m.to); return; }
+    if(m.t==='sealed'){ if(m.to===ME.id) unseal(m).then(env=>env && receiveEnv(env,null)).catch(()=>{}); return; }
+    if(m.t==='relay'){ if(!isH(m.to) || !isH(m.mid) || !m.env || typeof m.env!=='object' || m.env.t!=='sealed' || m.env.to!==m.to || typeof m.env.c!=='string' || m.env.c.length>360000) return; if(!contacts[c._id] && !sharesGroup(c._id,m.to)) return;
+      if(m.to===ME.id){ unseal(m.env).then(env=>env && receiveEnv(env,null)).catch(()=>{}); return; }
+      const env={t:'sealed', to:m.to, e:m.env.e, c:m.env.c};
+      if(!relayQ.some(r=>r.mid===m.mid && r.to===m.to)){ relayQ.push({to:m.to, mid:m.mid, env, until:Date.now()+7*864e5}); if(relayQ.length>300) relayQ=relayQ.slice(-300); saveConvs(); }
+      sendRaw(c,{t:'rack', mid:m.mid, to:m.to}); connectTo(m.to); return; }
     if(m.t==='rack'){ if(!isH(m.mid) || !isH(m.to)) return; const o=outbox.find(x=>x.mid===m.mid && x.to===m.to); if(o && o.status==='queued'){ o.status='relayed'; if(!o.ctl) markStatus(o.cid||'',o.mid,o.to,'relayed'); saveConvs(); } return; }
     if(m.t==='typing'){ if(!(m.conv==='dm' || (typeof m.conv==='string' && /^g:[0-9a-f]{16}$/.test(m.conv) && GROUPS[m.conv.slice(2)]?.members.includes(c._id)))) return;
       typing[m.conv==='dm'?'d:'+c._id:m.conv]={who:c._id, until:Date.now()+4000}; if(vis()) refreshHead(); setTimeout(()=>{ if(vis()) refreshHead(); },4100); return; }
@@ -1224,7 +1249,7 @@ const CHAT = (()=>{
       log:(id,text)=>{ sysMsg('d:'+id,text); if(vis()) refresh(); else if(typeof render==='function' && view==='lobby') render(); },
       unread:id=>{ const c=conv('d:'+id); c.unread=(c.unread||0)+1; saveConvs(); },
       openChat:id=>openChat('d:'+id),
-      ice:()=>{ const o=cpeer && cpeer.options && cpeer.options.config; return (o && Array.isArray(o.iceServers)) ? {iceServers:o.iceServers} : {iceServers:[{urls:'stun:stun.l.google.com:19302'}]}; }
+      ice:()=>{ const o=cpeer && cpeer.options && cpeer.options.config; return (o && Array.isArray(o.iceServers)) ? {iceServers:o.iceServers, ...(o.iceTransportPolicy?{iceTransportPolicy:o.iceTransportPolicy}:{})} : {iceServers:[{urls:'stun:stun.l.google.com:19302'}]}; }
     },
     // bara i testversionen: krokar för automatiska säkerhetstester
     __test: DEV ? {mbPull, presPull, ping:id=>pingContact(id,true), pingSt:()=>pingSt, srvPres:()=>srvPres, outbox:()=>outbox, queueDirect, conns:()=>[...conns.keys()], typing:()=>({...typing}), groups:()=>GROUPS, convs:()=>convs, contacts:()=>contacts, scan:t=>onScanText(t),

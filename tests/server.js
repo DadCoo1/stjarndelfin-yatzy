@@ -52,12 +52,21 @@ const OPTS="window.__NET_SERVER='127.0.0.1:9000';";
   await A.fill('#waText','Hej Bea, är du där? 🐬'); await A.click('[data-c=send]'); await sleep(3500);
   const st1=await A.evaluate(id=>{ const c=CHAT.__test.convs()['d:'+id]; const m=c.msgs.filter(m=>m.out).pop(); return m && m.st && m.st[id]; },idb);
   ok(st1==='sent', 'meddelandet ligger i serverns brevlåda (status '+st1+')');
+  await sleep(2000); const mb=JSON.parse(require('fs').readFileSync('/tmp/srvtest/data/mbox.json','utf8')); const items=Object.values(mb.box).flat();
+  ok(items.length && items.every(m=>m.env.t==='sealed' && Object.keys(m.env).sort().join()==='c,e,t,to'), 'servern ser bara förseglade kuvert (mottagare + utfylld storlek)');
+  ok(!JSON.stringify(items).includes(ida) && !JSON.stringify(mb).includes('alva'), 'brevlådan innehåller varken avsändarens ID eller användarnamn');
+  ok(items.every(m=>[1024,2048,4096,8192,16384].some(n=>Math.abs(atob(m.env.c.split('.')[1]).length-16-n)<1)), 'kuvertens storlek är utfylld till fasta steg');
+  const bad=await A.evaluate(async()=>{ const r=await srvFetch('/mbox/send',{items:[{to:'0123456789abcdef', env:{t:'env', from:'aaaaaaaaaaaaaaaa', to:'0123456789abcdef', ct:'x'}}]}); return r && r.stored; });
+  ok(bad===0, 'servern vägrar ta emot oförseglade kuvert');
+  const steal=await A.evaluate(async id=>{ const c=await (await fetch(srvUrl('/mbox/challenge'),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id})})).json(); const r=await fetch(srvUrl('/mbox/fetch'),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id, n:c.n, proof:btoa('x'.repeat(32))})}); return r.status; },idb);
+  ok(steal===403, 'ingen annan kan hämta Beas brevlåda utan Beas nyckel');
   await A.evaluate(id=>CHAT.__test.ping(id),idb); await sleep(11000);
   const ps2=await A.evaluate(id=>CHAT.__test.pingSt()[id],idb); ok(ps2 && ps2.s==='none', 'ping utan svar när Bea är offline');
   // Alva stänger också – Bea öppnar igen och får meddelandet
   await A.close(); await sleep(1500);
-  B=await page(cB,'B2'); await sleep(4000); await B.evaluate(()=>CHAT.__test.mbPull()); await sleep(1500);
-  const got=await B.evaluate(id=>{ const c=CHAT.__test.convs()['d:'+id]; return c && c.msgs.filter(m=>!m.out && !m.sys).map(m=>m.text); },ida);
+  B=await page(cB,'B2'); B.on('console',m=>{ if(m.type()==='warning'||m.type()==='error') console.log('   B:',m.text()); }); let got=null;
+  for(let i=0;i<12 && !(got && got.length);i++){ await sleep(1000); await B.evaluate(()=>CHAT.__test.mbPull()); got=await B.evaluate(id=>{ const c=CHAT.__test.convs()['d:'+id]; return c && c.msgs.filter(m=>!m.out && !m.sys).map(m=>m.text); },ida); }
+  if(!(got&&got.length)) console.log('   Beas chattar:', JSON.stringify(await B.evaluate(()=>Object.fromEntries(Object.entries(CHAT.__test.convs()).map(([k,c])=>[k,c.msgs.map(m=>m.text||m.sys||'')])))));
   ok(got && got.includes('Hej Bea, är du där? 🐬'), 'Bea fick meddelandet fast båda aldrig var online samtidigt');
   // Alva öppnar igen och ser leveranskvittot
   A=await page(cA,'A2'); await sleep(4000); await A.evaluate(()=>CHAT.__test.mbPull()); await sleep(1500);

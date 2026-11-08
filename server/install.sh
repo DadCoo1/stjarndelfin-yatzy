@@ -94,6 +94,13 @@ say "Caddy (HTTPS)"
 cat > /etc/caddy/Caddyfile <<EOF
 $DOMAIN {
 	encode gzip
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options nosniff
+		Referrer-Policy no-referrer
+		-Server
+	}
+	# ingen åtkomstlogg: Caddy loggar inte anrop om man inte ber om det
 	reverse_proxy /peer* 127.0.0.1:9000
 	reverse_proxy /turn 127.0.0.1:9000
 	reverse_proxy /auth/* 127.0.0.1:9000
@@ -166,6 +173,8 @@ cert=/etc/coturn/certs/cert.pem
 pkey=/etc/coturn/certs/key.pem
 no-tlsv1
 no-tlsv1_1
+cipher-list="ECDHE+AESGCM:ECDHE+CHACHA20"
+
 no-cli
 no-multicast-peers
 no-software-attribute
@@ -185,7 +194,9 @@ user-quota=12
 total-quota=300
 max-bps=3000000
 stale-nonce=600
-log-file=syslog
+# ingen loggning av anslutningar (IP-adresser) – bara uppstart och fel syns i journalen
+no-stdout-log
+log-file=/dev/null
 simple-log
 EOF
 chmod 640 /etc/turnserver.conf; chown root:turnserver /etc/turnserver.conf
