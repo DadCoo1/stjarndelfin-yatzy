@@ -51,6 +51,22 @@ const CHAT = (()=>{
     return b64(iv)+'.'+b64(await crypto.subtle.encrypt({name:'AES-GCM',iv,additionalData:ad},k,pt)); }
   async function aesDec(key,s,ad){ const [iv,ct]=s.split('.'); const k=await crypto.subtle.importKey('raw',key,'AES-GCM',false,['decrypt']);
     return new Uint8Array(await crypto.subtle.decrypt({name:'AES-GCM',iv:ub64(iv),additionalData:ad},k,ub64(ct))); }
+  /* förseglat kuvert: allt utom mottagarens ID krypteras till mottagarens identitetsnyckel med en engångsnyckel,
+     och längden fylls ut till fasta storlekar. Används när ett kuvert går via servern eller via en kompis. */
+  const PADS=[1024,2048,4096,8192,16384,32768,65536,131072,262144];
+  async function seal(env, toId){
+    const card=cardOf(toId); if(!card) throw new Error('okänd mottagare');
+    const eph=await genKP(card.curve), key=await hkdf(await dh(card.curve, eph, card.ik), te.encode(toId), 'FL-Seal-v1', 32);
+    const pt=te.encode(JSON.stringify(env)), L=PADS.find(n=>n>=pt.length+4)||(pt.length+4);
+    const buf=crypto.getRandomValues(new Uint8Array(L)); new DataView(buf.buffer).setUint32(0,pt.length); buf.set(pt,4);
+    return {t:'sealed', to:toId, e:eph.pub, c:await aesEnc(key, buf, te.encode('seal|'+toId+'|'+eph.pub))};
+  }
+  async function unseal(s){
+    if(!s || s.t!=='sealed' || s.to!==ME.id || !isB64(s.e,100) || typeof s.c!=='string' || s.c.length>360000) return null;
+    const key=await hkdf(await dh(ME.curve, ME.ik, s.e), te.encode(ME.id), 'FL-Seal-v1', 32);
+    const buf=await aesDec(key, s.c, te.encode('seal|'+ME.id+'|'+s.e)), n=new DataView(buf.buffer, buf.byteOffset).getUint32(0);
+    if(n>buf.length-4) return null; return JSON.parse(new TextDecoder().decode(buf.subarray(4,4+n)));
+  }
   async function idFromPub(pub){ const h=new Uint8Array(await crypto.subtle.digest('SHA-256',ub64(pub))); return Array.from(h.slice(0,8),x=>x.toString(16).padStart(2,'0')).join(''); }
 
   /* ---------- identitet & kontakter ---------- */
@@ -219,6 +235,7 @@ const CHAT = (()=>{
   }
   async function flushTo(id){
     const c=conns.get(id);
+    outbox=outbox.filter(o=>!(o.to===id && o.payload && (o.payload.type==='ping'||o.payload.type==='pong') && Date.now()-o.ts>15000));
     const items=outbox.filter(o=>o.to===id);
     if(!items.length) return;
     // inte kvitterat på länge via chattanslutningen? prova spelets anslutning också
@@ -226,17 +243,73 @@ const CHAT = (()=>{
     if(c && c.open){
       for(const o of items){ if(o.acked || Date.now()-(o.lastSend||0)<15000) continue; try{ const env=await makeEnv(o); sendRaw(c, env); o.lastSend=Date.now(); if(o.status==='queued'){ o.status='sent'; if(!o.ctl) markStatus(o.cid||'', o.mid, id, 'sent'); } }catch(e){ if(!/väntar/.test(e.message)) console.warn('chatt: kunde inte kryptera', e.message); } }
       saveConvs();
+      mbPush(id, items.filter(o=>!o.acked && o.lastSend && Date.now()-o.lastSend>20000));
     } else {
       connectTo(id);
+      mbPush(id, items);
       // lämna till en kompis som reläar
       const relays=[...conns.keys()].filter(x=>x!==id && (BOTMODE || !conns.get(x)._local)).sort((a,b)=>sharesGroup(b,id)-sharesGroup(a,id)).slice(0,2);
       for(const o of items){ if(o.status!=='queued' || !relays.length || Date.now()-(o.relayTry||0)<5*60e3) continue; o.relayTry=Date.now();
-        try{ const env=await makeEnv(o); relays.forEach(r=>sendRaw(conns.get(r), {t:'relay', to:id, env})); }catch(e){} }
+        try{ const env=await seal(await makeEnv(o), id); relays.forEach(r=>sendRaw(conns.get(r), {t:'relay', to:id, mid:o.mid, env})); }catch(e){} }
       saveConvs();
     }
   }
   const sharesGroup=(a,b)=>Object.values(GROUPS).some(g=>g.members.includes(a)&&g.members.includes(b))?1:0;
   function flushAll(){ new Set(outbox.map(o=>o.to)).forEach(flushTo); relayQ=relayQ.filter(r=>r.until>Date.now()); new Set(relayQ.map(r=>r.to)).forEach(id=>{ const c=conns.get(id); if(c&&c.open){ relayQ.filter(r=>r.to===id).forEach(r=>sendRaw(c,r.env)); relayQ=relayQ.filter(r=>r.to!==id); saveConvs(); } else connectTo(id); }); }
+  /* ---------- brevlåda och närvaro på spelservern ----------
+     Krypterade kuvert sparas på servern tills mottagaren hämtar dem (servern kan inte läsa dem).
+     Samma kuvert kan också komma direkt – dubbletter känns igen och ignoreras. */
+  const MB = () => typeof srvFetch==='function' && typeof netBase==='function' && !!netBase() && !!SRV_TOK && !!ME && owner && !BOTMODE;
+  const NOMB = new Set(['call','ping','pong','typing']);
+  let mbClaimed=false, mbBusy=false;
+  async function mbPull(){
+    if(!MB() || mbBusy) return; mbBusy=true;
+    try{
+      if(!mbClaimed){ const r=await srvFetch('/mbox/claim',{id:ME.id, curve:ME.curve, pub:ME.ik.pub}); if(!(r && r.ok)) return; mbClaimed=true; }
+      // hämtning bevisas med chatt-nyckeln, inte med kontot – servern kan inte koppla brevlådan till ett användarnamn
+      const post=(p,b)=>fetch(srvUrl(p),{method:'POST', cache:'no-store', headers:{'Content-Type':'application/json'}, body:JSON.stringify(b)}).then(r=>r.ok?r.json():null).catch(()=>null);
+      const ch=await post('/mbox/challenge',{id:ME.id, curve:ME.curve}); if(!ch || !/^[0-9a-f]{32}$/.test(ch.n||'') || !isB64(ch.e,100)) return;
+      const proof=b64(await hmac(await dh(ME.curve, ME.ik, ch.e), te.encode('FL-mbox-v1|'+ME.id+'|'+ch.n)));
+      const r=await post('/mbox/fetch',{id:ME.id, n:ch.n, proof}); if(!r || !Array.isArray(r.items) || !r.items.length) return;
+      const keys=[]; for(const it of r.items){ try{ const env=await unseal(it.env); if(env) await receiveEnv(env, null); }catch(e){ console.warn('brevlåda: kunde inte öppna kuvert', e && e.message); } keys.push(it.k); }
+      await post('/mbox/ack',{ack:r.ack, keys});
+      if(vis()) refresh(); flushAll();
+    }finally{ mbBusy=false; }
+  }
+  async function mbPush(id, items){
+    if(!MB() || !items.length) return;
+    const send=items.filter(o=>!o.mbox && !NOMB.has(o.payload && o.payload.type)); if(!send.length) return;
+    send.forEach(o=>o.mbox=-1);
+    const list=[]; for(const o of send){ try{ list.push({to:id, env:await seal(await makeEnv(o), id)}); }catch(e){} }
+    const r=list.length ? await srvFetch('/mbox/send',{items:list}) : null;
+    for(const o of send){ if(r && r.stored){ o.mbox=Date.now(); if(o.status==='queued'){ o.status='sent'; if(!o.ctl) markStatus(o.cid||'', o.mid, id, 'sent'); } } else o.mbox=0; }
+    saveConvs();
+  }
+  let srvPres={};
+  async function presPull(){
+    if(!MB()) return; const ids=Object.keys(contacts).slice(0,300); if(!ids.length) return;
+    // kontaktlistan lämnar aldrig telefonen: servern skickar hashade ID:n och jämförelsen görs här
+    const r=await srvFetch('/presence'); if(!r || !Array.isArray(r.on) || typeof r.salt!=='string') return;
+    const on=new Set(r.on), last=r.last||{}, skew=Date.now()-(+r.now||Date.now()), np={};
+    const H=async p=>Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256', te.encode(r.salt+'|'+p))).slice(0,8),x=>x.toString(16).padStart(2,'0')).join('');
+    for(const id of ids){ const h=await H(CPREFIX+id); if(on.has(h)) np[id]=0; else if(+last[h]) np[id]=+last[h]+skew; }
+    srvPres=np; let ch=false; for(const [id,v] of Object.entries(np)) if(v && (!lastSeen[id] || lastSeen[id]<v)){ lastSeen[id]=v; ch=true; }
+    if(ch) sv('lastseen',lastSeen); if(vis()){ refreshHead(); }
+  }
+  const isOnline = id => conns.has(id) || srvPres[id]===0;
+  setInterval(()=>{ if(!document.hidden){ mbPull(); presPull(); } }, 20000);
+  document.addEventListener('visibilitychange',()=>{ if(!document.hidden){ mbPull(); presPull(); } });
+  // autosvar: telefonen svarar automatiskt på en "ping" – så syns det direkt om kontakten är nåbar
+  const pings={}, pingSt={};
+  function pingContact(id, quiet){
+    if(!ME || !contacts[id] || blocked.includes(id)) return;
+    const n=uid(), t0=Date.now(); pings[n]={id,t0}; pingSt[id]={s:'checking', t:t0, quiet};
+    connectTo(id); queueDirect(id,{type:'ping', n, at:t0}, true); if(vis()) refreshHead();
+    setTimeout(()=>{ if(pings[n]){ delete pings[n]; pingSt[id]={s:'none', t:Date.now()}; if(!quiet) toast(`${nameOf(id)} svarar inte just nu. Meddelanden sparas och levereras när ${nameOf(id)} är online.`,5000); if(vis()) refreshHead(); infoPing(id); } }, 10000);
+  }
+  function infoPing(id){ const el=document.getElementById('waPing'); if(el) el.innerHTML=pingText(id)||''; }
+  function pingText(id){ const p=pingSt[id]; if(!p || Date.now()-p.t>60000) return '';
+    return p.s==='checking' ? '📡 kollar om telefonen svarar…' : p.s==='ok' ? `✅ telefonen svarade direkt (${(p.ms/1000).toFixed(1).replace('.',',')} s)` : '💤 svarar inte just nu – meddelanden levereras senare'; }
   function sendReceipt(to, mids, kind, gid){ if(!mids.length || !to) return; queueDirect(to, {type:'receipt', mids, kind, gid, at:Date.now()}, true); }
 
   /* ---------- transport (PeerJS, direkt mellan enheter) ---------- */
@@ -246,8 +319,9 @@ const CHAT = (()=>{
   function startTransport(){
     if(testNoNet) return;
     if(!owner || BOTMODE || cpeer || !ME || typeof Peer==='undefined') return;
+    if(typeof needIce==='function' && needIce()){ iceReady().then(()=>{ if(!cpeer && (SRV_TOK || !netBase())) startTransport(); }); return; }
     const p=cpeer=new Peer(CPREFIX+ME.id, peerOpts());
-    p.on('open',()=>{ flushAll(); presenceSweep(); });
+    p.on('open',()=>{ flushAll(); presenceSweep(); mbPull(); presPull(); });
     p.on('connection',c=>attach(c,null));
     p.on('disconnected',()=>{ if(cpeer===p && !p.destroyed) setTimeout(()=>{ try{ p.reconnect() }catch(e){} },2000); });
     p.on('error',e=>{
@@ -324,9 +398,12 @@ const CHAT = (()=>{
       lock(c._id, async()=>{ delete SESS[c._id]; saveS(); }).then(()=>requeueFor(c._id)); return; }
     if(m.t==='env'){ if(m.to===ME.id) receiveEnv(m, c); return; }
     if(m.t==='ack'){ if(!isH(m.mid)) return; let ch=false; outbox=outbox.filter(o=>{ if(o.mid!==m.mid || o.to!==c._id) return true; ch=true; if(o.ctl) return false; o.acked=true; if(!o.ctl) markStatus(o.cid||'',o.mid,o.to,'sent'); return true; }); if(ch) saveConvs(); return; }
-    if(m.t==='relay'){ if(!isH(m.to) || !m.env || typeof m.env!=='object' || !isH(m.env.mid) || m.env.to!==m.to) return; if(!contacts[c._id] && !sharesGroup(c._id,m.to)) return; if(m.to===ME.id){ receiveEnv(m.env,null); return; }
-      if(!relayQ.some(r=>r.env.mid===m.env.mid && r.to===m.to)){ relayQ.push({to:m.to, env:m.env, until:Date.now()+7*864e5}); if(relayQ.length>300) relayQ=relayQ.slice(-300); saveConvs(); }
-      sendRaw(c,{t:'rack', mid:m.env.mid, to:m.to}); connectTo(m.to); return; }
+    if(m.t==='sealed'){ if(m.to===ME.id) unseal(m).then(env=>env && receiveEnv(env,null)).catch(()=>{}); return; }
+    if(m.t==='relay'){ if(!isH(m.to) || !isH(m.mid) || !m.env || typeof m.env!=='object' || m.env.t!=='sealed' || m.env.to!==m.to || typeof m.env.c!=='string' || m.env.c.length>360000) return; if(!contacts[c._id] && !sharesGroup(c._id,m.to)) return;
+      if(m.to===ME.id){ unseal(m.env).then(env=>env && receiveEnv(env,null)).catch(()=>{}); return; }
+      const env={t:'sealed', to:m.to, e:m.env.e, c:m.env.c};
+      if(!relayQ.some(r=>r.mid===m.mid && r.to===m.to)){ relayQ.push({to:m.to, mid:m.mid, env, until:Date.now()+7*864e5}); if(relayQ.length>300) relayQ=relayQ.slice(-300); saveConvs(); }
+      sendRaw(c,{t:'rack', mid:m.mid, to:m.to}); connectTo(m.to); return; }
     if(m.t==='rack'){ if(!isH(m.mid) || !isH(m.to)) return; const o=outbox.find(x=>x.mid===m.mid && x.to===m.to); if(o && o.status==='queued'){ o.status='relayed'; if(!o.ctl) markStatus(o.cid||'',o.mid,o.to,'relayed'); saveConvs(); } return; }
     if(m.t==='typing'){ if(!(m.conv==='dm' || (typeof m.conv==='string' && /^g:[0-9a-f]{16}$/.test(m.conv) && GROUPS[m.conv.slice(2)]?.members.includes(c._id)))) return;
       typing[m.conv==='dm'?'d:'+c._id:m.conv]={who:c._id, until:Date.now()+4000}; if(vis()) refreshHead(); setTimeout(()=>{ if(vis()) refreshHead(); },4100); return; }
@@ -425,6 +502,13 @@ const CHAT = (()=>{
         rotateMySK(g.id);
         if(vis()) refresh();
         break; }
+      case 'call': {                                         // samtalssignaler – bara i enskild chatt, aldrig i grupp
+        if(env.k!=='d' || p.gid!==undefined) return;
+        if(BOTMODE){ if(p.op==='offer' && typeof p.id==='string') queueDirect(from,{type:'call', op:'reject', id:p.id},true); return; }
+        if(typeof CALL!=='undefined') CALL.onSignal(from,p);
+        break; }
+      case 'ping': { if(env.k==='d' && isH(p.n)) queueDirect(from,{type:'pong', n:p.n, at:Date.now()},true); break; }
+      case 'pong': { const q=isH(p.n) && pings[p.n]; if(q && q.id===from){ delete pings[p.n]; pingSt[from]={s:'ok', ms:Date.now()-q.t0, t:Date.now()}; if(vis()) refreshHead(); infoPing(from); } break; }
       case 'skd': {
         if(!isH(p.gid) || !GROUPS[p.gid] || !GROUPS[p.gid].members.includes(from) || !isB64(p.ck,60) || !isN(p.iter,1e7) || !isB64(p.spub,120)) return;
         const s=SKEYS[p.gid]||(SKEYS[p.gid]={mine:null,recv:{}}); s.recv[from]={ck:p.ck, iter:p.iter, spub:p.spub, skipped:{}}; saveG();
@@ -612,7 +696,7 @@ const CHAT = (()=>{
         ${fr.length?`<div class="wa-sec">Spelkompisar – lägg till som kontakt</div>`+fr.map(([id,f])=>`<div class="wa-row">${avatar(f.card.emoji,id)}<span class="wa-rt"><b>${esc(f.card.name)}</b><small class="wa-sub">Från ${esc(f.where)}</small></span><button class="wa-add" data-c="addc" data-id="${id}">＋ Lägg till</button></div>`).join(''):''}
         ${DEV && !BOTMODE && !ld('botid',null) ? `<button class="wa-row act" data-c="mkbot"><span class="wa-av ic" style="background:#b45309">🤖</span><span class="wa-rt"><b>Skapa testkompis</b><small class="wa-sub">Bara i testversionen – svarar, läser, ändrar och tar bort</small></span></button>`:''}
         <div class="wa-sec">Kontakter${cs.length?` (${cs.length})`:''}</div>
-        ${cs.length?cs.map(c=>`<button class="wa-row" data-c="opendm" data-id="${c.id}">${avatar(c.emoji,c.id,'',conns.has(c.id))}<span class="wa-rt"><b>${esc(nameOf(c.id))}${vdots(c.id)}</b><small class="wa-sub">${c.bot?'🤖 testkompis · ':''}${conns.has(c.id)?'online':'🔒 krypterad'}</small></span></button>`).join(''):'<div class="wa-empty">Spela ett onlinespel med någon – då dyker de upp här som spelkompisar.</div>'}`;
+        ${cs.length?cs.map(c=>`<button class="wa-row" data-c="opendm" data-id="${c.id}">${avatar(c.emoji,c.id,'',isOnline(c.id))}<span class="wa-rt"><b>${esc(nameOf(c.id))}${vdots(c.id)}</b><small class="wa-sub">${c.bot?'🤖 testkompis · ':''}${conns.has(c.id)?'online':'🔒 krypterad'}</small></span></button>`).join(''):'<div class="wa-empty">Spela ett onlinespel med någon – då dyker de upp här som spelkompisar.</div>'}`;
     }
     return `<div class="wa-head">${CHATWIN?'':`<button class="wa-back" data-c="hide" aria-label="Tillbaka till ${view==='lobby'?'lobbyn':'spelet'}">‹ <span>${view==='lobby'?'Lobby':'Spelet'}</span></button>`}<b class="wa-title">Chattar</b>
         ${!CHATWIN && navigator.locks ? '<button class="wa-ib" data-c="popout" aria-label="Öppna i eget fönster" title="Öppna chatten i eget fönster">⧉</button>':''}
@@ -624,7 +708,9 @@ const CHAT = (()=>{
   function headStatus(cid){
     const t=typing[cid]; if(t && t.until>Date.now()) return `<span class="wa-typing">${cid.startsWith('g:')?esc(nameOf(t.who))+' ':''}skriver…</span>`;
     if(cid.startsWith('g:')){ const g=GROUPS[cid.slice(2)]; return g? esc(g.members.map(nameOf).join(', ')) : ''; }
-    const id=cid.slice(2); if(conns.has(id)) return 'online';
+    const id=cid.slice(2); const pt=pingSt[id]; if(pt && pt.s==='checking' && Date.now()-pt.t<11000) return '📡 kollar…';
+    if(pt && pt.s==='ok' && Date.now()-pt.t<8000) return '✅ online – svarade nyss';
+    if(isOnline(id)) return 'online';
     return lastSeen[id] ? `senast online ${dayLabel(lastSeen[id]).toLowerCase()} ${fmtT(lastSeen[id])}` : '🔒 end-to-end-krypterad';
   }
   function mainHTML(){
@@ -633,7 +719,7 @@ const CHAT = (()=>{
     return `<div class="wa-convwrap t-${th}">
       <div class="wa-head conv"><button class="wa-ib back" data-c="close" aria-label="Tillbaka">‹</button>${convAvatar(openCid,'sm')}
         <button class="wa-ht" data-c="info"><b>${esc(convTitle(openCid))}${openCid.startsWith('d:')?vdots(peerOfConv(openCid)):''}</b><small id="waStatus">${headStatus(openCid)}</small></button>
-        <button class="wa-ib" data-c="invite" aria-label="Bjud in till spel">🎮</button>${!CHATWIN && navigator.locks && window.innerWidth>=700 ? '<button class="wa-ib" data-c="popout" aria-label="Öppna i eget fönster" title="Öppna chatten i eget fönster">⧉</button>':''}<button class="wa-ib" data-c="info" aria-label="Meny">⋮</button></div>
+        ${openCid.startsWith('d:') && contacts[peerOfConv(openCid)] && typeof CALL!=='undefined' ? '<button class="wa-ib" data-c="call" data-v="1" aria-label="Videosamtal">📹</button><button class="wa-ib" data-c="call" aria-label="Röstsamtal">📞</button>':''}<button class="wa-ib" data-c="invite" aria-label="Bjud in till spel">🎮</button>${!CHATWIN && navigator.locks && window.innerWidth>=700 ? '<button class="wa-ib" data-c="popout" aria-label="Öppna i eget fönster" title="Öppna chatten i eget fönster">⧉</button>':''}<button class="wa-ib" data-c="info" aria-label="Meny">⋮</button></div>
       ${c.request?`<div class="wa-req">${esc(nameOf(peerOfConv(openCid)))} finns inte bland dina kontakter. <button data-c="addc" data-id="${peerOfConv(openCid)}">Lägg till</button><button data-c="block" data-id="${peerOfConv(openCid)}">Blockera</button></div>`:''}
       <div class="wa-msgs" id="waMsgs">${msgsHTML(openCid)}</div>
       ${pickerOpen?emojiPickerHTML():''}
@@ -906,7 +992,8 @@ const CHAT = (()=>{
   }
   function openPanel(cid){
     buildChrome();
-    if(cid){ openCid=cid; conv(cid); pickerOpen=false; menuFor=null; editing=null; }
+    if(cid){ openCid=cid; conv(cid); pickerOpen=false; menuFor=null; editing=null;
+      const pid=cid.startsWith('d:')?cid.slice(2):null; if(pid && contacts[pid] && !conns.has(pid) && !(pingSt[pid] && Date.now()-pingSt[pid].t<30000)) setTimeout(()=>pingContact(pid,true),300); }
     const pn=document.getElementById('chatPanel');
     if(!panelOpen){
       panelOpen=true;
@@ -999,7 +1086,7 @@ const CHAT = (()=>{
   async function showInfo(cid){
     const c=convs[cid], g=cid.startsWith('g:')?GROUPS[cid.slice(2)]:null, peer=peerOfConv(cid);
     const safety = peer ? await safetyNumber(peer) : '';
-    openModal(`<div style="text-align:center">${convAvatar(cid,'xl')}<h3 style="margin:8px 0 2px">${esc(convTitle(cid))}</h3><p>${g?`Grupp · ${g.members.length} medlemmar`:conns.has(peer)?'online':'🔒 krypterad'}</p></div>
+    openModal(`<div style="text-align:center">${convAvatar(cid,'xl')}<h3 style="margin:8px 0 2px">${esc(convTitle(cid))}</h3><p>${g?`Grupp · ${g.members.length} medlemmar`:isOnline(peer)?'online':'🔒 krypterad'}</p>${!g&&peer&&contacts[peer]?`<p id="waPing" class="sub">${pingText(peer)}</p><div class="chips" style="justify-content:center"><button data-c="ping" data-id="${peer}">📡 Kolla om ${esc(nameOf(peer))} är online</button></div>`:''}</div>
       <label>⏱ Försvinnande meddelanden</label><div class="chips">${TIMERS.map(([s,l])=>`<button data-c="timer" data-s="${s}" data-cid="${cid}" class="${(c.timer||0)===s?'sel':''}">${l}</button>`).join('')}</div>
       <label>🎨 Tema</label><div class="chips"><button data-c="themefor" data-cid="${cid}">Välj tema för chatten</button></div>
       ${g?`<label>👥 Medlemmar</label><div class="wa-mem">${g.members.map(id=>`<span>${avatar(emoOf(id),id,'sm')} ${esc(nameOf(id))}${id!==ME.id?vdots(id):''}${id===g.admin?' <em>admin</em>':''}</span>`).join('')}</div>
@@ -1129,6 +1216,8 @@ const CHAT = (()=>{
       case 'leave': closeModal(); leaveGroup(b.dataset.gid); toast('Du lämnade gruppen'); break;
       case 'sharecard': shareCard(); break;
       case 'invite': showInvite(openCid); break;
+      case 'ping': pingContact(b.dataset.id); infoPing(b.dataset.id); break;
+      case 'call': { const p=peerOfConv(openCid); if(p && typeof CALL!=='undefined') CALL.start(p, !!b.dataset.v); break; }
       case 'invitegame': inviteToGame(b.dataset.cid, b.dataset.k); break;
       case 'join': { const code=String(b.dataset.code||''); if(!/^[A-Z0-9]{4}$/.test(code)) break; const name=lsGet('ry_name')||ME.name; joinGame(code, name); break; }
     }
@@ -1149,8 +1238,21 @@ const CHAT = (()=>{
     myId:()=>ME && ME.id,
     html, mount, refresh, open:()=>openPanel(), openChat, close:()=>closePanel(), isOpen:()=>panelOpen, docked:()=>panelOpen && dockable(), seenCards, card:()=>myCard(), unread:totalUnread,
     hasIdentity:()=>!!ME,
+    reconnect:()=>{ if(!cpeer || cpeer.destroyed){ cpeer=null; startTransport(); } mbPull(); presPull(); },
+    // samtal: signalerna går krypterade genom samma dubbla ratchet som meddelandena
+    call:{
+      send:(to,p)=>{ if(ME && owner && !BOTMODE) queueDirect(to,{...p, type:'call'},true); },
+      ok:id=>!!ME && !!contacts[id] && !blocked.includes(id),
+      name:id=>nameOf(id), emoji:id=>emoOf(id), myId:()=>ME && ME.id,
+      online:id=>isOnline(id), connect:id=>connectTo(id),
+      owner:()=>owner && !BOTMODE && !!ME,
+      log:(id,text)=>{ sysMsg('d:'+id,text); if(vis()) refresh(); else if(typeof render==='function' && view==='lobby') render(); },
+      unread:id=>{ const c=conv('d:'+id); c.unread=(c.unread||0)+1; saveConvs(); },
+      openChat:id=>openChat('d:'+id),
+      ice:()=>{ const o=cpeer && cpeer.options && cpeer.options.config; return (o && Array.isArray(o.iceServers)) ? {iceServers:o.iceServers, ...(o.iceTransportPolicy?{iceTransportPolicy:o.iceTransportPolicy}:{})} : {iceServers:[{urls:'stun:stun.l.google.com:19302'}]}; }
+    },
     // bara i testversionen: krokar för automatiska säkerhetstester
-    __test: DEV ? {queueDirect, conns:()=>[...conns.keys()], typing:()=>({...typing}), groups:()=>GROUPS, convs:()=>convs, contacts:()=>contacts, scan:t=>onScanText(t),
+    __test: DEV ? {mbPull, presPull, ping:id=>pingContact(id,true), pingSt:()=>pingSt, srvPres:()=>srvPres, outbox:()=>outbox, queueDirect, conns:()=>[...conns.keys()], typing:()=>({...typing}), groups:()=>GROUPS, convs:()=>convs, contacts:()=>contacts, scan:t=>onScanText(t),
       zombie:id=>{ const c=conns.get(id); if(c){ c.removeAllListeners('data'); c.on('data',()=>{}); } },   // anslutningen ser öppen ut men tar inte emot
       noNet:()=>{ testNoNet=true; try{ cpeer && cpeer.destroy() }catch(e){} cpeer=null; conns.clear(); }} : undefined
   };

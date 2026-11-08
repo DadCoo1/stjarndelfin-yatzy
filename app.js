@@ -21,7 +21,7 @@
   if(!same || !/[?&]bot=1/.test(location.search)){ document.documentElement.innerHTML=''; throw new Error('Inramning blockerad'); }
 })();
 /* ================= Version & utvecklingsläge ================= */
-const APP_VERSION='2026.11.06.1';
+const APP_VERSION='2026.11.09.1';
 const DEV = /\/dev(\/|$)/.test(location.pathname);      // testversionen ligger i mappen /dev/
 const BOT = DEV && /[?&]bot=1/.test(location.search) && window.parent!==window;   // osynlig testkompis i en ram (bara dev)
 const LSP = DEV ? (BOT ? 'dev:bot:' : 'dev:') : '';    // egen sparad data i testversionen
@@ -479,17 +479,141 @@ let peer=null, conn=null, net='off', role=null, retryT=null, myName='', lastHear
 const hostConns=new Set();
 const NETTXT={off:'',starting:'🟡 Startar…',waiting:'🟡 Väntar på spelare',connecting:'🟡 Ansluter…',connected:'🟢 Ansluten',lost:'🔴 Ingen kontakt – försöker igen…'};
 const NETERR=['network','server-error','socket-error','socket-closed','browser-incompatible','webrtc'];
+let netWhy='', netTips={};   // varför kontakten saknas: 'server' (kopplingsservern), 'direct' (direktkontakten), 'nogame' (fel kod)
+const NETWHY={server:'🔴 Når inte kopplingsservern – försöker igen…', direct:'🔴 Hittar spelet men når inte den andra mobilen – försöker igen…', nogame:'🔴 Hittar inget spel med den koden än – försöker igen…'};
+function netTip(k,txt){ if(netTips[k]) return; netTips[k]=1; toast(txt,6000); }
+function netFail(why){
+  netWhy=why;
+  if(why==='server') netTip('server','Når inte kopplingsservern 📡 Kolla att mobilen har internet. Ibland ligger den gratis servern nere en stund – appen försöker igen av sig själv.');
+  if(net!=='lost') setNet('lost'); else render();
+}
+function watchServer(p){ setTimeout(()=>{ if(peer===p && !p.open && !p.destroyed) netFail('server'); },10000); }
 function netText(){
+  if(net==='lost' && NETWHY[netWhy]) return NETWHY[netWhy];
   if(role==='host' && net==='connected'){ const n=[...hostConns].filter(c=>c.open && c._seat!=null).length; return `🟢 ${n} ${n===1?'ansluten':'anslutna'}`; }
   return NETTXT[net]||'';
 }
 function setNet(s){
   if(net===s) return;
+  if(s==='connected' || s==='waiting'){ netWhy=''; netTips={}; }
   const was=net; net=s;
   if(s==='connected' && was!=='connected' && G && ready() && role==='guest') toast('Ansluten! 🟢');
   render();
 }
-function peerOpts(){ return Object.assign({debug:0}, window.__PEER_OPTS||{}); }
+/* ---------- egen spelserver: kopplingsserver + reservserver (TURN) ----------
+   Tom NET_SERVER = PeerJS gratisserver. Med egen server når telefonerna varandra även på mobilnät och med VPN:
+   går det inte direkt skickas den krypterade trafiken via servern. */
+const NET_SERVER = window.__NET_SERVER!==undefined ? window.__NET_SERVER : 'kleinboard.duckdns.org';   // familjens egen spelserver
+let NET_ICE=null, NET_ICE_EXP=0, NET_ICE_FAIL=0, netIceP=null;
+let SRV_TOK=lsGet('srv_tok')||'', SRV_USER=lsGet('srv_user')||'', srvWait=[];
+function netBase(){ const s=NET_SERVER; if(!s) return null; const [h,pt]=s.split(':'); const local=/^(127\.|localhost)/.test(h); return {host:h, port:+(pt||(local?9000:443)), secure:!local}; }
+const srvUrl=p=>{ const b=netBase(); return (b.secure?'https://':'http://')+b.host+':'+b.port+p; };
+// anrop till spelservern med inloggning; 401 = logga in igen
+async function srvFetch(p, body){
+  const b=netBase(); if(!b || !SRV_TOK) return null;
+  try{
+    const r=await Promise.race([fetch(srvUrl(p),{method:body?'POST':'GET', cache:'no-store', headers:{'Authorization':'Bearer '+SRV_TOK, ...(body?{'Content-Type':'application/json'}:{})}, body:body?JSON.stringify(body):undefined}), new Promise((_,j)=>setTimeout(()=>j(new Error('tid')),8000))]);
+    if(r.status===401){ srvLoggedOut(); return null; }
+    return r.ok ? await r.json() : null;
+  }catch(e){ return null; }
+}
+function srvLoggedOut(){ SRV_TOK=''; lsSet('srv_tok',''); NET_ICE=null; srvAskLogin(); }
+// väntar tills användaren har loggat in (visar inloggningsrutan en gång)
+function srvReady(){ if(!netBase() || SRV_TOK) return Promise.resolve(true); return new Promise(r=>{ srvWait.push(r); srvAskLogin(); }); }
+let srvAsking=false;
+function srvAskLogin(){
+  if(srvAsking || !netBase()) return; srvAsking=true;
+  const show=()=>{ if(document.querySelector('#modal.show')){ setTimeout(show,1500); return; }
+    openModal(`<h2>🔐 Logga in på spelservern</h2>
+      <p class="sub">Onlinespel, chatt och samtal går via familjens egen server. Logga in med ditt användarnamn och den sexsiffriga koden från din TOTP-app.</p>
+      <p class="sub" style="font-size:12.5px">Inget konto? Konton skapas bara via en inbjudningslänk – be den som har hand om servern om en.</p>
+      <form id="srvLogin" autocomplete="on" action="#">
+        <input id="srvU" style="display:block;width:100%;box-sizing:border-box;margin:8px 0;padding:12px 14px;border-radius:12px;border:1px solid rgba(255,255,255,.25);background:rgba(255,255,255,.08);color:inherit;font:inherit;font-size:17px" placeholder="Användarnamn" autocomplete="username" autocapitalize="none" spellcheck="false" maxlength="32" value="${esc(SRV_USER)}">
+        <input id="srvC" style="display:block;width:100%;box-sizing:border-box;margin:8px 0;padding:12px 14px;border-radius:12px;border:1px solid rgba(255,255,255,.25);background:rgba(255,255,255,.08);color:inherit;font:inherit;font-size:22px;letter-spacing:6px;text-align:center" placeholder="Kod (6 siffror)" inputmode="numeric" pattern="[0-9]*" autocomplete="one-time-code" maxlength="6">
+        <div id="srvErr" class="sub" style="color:#fca5a5;min-height:1.2em"></div>
+        <div class="btns"><button class="pri" id="srvGo" type="button">Logga in</button><button data-act="close" type="button">Senare</button></div>
+      </form>`,'login');
+    const u=document.getElementById('srvU'), c=document.getElementById('srvC'), err=document.getElementById('srvErr'), go=document.getElementById('srvGo');
+    (SRV_USER?c:u).focus();
+    document.getElementById('srvLogin').addEventListener('submit',e=>{ e.preventDefault(); go.click(); });
+    [u,c].forEach(x=>x.addEventListener('keydown',e=>{ if(e.key==='Enter'){ e.preventDefault(); go.click(); } }));
+    c.addEventListener('input',()=>{ c.value=c.value.replace(/\D/g,'').slice(0,6); if(c.value.length===6 && u.value.trim()) go.click(); });
+    go.addEventListener('click',async()=>{
+      if(go.disabled) return;
+      const user=u.value.trim().toLowerCase(), code=c.value.trim(); if(!user || code.length!==6){ err.textContent='Fyll i användarnamn och sex siffror.'; return; }
+      go.disabled=true; err.textContent='Loggar in…';
+      try{ const r=await fetch(srvUrl('/auth/login'),{method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({user, code})}); const j=await r.json().catch(()=>({}));
+        if(!r.ok || !j.token){ err.textContent=j.error||'Det gick inte att logga in.'; go.disabled=false; c.value=''; c.focus(); return; }
+        SRV_TOK=j.token; SRV_USER=j.user; lsSet('srv_tok',SRV_TOK); lsSet('srv_user',SRV_USER); srvAsking=false; closeModal(); toast('✅ Inloggad som '+SRV_USER);
+        const w=srvWait; srvWait=[]; w.forEach(f=>f(true)); ensureIce(); if(typeof CHAT!=='undefined' && CHAT.reconnect) CHAT.reconnect();
+      }catch(e){ err.textContent='Når inte servern. Kolla internet och försök igen.'; go.disabled=false; }
+    });
+    document.querySelector('#modal [data-act=close]')?.addEventListener('click',()=>{ srvAsking=false; setTimeout(()=>{ if(!SRV_TOK){ const w=srvWait; srvWait=[]; w.forEach(f=>f(false)); } },0); },{once:true});
+  };
+  show();
+}
+/* ---------- inbjudningslänk: enda sättet att skapa ett konto ----------
+   Länken (#invite=…) skapas av administratören på servern. Här får man en egen TOTP-nyckel,
+   lägger in den i sin TOTP-app och bekräftar med en kod. Länken fungerar bara en gång. */
+async function srvInvite(tok){
+  try{ history.replaceState(null,'',location.pathname+location.search); }catch(e){}
+  if(!netBase()){ toast('Inbjudan gäller spelservern, men den här versionen är inte kopplad till någon server än.',5000); return; }
+  const post=(p,b)=>fetch(srvUrl(p),{method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(b)}).then(async r=>({ok:r.ok, j:await r.json().catch(()=>({}))}));
+  let st; try{ st=await post('/invite/start',{token:tok}); }catch(e){ toast('Når inte spelservern. Kolla internet och öppna länken igen.',5000); return; }
+  if(!st.ok){ openModal(`<h2>🔐 Inbjudan</h2><p class="sub">${esc(st.j.error||'Inbjudan gick inte att använda.')}</p><div class="btns"><button class="pri" data-act="close">OK</button></div>`,'login'); return; }
+  const {user, secret, uri}=st.j;
+  let qr=''; try{ if(!window.qrcode) await new Promise((res,rej)=>{ const sc=document.createElement('script'); sc.src='qr.js'; sc.onload=res; sc.onerror=rej; document.head.appendChild(sc); }); const q=qrcode(0,'M'); q.addData(uri,'Byte'); q.make(); qr=q.createSvgTag({cellSize:4, margin:3, scalable:true}); }catch(e){}
+  const inp='display:block;width:100%;box-sizing:border-box;margin:8px 0;padding:12px 14px;border-radius:12px;border:1px solid rgba(255,255,255,.25);background:rgba(255,255,255,.08);color:inherit;font:inherit;font-size:22px;letter-spacing:6px;text-align:center';
+  openModal(`<h2>🔐 Välkommen, ${esc(user)}!</h2>
+    <p class="sub">Du har blivit inbjuden till spelservern. Lägg till kontot i din TOTP-app (t.ex. Google Authenticator, Microsoft Authenticator, 2FAS eller Aegis).</p>
+    <p><b>1.</b> Tryck på knappen – eller skanna QR-koden med telefonen om du är på en annan enhet.</p>
+    <div class="btns" style="margin:6px 0"><a class="pri" href="${esc(uri)}" style="text-decoration:none;display:inline-block;padding:10px 16px;border-radius:12px">📲 Öppna i TOTP-appen</a></div>
+    ${qr?`<div style="background:#fff;border-radius:12px;padding:8px;width:min(220px,70%);margin:8px auto">${qr}</div>`:''}
+    <details class="sub"><summary>Skriv in nyckeln för hand</summary><code style="user-select:all;-webkit-user-select:all;font-size:15px;letter-spacing:1px">${secret.match(/.{1,4}/g).join(' ')}</code></details>
+    <p><b>2.</b> Skriv den sexsiffriga koden som appen visar:</p>
+    <input id="invC" style="${inp}" placeholder="000000" inputmode="numeric" pattern="[0-9]*" autocomplete="one-time-code" maxlength="6">
+    <div id="invErr" class="sub" style="color:#fca5a5;min-height:1.2em"></div>
+    <div class="btns"><button class="pri" id="invGo" type="button">Skapa kontot</button><button data-act="close" type="button">Senare</button></div>
+    <p class="sub" style="font-size:12px">Länken fungerar bara en gång och går ut efter 7 dagar. Spara inte nyckeln någon annanstans än i TOTP-appen.</p>`,'login');
+  const c=document.getElementById('invC'), go=document.getElementById('invGo'), err=document.getElementById('invErr');
+  c.addEventListener('input',()=>{ c.value=c.value.replace(/\D/g,'').slice(0,6); if(c.value.length===6) go.click(); });
+  c.addEventListener('keydown',e=>{ if(e.key==='Enter'){ e.preventDefault(); go.click(); } });
+  go.addEventListener('click',async()=>{
+    if(go.disabled) return; if(c.value.length!==6){ err.textContent='Skriv sex siffror.'; return; }
+    go.disabled=true; err.textContent='Kontrollerar…';
+    try{ const r=await post('/invite/finish',{token:tok, code:c.value});
+      if(!r.ok || !r.j.token){ err.textContent=r.j.error||'Det gick inte.'; go.disabled=false; c.value=''; c.focus(); return; }
+      SRV_TOK=r.j.token; SRV_USER=r.j.user; lsSet('srv_tok',SRV_TOK); lsSet('srv_user',SRV_USER); srvAsking=false; closeModal();
+      toast('🎉 Kontot är klart – du är inloggad som '+SRV_USER,4000);
+      const w=srvWait; srvWait=[]; w.forEach(f=>f(true)); ensureIce(); if(typeof CHAT!=='undefined' && CHAT.reconnect) CHAT.reconnect();
+    }catch(e){ err.textContent='Når inte servern. Försök igen.'; go.disabled=false; }
+  });
+}
+function checkInvite(){ const m=(location.hash||'').match(/^#invite=([A-Za-z0-9_-]{24,64})$/); if(m) setTimeout(()=>srvInvite(m[1]),500); return !!m; }
+window.addEventListener('hashchange',checkInvite);
+setTimeout(checkInvite,0);
+// räknare till adminens statistik (vilket spel, ensam/datorn/online) – bara när man är inloggad på servern
+function srvStat(ev, data){ try{ if(netBase() && SRV_TOK) srvFetch('/stats',{ev, ...data}); }catch(e){} }
+function srvLogout(){ const t=SRV_TOK; if(t && netBase()) fetch(srvUrl('/auth/logout'),{method:'POST', headers:{'Authorization':'Bearer '+t}}).catch(()=>{}); SRV_TOK=''; lsSet('srv_tok',''); NET_ICE=null; toast('Utloggad från spelservern'); }
+function ensureIce(){
+  const b=netBase(); if(!b || !SRV_TOK) return Promise.resolve();
+  if(NET_ICE && Date.now()<NET_ICE_EXP) return Promise.resolve();
+  if(netIceP) return netIceP;
+  netIceP=srvFetch('/turn').then(j=>{ if(j && Array.isArray(j.iceServers)){ NET_ICE=j.iceServers; NET_ICE_EXP=Date.now()+(+j.ttl||3600)*500; } else NET_ICE_FAIL=Date.now(); })
+    .finally(()=>{ netIceP=null; });
+  return netIceP;
+}
+const needIce=()=>!!netBase() && (!SRV_TOK || (!(NET_ICE && Date.now()<NET_ICE_EXP) && Date.now()-NET_ICE_FAIL>60000));
+function iceReady(){ return srvReady().then(ok=>ok ? ensureIce() : null); }
+if(NET_SERVER){ setTimeout(()=>{ if(SRV_TOK) ensureIce(); }, 300); setInterval(ensureIce, 20*60*1000); }
+function peerOpts(){
+  const b=netBase(), o={debug:0};
+  if(b){ Object.assign(o,{host:b.host, port:b.port, secure:b.secure, path:'/peer', key:SRV_TOK||'x'});
+    o.config={iceServers:[...(NET_ICE||[]), {urls:'stun:stun.l.google.com:19302'}]};
+    // "Dölj min IP-adress": all trafik går via servern, så andra telefoner ser aldrig din IP-adress
+    if(window.__FORCE_RELAY || (lsGet('net_relay')==='1' && NET_ICE)) o.config.iceTransportPolicy='relay'; }
+  return Object.assign(o, window.__PEER_OPTS||{});
+}
 function saveNet(){
   if(mode!=='online') return;
   lsSet('ry_net', JSON.stringify({code:gameId, role, seat:mySeat, name:myName}));
@@ -528,15 +652,16 @@ function hostGame(name, order, kind){
 function startHost(){
   if(mode!=='online' || role!=='host') return;
   if(typeof Peer==='undefined'){ noPeerLib(); retry(startHost); return; }
+  if(needIce()){ iceReady().then(()=>{ if(mode==='online' && role==='host' && !peer && SRV_TOK) startHost(); }); return; }
   stopPeer(); setNet('starting');
-  const p = peer = new Peer(PREFIX+gameId, peerOpts());
-  p.on('open',()=>{ if(peer===p) updateHostNet(); });
+  const p = peer = new Peer(PREFIX+gameId, peerOpts()); watchServer(p);
+  p.on('open',()=>{ if(peer===p){ netWhy=''; updateHostNet(); } });
   p.on('connection',c=>{ if(peer===p) attachHost(c); });
   p.on('disconnected',()=>{ if(peer===p && !p.destroyed) setTimeout(()=>{ try{ p.reconnect() }catch(e){} },1500); });
   p.on('error',e=>{
     if(peer!==p) return;
     if(e.type==='unavailable-id'){ setNet('starting'); retry(startHost,4000); }   // gamla sessionen hänger kvar en stund
-    else if(NETERR.includes(e.type)){ setNet('lost'); retry(startHost,4000); }
+    else if(NETERR.includes(e.type)){ netFail(e.type==='webrtc'?'direct':'server'); retry(startHost,4000); }
   });
 }
 function updateHostNet(){
@@ -613,17 +738,18 @@ function joinGame(code,name){
 function startGuest(){
   if(mode!=='online' || role!=='guest') return;
   if(typeof Peer==='undefined'){ noPeerLib(); retry(startGuest); return; }
+  if(needIce()){ iceReady().then(()=>{ if(mode==='online' && role==='guest' && !peer && SRV_TOK) startGuest(); }); return; }
   stopPeer(); setNet('connecting');
-  const p = peer = new Peer(peerOpts());
-  p.on('open',()=>{ if(peer===p) connectGuest(); });
+  const p = peer = new Peer(peerOpts()); watchServer(p);
+  p.on('open',()=>{ if(peer===p){ netWhy=''; connectGuest(); } });
   p.on('disconnected',()=>{ if(peer===p && !p.destroyed) setTimeout(()=>{ try{ p.reconnect() }catch(e){} },1500); });
   p.on('error',e=>{
     if(peer!==p) return;
     if(e.type==='peer-unavailable'){
-      setNet('lost');
+      netFail('nogame');
       if(!G) toast(`Hittar inget spel med koden ${gameId} än – kolla koden 🔭`,3500);
       retry(connectGuest,4000);
-    } else if(NETERR.includes(e.type)){ setNet('lost'); retry(startGuest,4000); }
+    } else if(NETERR.includes(e.type)){ netFail(e.type==='webrtc'?'direct':'server'); retry(startGuest,4000); }
   });
 }
 function connectGuest(){
@@ -635,12 +761,16 @@ function connectGuest(){
   setNet('connecting');
   const c = peer.connect(PREFIX+gameId,{reliable:true});
   attachGuest(c);
-  setTimeout(()=>{ if(conn===c && !c.open){ try{ c.close() }catch(e){} conn=null; setNet('lost'); retry(connectGuest,2500); } },12000);
+  setTimeout(()=>{ if(conn===c && !c.open){ try{ c.close() }catch(e){} conn=null;
+    directFails++; netFail('direct');
+    if(directFails>=2) netTip('direct','Spelet finns men mobilerna når inte varandra 📶 Prova att båda kör på wifi – mobilnät stoppar ibland direktkontakten mellan telefoner.');
+    retry(connectGuest,2500); } },12000);
 }
+let directFails=0;
 function attachGuest(c){
   if(conn && conn!==c){ try{ conn.close() }catch(e){} }
   conn=c;
-  c.on('open',()=>{ if(conn!==c) return; lastHeard=Date.now(); setNet('connected'); sendTo(c,{t:'hello', seat:mySeat, name:myName, state:G, card:(typeof CHAT!=='undefined'?CHAT.card():null)}); });
+  c.on('open',()=>{ if(conn!==c) return; lastHeard=Date.now(); directFails=0; setNet('connected'); sendTo(c,{t:'hello', seat:mySeat, name:myName, state:G, card:(typeof CHAT!=='undefined'?CHAT.card():null)}); });
   c.on('data',d=>{ if(conn!==c) return; const m=parseMsg(d); if(m) onGuestMsg(m); });
   c.on('close',()=>{ if(conn!==c) return; conn=null; setNet('lost'); retry(connectGuest,2000); });
   c.on('error',()=>{});
@@ -769,6 +899,7 @@ function startOnlineGame(){
   if(role!=='host' || !G || G.started!==false) return;
   if(G.names.length<2){ toast('Vänta tills minst en till har gått med 🔭'); return; }
   unlockAudio();
+  { const k=G.kind||'yatzy'; srvStat('game',{game:k, title:(typeof GINFO!=='undefined' && GINFO[k] && GINFO[k].name)||'Yatzy', mode:'online'}); }
   if(isKind()){ gStartOnline(); toast('Nu kör vi! 🚀'); sfx.turn(); return; }
   commit({started:true, cur:0, starter:0, rolls:0, held:F5(), scores:G.names.map(()=>({}))});
   toast(`Nu kör vi! Du börjar 🚀`); sfx.turn();
@@ -1828,6 +1959,7 @@ window.addEventListener('hashchange',()=>{
 function startLocal(names,order,ai){
   stopNet(); clearTimeout(aiTimer); aiPlan=null;
   mode='local'; gameId=null; mySeat=null; G=newState(names,0,order,0,ai); shown=G.dice.slice(); freshCell=null; view='game';
+  srvStat('game',{game:'yatzy', title:'Yatzy', mode:(ai||[]).some(Boolean)?'ai':'solo'});
   G.hr4=chosenHR; lsSet('ry_local',JSON.stringify(G)); render();
   toast(names.length===1 ? 'Lycka till! Sikta mot rekordet 🏆' : `${names[0]} börjar! 🚀`);
 }
@@ -1840,7 +1972,7 @@ function resumeLocal(){
 let lastWhere='';
 function rememberWhere(){
   if(BOT) return;
-  const w = view==='game' ? (mode==='local' ? 'local' : mode==='online' ? 'online' : 'lobby') : (view==='sol'||view==='inv') ? view : 'lobby';
+  const w = view==='game' ? (mode==='local' ? 'local' : mode==='online' ? 'online' : 'lobby') : (view==='sol'||view==='inv'||view==='race') ? view : 'lobby';
   if(w!==lastWhere){ lastWhere=w; lsSet('ry_where', JSON.stringify({w, t:Date.now()})); }
 }
 function restoreWhere(){
@@ -1849,11 +1981,13 @@ function restoreWhere(){
     if(r.w==='local'){ const g=JSON.parse(lsGet('ry_local')); if(g && !g.over) return resumeLocal(); }
     if(r.w==='sol'){ const sv=solLoad(); if(sv && !sv.won && sv.started){ openSol(); return view==='sol'; } }
     if(r.w==='inv' && typeof INV!=='undefined'){ INV.open(); return true; }
+    if(r.w==='race' && typeof RACE!=='undefined'){ RACE.open(); return true; }
   }catch(e){ console.error('restoreWhere',e); }
   return false;
 }
 function goLobby(){
   if(typeof INV!=='undefined') INV.stop();
+  if(typeof RACE!=='undefined' && view==='race') RACE.stop();
   clearTimeout(aiTimer); clearTimeout(solAutoT); stopBlink(); trayOpen=false; closeModal();
   if(mode==='online' && G && !G.over){ view='lobby'; render(); return; }   // Yatzy fortsätter i bakgrunden
   stopNet(); releaseWake(); view='lobby'; mode=null; G=null; gameId=null; render();
@@ -1936,6 +2070,8 @@ function showSettings(){
       <div class="setnote">Status: ${permTxt}. Ljud, vibration och en stor "Din tur!"-skylt kommer alltid. Systemaviseringar fungerar bara om webbläsaren tillåter det.</div></div>
     <div class="setrow"><div class="lbl">☀️ Håll skärmen tänd under onlinespel</div>${onoff('setwake',wakeOn)}
       <div class="setnote">Rekommenderas – då tappar mobilerna inte kontakten och du märker direkt när det är din tur.</div></div>
+    ${netBase()?`<div class="appver" style="margin:10px 0">🖧 Spelserver ${esc(NET_SERVER)}: ${SRV_TOK?`inloggad som <b>${esc(SRV_USER)}</b> · <a href="#" data-act="srvout">Logga ut</a>`:`inte inloggad · <a href="#" data-act="srvin">Logga in</a>`}</div>
+    <div class="appver" style="margin:6px 0"><a href="#" data-act="srvrelay">${lsGet('net_relay')==='1'?'✅':'⬜'} Dölj min IP-adress för andra</a> <span style="opacity:.75">– all trafik går via servern (lite långsammare)</span></div>`:''}
     <div class="btns"><button class="pri" data-act="close">Klar</button></div><div class="appver">Version ${APP_VERSION}${DEV?' · DEV':''}</div>`,'settings');
 }
 const BOT_NAMES=['Blixt 🤖','Bubbla 🤖','Kosmo 🤖','Nova 🤖'];
@@ -1996,6 +2132,7 @@ function render(){
   if(view==='stats'){ app.innerHTML=statsHTML(); dock.innerHTML=''; fitDock(); return; }
   if(view==='fr'){ dock.innerHTML=''; app.innerHTML=(typeof FR!=='undefined')?FR.html():''; app.style.paddingBottom='40px'; return; }
   if(view==='chat'){ view='lobby'; if(typeof CHAT!=='undefined') setTimeout(()=>CHAT.open(),0); }   // chatten bor i sidopanelen
+  if(view==='race'){ dock.innerHTML=''; if(!document.getElementById('raceRoot')){ app.innerHTML=RACE.html(); RACE.mount(); } app.style.paddingBottom='0px'; return; }
   if(view==='inv'){ dock.innerHTML=''; if(!document.getElementById('invRoot')){ app.innerHTML=INV.html(); INV.mount(); } app.style.paddingBottom='0px'; return; }
   if(view==='sol'){ dock.innerHTML=''; if(!document.getElementById('solRoot')){ app.innerHTML=solHTML(); solMount(); } else { solRefreshChrome(); } app.style.paddingBottom='0px'; return; }
   if(!G){ app.innerHTML=topbar()+`<div class="loading">${DOLPHIN('ld')}<p>Simmar till spelet <b>${esc(gameId||'')}</b>…</p><p style="font-size:14px">${netText()}</p><button class="bigbtn alt" data-act="lobby" style="max-width:260px;margin:20px auto">Avbryt</button></div>`; dock.innerHTML=''; return; }
@@ -2036,7 +2173,7 @@ const LOBBY_CATS=[
   ['♟️','Strategi & brädspel',['kina','othello','c4','gomoku','ships','mm']],
   ['🔤','Ordspel',['ordfajt','wordle','hang']],
   ['🧩','Pussel & minne',['sudoku','memory']],
-  ['⛷️','Sport & arkad',['slalom','skidskytte','pong','inv']]
+  ['⛷️','Sport & arkad',['race','slalom','skidskytte','pong','inv']]
 ];
 const TILE_DESC={ships:'Mot datorn eller en kompis', mm:'Knäck den hemliga färgkoden', hang:'Gissa ordet innan gubben hängs', kina:'2–6 spelare · online eller mot datorn',
   ordfajt:'Ordspel · svenska, norska, jamska', pong:'Mot datorn, två på en skärm eller online'};
@@ -2044,6 +2181,7 @@ function lobbyTilesHTML(svSol, invS){
   const tile=k=>{
     if(k==='yatzy') return `<button class="tile" style="--tg:linear-gradient(135deg,#22d3ee,#6366f1 60%,#a855f7)" data-act="yatzymenu"><span class="ti">🎲</span><b>Yatzy</b><small>1–4 spelare · online, datorn eller samma mobil</small></button>`;
     if(k==='sol') return `<button class="tile leo" data-act="opensol"><span class="ti">🃏</span><b>Patiens</b><small>Ensam · offline</small>${svSol && !svSol.won && svSol.started?'<span class="badge">↩︎ fortsätt</span>':''}</button>`;
+    if(k==='race'){ const rs=(typeof RACE!=='undefined')?RACE.stats():{best:0}; return `<button class="tile" style="--tg:linear-gradient(135deg,#f97316,#e11d48 45%,#4c1d95)" data-act="openrace"><span class="ti">🏎️</span><b>Sommarvägen</b><small>Ensam · roadtrip genom Sverige</small>${rs.best?`<span class="badge">🏆 ${rs.best.toLocaleString('sv-SE')}</span>`:''}</button>`; }
     if(k==='inv') return `<button class="tile" style="--tg:linear-gradient(135deg,#16a34a,#0f172a 75%)" data-act="openinv"><span class="ti">👾</span><b>Space Invaders</b><small>Ensam · 100+ nivåer</small>${invS.best?`<span class="badge">🏆 ${invS.best}</span>`:''}</button>`;
     const gi=typeof GINFO!=='undefined' && GINFO[k]; if(!gi) return '';
     const badge = gi.badge ? gi.badge() : '';
@@ -2206,6 +2344,10 @@ document.addEventListener('click', e=>{
     case 'yatzymenu': showYatzyMenu(); break;
     case 'gmenu': showGameMenu(b.dataset.k); break;
     case 'openinv': openInv(); break;
+    case 'openrace': openRace(); break;
+    case 'srvout': srvLogout(); closeModal(); break;
+    case 'srvin': closeModal(); srvAskLogin(); break;
+    case 'srvrelay': { const on=lsGet('net_relay')!=='1'; lsSet('net_relay',on?'1':'0'); toast(on?'🛡️ Din IP-adress döljs – gäller nya anslutningar':'Direktanslutningar tillåtna igen'); closeModal(); showSettings(); break; }
     case 'frlist': FR.open(); break;
     case 'frnew': FR.open(); setTimeout(()=>document.querySelector('[data-fr="new"]')?.click(),0); break;
     case 'frbug': FR.open(); setTimeout(()=>document.querySelector('[data-fr="bug"]')?.click(),0); break;
@@ -2330,7 +2472,7 @@ document.addEventListener('DOMContentLoaded',()=>{
   if(!pendingOpen) return;
   const resumed = willResume && autoResume();                         // pågående onlinespel kopplar upp igen
   let w=''; try{ w=(JSON.parse(lsGet('ry_where'))||{}).w||''; }catch(e){}
-  if(w==='sol' || w==='inv'){ if(restoreWhere()) return; }           // patiens/invaders på skärmen, onlinespelet i bakgrunden
+  if(w==='sol' || w==='inv' || w==='race'){ if(restoreWhere()) return; }           // patiens/invaders på skärmen, onlinespelet i bakgrunden
   else if(!resumed && restoreWhere()) return;                         // spel mot datorn
   if(!resumed) render();                                              // annars lobbyn
 });
