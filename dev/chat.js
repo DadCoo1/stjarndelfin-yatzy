@@ -700,7 +700,7 @@ const CHAT = (()=>{
         ${fr.length?`<div class="wa-sec">Spelkompisar – lägg till som kontakt</div>`+fr.map(([id,f])=>`<div class="wa-row">${avatar(f.card.emoji,id)}<span class="wa-rt"><b>${esc(f.card.name)}</b><small class="wa-sub">Från ${esc(f.where)}</small></span><button class="wa-add" data-c="addc" data-id="${id}">＋ Lägg till</button></div>`).join(''):''}
         ${!BOTMODE && !ld('botid',null) ? `<button class="wa-row act" data-c="mkbot"><span class="wa-av ic" style="background:#b45309">🤖</span><span class="wa-rt"><b>Skapa ekokompis</b><small class="wa-sub">Testa chatt och samtal – svarar via servern och ekar ljud och bild</small></span></button>`:''}
         <div class="wa-sec">Kontakter${cs.length?` (${cs.length})`:''}</div>
-        ${cs.length?cs.map(c=>`<button class="wa-row" data-c="opendm" data-id="${c.id}">${avatar(c.emoji,c.id,'',isOnline(c.id))}<span class="wa-rt"><b>${esc(nameOf(c.id))}${vdots(c.id)}</b><small class="wa-sub">${c.bot?'🤖 testkompis · ':''}${conns.has(c.id)?'online':'🔒 krypterad'}</small></span></button>`).join(''):'<div class="wa-empty">Spela ett onlinespel med någon – då dyker de upp här som spelkompisar.</div>'}`;
+        ${cs.length?cs.map(c=>`<button class="wa-row" data-c="opendm" data-id="${c.id}">${avatar(c.emoji,c.id,'',isOnline(c.id))}<span class="wa-rt"><b>${esc(nameOf(c.id))}${vdots(c.id)}</b><small class="wa-sub">${c.bot?'🤖 ekokompis · ':''}${conns.has(c.id)?'online':'🔒 krypterad'}</small></span></button>`).join(''):'<div class="wa-empty">Spela ett onlinespel med någon – då dyker de upp här som spelkompisar.</div>'}`;
     }
     return `<div class="wa-head">${CHATWIN?'':`<button class="wa-back" data-c="hide" aria-label="Tillbaka till ${view==='lobby'?'lobbyn':'spelet'}">‹ <span>${view==='lobby'?'Lobby':'Spelet'}</span></button>`}<b class="wa-title">Chattar</b>
         ${!CHATWIN && navigator.locks ? '<button class="wa-ib" data-c="popout" aria-label="Öppna i eget fönster" title="Öppna chatten i eget fönster">⧉</button>':''}
@@ -1163,7 +1163,7 @@ Skriv:
       ${peer?`<label>🔐 Verifiering</label><div class="wa-ver"><div class="vbig">${vdots(peer)}</div><div><b>${VL[vlOf(peer)].t}</b><small>${VL[vlOf(peer)].d}${contacts[peer]?.vAt?` Verifierad ${fmtFull(contacts[peer].vAt)}.`:''}</small></div></div>
         <div class="chips">${vlOf(peer)<3?'<button data-c="scanqr">📷 Skanna kompisens kod</button>':''}<button data-c="myqr">🔳 Visa min kod</button></div>`:''}
       ${peer?`<label>🔐 Säkerhetsnummer</label><div class="wa-safety">${safety}</div><div class="setnote">Jämför numret med ${esc(nameOf(peer))}s skärm när ni ses. Är de lika vet ni att ingen sitter emellan.</div>`:''}
-      <div class="btns" style="flex-wrap:wrap"><button data-c="clear" data-cid="${cid}">🧹 Rensa chatten</button>${g?`<button data-c="leave" data-gid="${g.id}">🚪 Lämna gruppen</button>`: peer===ld('botid',null) ? `<button data-c="rmbot">🗑 Ta bort testkompisen</button>` : `<button data-c="block" data-id="${peer}">⛔ Blockera</button>`}<button class="pri" data-act="close">Klar</button></div>`,'chatinfo');
+      <div class="btns" style="flex-wrap:wrap"><button data-c="clear" data-cid="${cid}">🧹 Rensa chatten</button>${g?`<button data-c="leave" data-gid="${g.id}">🚪 Lämna gruppen</button>`: peer===ld('botid',null) ? `<button data-c="rmbot">🗑 Ta bort ekokompisen</button>` : `<button data-c="block" data-id="${peer}">⛔ Blockera</button>`}<button class="pri" data-act="close">Klar</button></div>`,'chatinfo');
   }
   function showNewGroup(gid){
     const g=gid?GROUPS[gid]:null, sel=new Set(g?g.members:[]);
