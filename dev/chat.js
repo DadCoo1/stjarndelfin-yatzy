@@ -259,7 +259,7 @@ const CHAT = (()=>{
   /* ---------- brevlåda och närvaro på spelservern ----------
      Krypterade kuvert sparas på servern tills mottagaren hämtar dem (servern kan inte läsa dem).
      Samma kuvert kan också komma direkt – dubbletter känns igen och ignoreras. */
-  const MB = () => typeof srvFetch==='function' && typeof netBase==='function' && !!netBase() && !!SRV_TOK && !!ME && owner && !BOTMODE;
+  const MB = () => typeof srvFetch==='function' && typeof netBase==='function' && !!netBase() && !!SRV_TOK && !!ME && owner && (!BOTMODE || botNet);
   const NOMB = new Set(['call','ping','pong','typing']);
   let mbClaimed=false, mbBusy=false;
   async function mbPull(){
@@ -318,10 +318,10 @@ const CHAT = (()=>{
   let testNoNet=false;
   function startTransport(){
     if(testNoNet) return;
-    if(!owner || BOTMODE || cpeer || !ME || typeof Peer==='undefined') return;
+    if(!owner || (BOTMODE && !botNet) || cpeer || !ME || typeof Peer==='undefined') return;
     if(typeof needIce==='function' && needIce()){ iceReady().then(()=>{ if(!cpeer && (SRV_TOK || !netBase())) startTransport(); }); return; }
     const p=cpeer=new Peer(CPREFIX+ME.id, peerOpts());
-    p.on('open',()=>{ flushAll(); presenceSweep(); mbPull(); presPull(); });
+    p.on('open',()=>{ flushAll(); presenceSweep(); mbPull(); presPull(); if(BOTMODE) window.parent.postMessage({fl:'netready'},location.origin); });
     p.on('connection',c=>attach(c,null));
     p.on('disconnected',()=>{ if(cpeer===p && !p.destroyed) setTimeout(()=>{ try{ p.reconnect() }catch(e){} },2000); });
     p.on('error',e=>{
@@ -331,7 +331,7 @@ const CHAT = (()=>{
     });
   }
   function connectTo(id){
-    if(!cpeer || !cpeer.open || !id || id===ME.id || conns.has(id) || blocked.includes(id) || id===ld('botid',null)) return;
+    if(!cpeer || !cpeer.open || !id || id===ME.id || conns.has(id) || blocked.includes(id) || (id===ld('botid',null) && !botNet)) return;
     const t=connecting.get(id); if(t && Date.now()-t<15000) return;
     connecting.set(id,Date.now());
     const c=cpeer.connect(CPREFIX+id,{reliable:true}); c._out=true; attach(c,id);
@@ -370,7 +370,7 @@ const CHAT = (()=>{
     const card=c._card;
     {
       c._id=card.id; await remember(card);
-      if(BOTMODE && !contacts[c._id]){ contacts[c._id]={...normCard(card), added:Date.now()}; saveC(); setTimeout(()=>botSay('d:'+c._id,'Hej! Jag är din testkompis 🤖 Skriv hjälp så ser du vad vi kan testa.',600),400); }
+      if(BOTMODE && !contacts[c._id]){ contacts[c._id]={...normCard(card), added:Date.now()}; saveC(); setTimeout(()=>botSay('d:'+c._id, botNet ? 'Hej! Jag är din ekokompis 🤖 Allt du skickar till mig går via servern och tillbaka – så ser du direkt att det fungerar. Ring mig 📞📹 så hör och ser du dig själv. Skriv hjälp för fler test.' : 'Hej! Jag är din ekokompis 🤖 Skriv hjälp så ser du vad vi kan testa.',600),400); }
       const old=conns.get(c._id);
       if(old && old!==c && old.open){
         // båda ringde samtidigt: behåll anslutningen som det lägsta ID:t startade, på båda sidor
@@ -504,7 +504,7 @@ const CHAT = (()=>{
         break; }
       case 'call': {                                         // samtalssignaler – bara i enskild chatt, aldrig i grupp
         if(env.k!=='d' || p.gid!==undefined) return;
-        if(BOTMODE){ if(p.op==='offer' && typeof p.id==='string') queueDirect(from,{type:'call', op:'reject', id:p.id},true); return; }
+        if(BOTMODE){ botCall(from,p); return; }
         if(typeof CALL!=='undefined') CALL.onSignal(from,p);
         break; }
       case 'ping': { if(env.k==='d' && isH(p.n)) queueDirect(from,{type:'pong', n:p.n, at:Date.now()},true); break; }
@@ -694,7 +694,7 @@ const CHAT = (()=>{
         <button class="wa-row act" data-c="myqr"><span class="wa-av ic">🔳</span><span class="wa-rt"><b>Min QR-kod</b><small class="wa-sub">Visa för en kompis som står bredvid</small></span></button>
         <button class="wa-row act" data-c="sharecard"><span class="wa-av ic">🔗</span><span class="wa-rt"><b>Dela min kontakt</b><small class="wa-sub">Skicka en länk så kan någon lägga till dig</small></span></button>
         ${fr.length?`<div class="wa-sec">Spelkompisar – lägg till som kontakt</div>`+fr.map(([id,f])=>`<div class="wa-row">${avatar(f.card.emoji,id)}<span class="wa-rt"><b>${esc(f.card.name)}</b><small class="wa-sub">Från ${esc(f.where)}</small></span><button class="wa-add" data-c="addc" data-id="${id}">＋ Lägg till</button></div>`).join(''):''}
-        ${DEV && !BOTMODE && !ld('botid',null) ? `<button class="wa-row act" data-c="mkbot"><span class="wa-av ic" style="background:#b45309">🤖</span><span class="wa-rt"><b>Skapa testkompis</b><small class="wa-sub">Bara i testversionen – svarar, läser, ändrar och tar bort</small></span></button>`:''}
+        ${!BOTMODE && !ld('botid',null) ? `<button class="wa-row act" data-c="mkbot"><span class="wa-av ic" style="background:#b45309">🤖</span><span class="wa-rt"><b>Skapa testkompis</b><small class="wa-sub">Bara i testversionen – svarar, läser, ändrar och tar bort</small></span></button>`:''}
         <div class="wa-sec">Kontakter${cs.length?` (${cs.length})`:''}</div>
         ${cs.length?cs.map(c=>`<button class="wa-row" data-c="opendm" data-id="${c.id}">${avatar(c.emoji,c.id,'',isOnline(c.id))}<span class="wa-rt"><b>${esc(nameOf(c.id))}${vdots(c.id)}</b><small class="wa-sub">${c.bot?'🤖 testkompis · ':''}${conns.has(c.id)?'online':'🔒 krypterad'}</small></span></button>`).join(''):'<div class="wa-empty">Spela ett onlinespel med någon – då dyker de upp här som spelkompisar.</div>'}`;
     }
@@ -879,44 +879,58 @@ const CHAT = (()=>{
      med egna nycklar. Allt går genom samma kryptering som mellan två mobiler,
      men transporten är postMessage i stället för internet.
      ===================================================================== */
-  let botFrame=null, botLink=null;
+  let botFrame=null, botLink=null, botNet=false;   // botNet: ekokompisen pratar via servern i stället för direkt i telefonen
   const parentLink = BOTMODE ? {open:true,_local:true,send:s=>{ if(botDown) return; window.parent.postMessage({fl:'link',d:s},location.origin); },close(){}} : null;
   function spawnBot(first){
-    if(BOTMODE || !DEV || !ME || botFrame) return;
+    if(BOTMODE || !ME || botFrame) return;
     sv('bot',true);
     botLink={open:false,_local:true,send:s=>{ try{ botFrame.contentWindow.postMessage({fl:'link',d:s},location.origin); }catch(e){} },close(){}};
-    botFrame=document.createElement('iframe'); botFrame.src=location.pathname+'?bot=1'; botFrame.setAttribute('aria-hidden','true'); botFrame.tabIndex=-1;
+    botFrame=document.createElement('iframe'); botFrame.setAttribute('allow','autoplay'); botFrame.src=location.pathname+'?bot=1'; botFrame.setAttribute('aria-hidden','true'); botFrame.tabIndex=-1;
     botFrame.style.cssText='position:fixed;left:-20px;top:-20px;width:1px;height:1px;opacity:0;pointer-events:none;border:0';
     document.body.appendChild(botFrame);
-    if(first){ botFirst=true; toast('Testkompisen startar… 🤖',2500); }
+    if(first){ botFirst=true; toast('Ekokompisen startar… 🤖',2500); }
   }
   let botFirst=false;
   function removeBot(){
     const id=ld('botid',null); closeModal();
     if(botFrame){ botFrame.remove(); botFrame=null; } if(id){ conns.delete(id); delete contacts[id]; delete known[id]; delete friends[id]; delete convs['d:'+id]; delete SESS[id]; outbox=outbox.filter(o=>o.to!==id);
       Object.values(GROUPS).forEach(g=>{ if(g.members.includes(id) && g.admin===ME.id) updateGroupMembers(g.id, g.members.filter(x=>x!==id)); }); }
-    try{ Object.keys(localStorage).filter(k=>k.startsWith('dev:bot:')).forEach(k=>localStorage.removeItem(k)); }catch(e){}
-    sv('bot',false); sv('botid',null); saveC(); saveS(); saveConvs(); openCid=null; refresh(); toast('Testkompisen är borttagen');
+    try{ Object.keys(localStorage).filter(k=>k.startsWith(DEV?'dev:bot:':'bot:')).forEach(k=>localStorage.removeItem(k)); }catch(e){}
+    sv('bot',false); sv('botid',null); saveC(); saveS(); saveConvs(); openCid=null; refresh(); toast('Ekokompisen är borttagen');
   }
   window.addEventListener('message',async e=>{
     if(e.origin!==location.origin || !e.data || !e.data.fl) return;
-    if(BOTMODE){ if(e.source!==window.parent || botDown) return; if(e.data.fl==='link'){ try{ onData(parentLink, JSON.parse(e.data.d)); }catch(_){} } return; }
+    if(BOTMODE){ if(e.source!==window.parent || botDown) return;
+      if(e.data.fl==='link'){ try{ onData(parentLink, JSON.parse(e.data.d)); }catch(_){} }
+      // ekokompisen får använda samma inloggning och går då via servern och reservservern (TURN) – en riktig rundresa
+      else if(e.data.fl==='srv' && typeof e.data.tok==='string' && /^[0-9a-f]{64}$/.test(e.data.tok) && typeof netBase==='function' && netBase()){
+        SRV_TOK=e.data.tok; SRV_USER=String(e.data.user||''); window.__FORCE_RELAY=true; botNet=true; NET_ICE=null; try{ await ensureIce(); }catch(_){} startTransport(); }
+      return; }
     if(!botFrame || e.source!==botFrame.contentWindow) return;
     if(e.data.fl==='ready'){
       const card=e.data.card; if(!(await okCard(card))) return;
       await remember(card); sv('botid',card.id); known[card.id].bot=true;
       if(!contacts[card.id]){ contacts[card.id]={...normCard(card), added:Date.now(), bot:true, vl:1}; delete friends[card.id]; }
-      saveC(); botLink.open=true;
-      sendRaw(botLink,{t:'hi',card:myCard(),n:'lokal'});
-      await onData(botLink,{t:'hi',card});
+      saveC();
+      if(typeof netBase==='function' && netBase() && SRV_TOK){
+        // via servern: ekokompisen kopplar upp som en riktig kontakt
+        botNet=true; botFrame.contentWindow.postMessage({fl:'srv', tok:SRV_TOK, user:SRV_USER}, location.origin);
+      } else {
+        botLink.open=true;
+        sendRaw(botLink,{t:'hi',card:myCard(),n:'lokal'});
+        await onData(botLink,{t:'hi',card});
+      }
       if(botFirst){ botFirst=false; openChat('d:'+card.id); }
+    } else if(e.data.fl==='netready'){ const id=ld('botid',null); if(id){ setTimeout(()=>connectTo(id),300); }
     } else if(e.data.fl==='link'){ try{ onData(botLink, JSON.parse(e.data.d)); }catch(_){} }
     else if(e.data.fl==='down'){ botLink.open=false; const id=botLink._id; if(id && conns.get(id)===botLink){ conns.delete(id); lastSeen[id]=Date.now(); sv('lastseen',lastSeen); if(vis()) refresh(); } }
   });
   // ---- testkompisens eget beteende (körs inne i ramen) ----
   let botDown=false, botQuiet=ld('botquiet',false);
   const pick = a => a[rint(a.length)];
-  const BOT_HELP = `Jag är din testkompis 🤖 Skriv:
+  const BOT_HELP = () => `Jag är din ekokompis 🤖 ${botNet?'Allt går via servern och tillbaka. ':''}Ring mig 📞 eller 📹 så hör du dig själv med lite fördröjning och ser din egen bild.
+Skriv:
+• ping – jag svarar hur lång tid ditt meddelande tog till mig
 • ändra – jag skickar ett meddelande och ändrar det
 • ångra – jag skickar ett meddelande och tar bort det för alla
 • hjärta – jag reagerar på ditt meddelande
@@ -926,7 +940,7 @@ const CHAT = (()=>{
 • tyst / prata – jag slutar eller börjar svara
 Ändrar eller tar du bort ett av dina meddelanden så märker jag det 👀`;
   function botReady(){ window.parent.postMessage({fl:'ready', card:myCard()}, location.origin); }
-  async function botBoot(){ if(!ME) await createIdentity('Testkompis','🤖'); botReady(); }
+  async function botBoot(){ if(!ME) await createIdentity('Ekokompis','🤖'); botReady(); }
   function botSay(cid, text, delay){ return new Promise(res=>{
     const k=cid.startsWith('g:')?cid:'dm';
     setTimeout(()=>{ if(botDown) return res(null); recipients(cid).forEach(id=>sendRaw(conns.get(id),{t:'typing', conv:k}));
@@ -941,19 +955,68 @@ const CHAT = (()=>{
     if(t==='prata'){ botQuiet=false; sv('botquiet',false); botSay(cid,'Nu pratar jag igen! 😄',readIn); return; }
     if(botQuiet) return;
     if(m.invite){ botSay(cid,`Jag kan tyvärr inte spela ${m.invite.gname} – jag är bara en testbot 🤖🎮 Bjud in en riktig kompis!`,readIn); return; }
-    if(/^(hjälp|help|\?)$/.test(t)){ botSay(cid,BOT_HELP,readIn); return; }
+    if(/^(hjälp|help|\?)$/.test(t)){ botSay(cid,BOT_HELP(),readIn); return; }
+    const lag = m.ts ? Math.max(0, Date.now()-m.ts) : 0, lagS=(lag/1000).toFixed(2).replace('.',',')+' s';
+    if(t==='ping'){ botSay(cid, `🏓 pong – ditt meddelande tog ${lagS} till mig${botNet?' via servern':''}.`, 200); return; }
     if(t==='tyst'){ botSay(cid,'Okej, jag är tyst nu 🤐 Skriv prata när du vill höra av mig igen.',readIn).then(()=>{ botQuiet=true; sv('botquiet',true); }); return; }
     if(t==='ändra'){ botSay(cid,'Det här meddelandet kommer att ändras om en stund… ⏳',readIn).then(bm=>{ if(bm) setTimeout(()=>editMsg(cid,bm.mid,'✏️ Tadaa, nu är jag ändrat! Tryck länge och välj Info för att se när.'),3000); }); return; }
     if(t==='ångra' || t==='angra'){ botSay(cid,'Hemligt meddelande som snart försvinner 👻',readIn).then(bm=>{ if(bm) setTimeout(()=>revokeMsg(cid,bm.mid),3500); }); return; }
     if(t==='hjärta' || t==='hjarta'){ setTimeout(()=>react(cid,m.mid,'❤️'),readIn+300); return; }
     if(t==='fem'){ (async()=>{ for(let i=1;i<=5;i++) await botSay(cid,['Ett 🐬','Två 🐬🐬','Tre 🐬🐬🐬','Fyra 🐬🐬🐬🐬','Fem! 🐬🐬🐬🐬🐬'][i-1], i===1?readIn:150); })(); return; }
     if(t==='läs inte' || t==='las inte'){ botNoRead=Date.now()+20000; botSay(cid,'Okej, jag blundar för ditt nästa meddelande en stund 🙈 (du ser grå bockar ✓✓ i 15 sek innan de blir blå)',readIn); return; }
+    if(t==='offline' && botNet){ botSay(cid,'Hejdå! Jag kopplar ner från servern i 20 sekunder 👋 Skriv till mig under tiden – meddelandena väntar i brevlådan på servern.',readIn).then(()=>setTimeout(()=>{
+        botDown=true; try{ cpeer && cpeer.destroy(); }catch(_){} cpeer=null; conns.clear();
+        setTimeout(()=>{ botDown=false; startTransport(); setTimeout(()=>{ mbPull(); botSay(cid,'Jag är tillbaka! 🙌 Meddelanden du skrev medan jag var borta kom fram via brevlådan.',200); },2500); },20000);
+      },600)); return; }
     if(t==='offline'){ botSay(cid,'Hejdå! Jag är tillbaka om 20 sekunder 👋',readIn).then(()=>setTimeout(()=>{
         botDown=true; window.parent.postMessage({fl:'down'},location.origin); for(const [k,v] of conns) if(v===parentLink) conns.delete(k);
         setTimeout(()=>{ botDown=false; botReady(); setTimeout(()=>{ botSay(cid,'Jag är tillbaka! 🙌 Kolla bockarna på det du skrev medan jag var borta.',200); },800); },20000);
       },600)); return; }
     if(rint(5)===0 && !gid) setTimeout(()=>react(cid,m.mid,pick(['❤️','😂','👍','😮'])),readIn+200);
-    botSay(cid, botAnswer(t, m.text||''), readIn);
+    botSay(cid, botNet && !gid ? `📡 Eko (${lagS} via servern): ${(m.text||'').slice(0,300)}` : botAnswer(t, m.text||''), readIn);
+  }
+  /* ekokompisen svarar i telefon: du hör dig själv med 1,5 sekunders fördröjning och ser din egen bild */
+  let botCallSt=null;
+  async function botCall(from, p){
+    if(!p || typeof p.id!=='string') return;
+    if(p.op==='cancel' || p.op==='end'){ if(botCallSt && botCallSt.id===p.id) botHang(false); return; }
+    if(p.op!=='offer' || typeof p.sdp!=='string') return;
+    if(botCallSt){ queueDirect(from,{type:'call', op:'busy', id:p.id},true); return; }
+    const st=botCallSt={id:p.id, from};
+    queueDirect(from,{type:'call', op:'ringing', id:p.id},true);
+    await new Promise(r=>setTimeout(r,1800));
+    if(botCallSt!==st) return;
+    try{
+      const o=(cpeer && cpeer.options && cpeer.options.config) || {iceServers:[]};
+      const pc=st.pc=new RTCPeerConnection({iceServers:o.iceServers||[], ...(o.iceTransportPolicy?{iceTransportPolicy:o.iceTransportPolicy}:{})});
+      const dc=st.dc=pc.createDataChannel('ctl',{negotiated:true, id:0});
+      let ac=null; try{ ac=new (window.AudioContext||window.webkitAudioContext)(); await ac.resume(); }catch(_){}
+      const dest = ac && ac.state==='running' ? ac.createMediaStreamDestination() : null;
+      if(dest){ // en kort signal först, sedan ekot
+        const o1=ac.createOscillator(), g1=ac.createGain(); o1.frequency.value=880; g1.gain.value=0; o1.connect(g1).connect(dest); o1.start();
+        [0,.35].forEach(d=>{ g1.gain.setValueAtTime(.25,ac.currentTime+.3+d); g1.gain.setValueAtTime(0,ac.currentTime+.45+d); }); }
+      pc.ontrack=e=>{
+        const tr=e.track, tx=pc.getTransceivers().find(x=>x.receiver.track===tr); if(!tx) return;
+        if(tr.kind==='audio'){
+          if(dest){ const src=ac.createMediaStreamSource(new MediaStream([tr])), dl=ac.createDelay(3); dl.delayTime.value=1.5; src.connect(dl).connect(dest); tx.sender.replaceTrack(dest.stream.getAudioTracks()[0]); }
+          else tx.sender.replaceTrack(tr);
+        } else { tx.sender.replaceTrack(tr); st.vid=true; }   // din egen bild tillbaka
+      };
+      dc.onopen=()=>{ try{ dc.send(JSON.stringify({cam:true, mic:true})); }catch(_){} };
+      dc.onmessage=e=>{ try{ const m=JSON.parse(e.data); if(m && m.end) botHang(false); }catch(_){} };
+      await pc.setRemoteDescription({type:'offer', sdp:p.sdp});
+      pc.getTransceivers().forEach(t=>{ t.direction='sendrecv'; });
+      await pc.setLocalDescription(await pc.createAnswer());
+      await new Promise(r=>{ if(pc.iceGatheringState==='complete') return r(); const tm=setTimeout(r,4000); pc.addEventListener('icegatheringstatechange',()=>{ if(pc.iceGatheringState==='complete'){ clearTimeout(tm); r(); } }); });
+      if(botCallSt!==st) return;
+      queueDirect(from,{type:'call', op:'answer', id:p.id, sdp:pc.localDescription.sdp},true);
+      st.ac=ac; st.endT=setTimeout(()=>botHang(true), 90000);   // ekotest i högst 90 sekunder
+    }catch(e){ console.warn('ekokompis: samtal', e); queueDirect(from,{type:'call', op:'reject', id:p.id},true); botCallSt=null; }
+  }
+  function botHang(tell){
+    const st=botCallSt; if(!st) return; botCallSt=null; clearTimeout(st.endT);
+    if(tell){ try{ st.dc && st.dc.readyState==='open' && st.dc.send(JSON.stringify({end:1})); }catch(_){} queueDirect(st.from,{type:'call', op:'end', id:st.id},true); }
+    try{ st.pc && st.pc.close(); }catch(_){} try{ st.ac && st.ac.close(); }catch(_){}
   }
   function botAnswer(t, raw){
     if(/^\p{Extended_Pictographic}/u.test(raw) && raw.length<=12) return raw+raw.slice(0,2);
@@ -1041,7 +1104,7 @@ const CHAT = (()=>{
       try{ if(cpeer) cpeer.destroy(); }catch(e){} cpeer=null; conns.clear(); connecting.clear();
       if(botFrame){ botFrame.remove(); botFrame=null; }
     } else {
-      reloadAll(); if(ME){ startTransport(); if(DEV && ld('bot',false)) spawnBot(false); }
+      reloadAll(); if(ME){ startTransport(); if(ld('bot',false)) spawnBot(false); }
     }
     if(vis()){ const pn=document.getElementById('chatPanel'); if(pn){ pn.innerHTML=html(); mount(); } }
     updateBadges();
@@ -1228,7 +1291,7 @@ const CHAT = (()=>{
     if(BOTMODE){ botBoot(); return; }
     buildChrome();
     if(navigator.locks){ owner=false; claim(CHATWIN); }          // låset avgör vem som startar nätverket
-    else if(ME){ startTransport(); if(DEV && ld('bot',false)) spawnBot(false); }
+    else if(ME){ startTransport(); if(ld('bot',false)) spawnBot(false); }
     handleHash();
   }
   setTimeout(boot, 300);
