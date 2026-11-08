@@ -21,7 +21,7 @@
   if(!same || !/[?&]bot=1/.test(location.search)){ document.documentElement.innerHTML=''; throw new Error('Inramning blockerad'); }
 })();
 /* ================= Version & utvecklingsläge ================= */
-const APP_VERSION='2026.11.07.5-dev';
+const APP_VERSION='2026.11.08.1-dev';
 const DEV = /\/dev(\/|$)/.test(location.pathname);      // testversionen ligger i mappen /dev/
 const BOT = DEV && /[?&]bot=1/.test(location.search) && window.parent!==window;   // osynlig testkompis i en ram (bara dev)
 const LSP = DEV ? (BOT ? 'dev:bot:' : 'dev:') : '';    // egen sparad data i testversionen
@@ -500,7 +500,31 @@ function setNet(s){
   if(s==='connected' && was!=='connected' && G && ready() && role==='guest') toast('Ansluten! 🟢');
   render();
 }
-function peerOpts(){ return Object.assign({debug:0}, window.__PEER_OPTS||{}); }
+/* ---------- egen spelserver: kopplingsserver + reservserver (TURN) ----------
+   Tom NET_SERVER = PeerJS gratisserver. Med egen server når telefonerna varandra även på mobilnät och med VPN:
+   går det inte direkt skickas den krypterade trafiken via servern. */
+const NET_SERVER = window.__NET_SERVER || '';
+let NET_ICE=null, NET_ICE_EXP=0, NET_ICE_FAIL=0, netIceP=null;
+function netBase(){ const s=NET_SERVER; if(!s) return null; const [h,pt]=s.split(':'); const local=/^(127\.|localhost)/.test(h); return {host:h, port:+(pt||(local?9000:443)), secure:!local}; }
+function ensureIce(){
+  const b=netBase(); if(!b) return Promise.resolve();
+  if(NET_ICE && Date.now()<NET_ICE_EXP) return Promise.resolve();
+  if(netIceP) return netIceP;
+  const url=(b.secure?'https://':'http://')+b.host+':'+b.port+'/turn';
+  netIceP=Promise.race([fetch(url,{cache:'no-store'}).then(r=>r.ok?r.json():null), new Promise(r=>setTimeout(()=>r(null),5000))])
+    .then(j=>{ if(j && Array.isArray(j.iceServers)){ NET_ICE=j.iceServers; NET_ICE_EXP=Date.now()+(+j.ttl||3600)*500; } else NET_ICE_FAIL=Date.now(); })
+    .catch(()=>{ NET_ICE_FAIL=Date.now(); }).finally(()=>{ netIceP=null; });
+  return netIceP;
+}
+const needIce=()=>!!netBase() && !(NET_ICE && Date.now()<NET_ICE_EXP) && Date.now()-NET_ICE_FAIL>60000;
+if(NET_SERVER){ ensureIce(); setInterval(ensureIce, 20*60*1000); }
+function peerOpts(){
+  const b=netBase(), o={debug:0};
+  if(b){ Object.assign(o,{host:b.host, port:b.port, secure:b.secure, path:'/peer', key:'peerjs'});
+    o.config={iceServers:[...(NET_ICE||[]), {urls:'stun:stun.l.google.com:19302'}]};
+    if(window.__FORCE_RELAY) o.config.iceTransportPolicy='relay'; }
+  return Object.assign(o, window.__PEER_OPTS||{});
+}
 function saveNet(){
   if(mode!=='online') return;
   lsSet('ry_net', JSON.stringify({code:gameId, role, seat:mySeat, name:myName}));
@@ -539,6 +563,7 @@ function hostGame(name, order, kind){
 function startHost(){
   if(mode!=='online' || role!=='host') return;
   if(typeof Peer==='undefined'){ noPeerLib(); retry(startHost); return; }
+  if(needIce()){ ensureIce().then(()=>{ if(mode==='online' && role==='host' && !peer) startHost(); }); return; }
   stopPeer(); setNet('starting');
   const p = peer = new Peer(PREFIX+gameId, peerOpts()); watchServer(p);
   p.on('open',()=>{ if(peer===p){ netWhy=''; updateHostNet(); } });
@@ -624,6 +649,7 @@ function joinGame(code,name){
 function startGuest(){
   if(mode!=='online' || role!=='guest') return;
   if(typeof Peer==='undefined'){ noPeerLib(); retry(startGuest); return; }
+  if(needIce()){ ensureIce().then(()=>{ if(mode==='online' && role==='guest' && !peer) startGuest(); }); return; }
   stopPeer(); setNet('connecting');
   const p = peer = new Peer(peerOpts()); watchServer(p);
   p.on('open',()=>{ if(peer===p){ netWhy=''; connectGuest(); } });

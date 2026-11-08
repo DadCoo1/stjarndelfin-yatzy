@@ -246,6 +246,7 @@ const CHAT = (()=>{
   function startTransport(){
     if(testNoNet) return;
     if(!owner || BOTMODE || cpeer || !ME || typeof Peer==='undefined') return;
+    if(typeof needIce==='function' && needIce()){ ensureIce().then(()=>startTransport()); return; }
     const p=cpeer=new Peer(CPREFIX+ME.id, peerOpts());
     p.on('open',()=>{ flushAll(); presenceSweep(); });
     p.on('connection',c=>attach(c,null));
