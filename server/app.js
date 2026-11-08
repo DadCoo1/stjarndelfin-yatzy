@@ -49,8 +49,8 @@ function bump(user, fn) {
   const u = user ? (d.users[user] = d.users[user] || { games: 0, msgs: 0, calls: 0, sec: 0, logins: 0 }) : null;
   fn(d, u); saveSoon('stats.json', () => STATS);
 }
-function audit(who, what) { STATS.audit.unshift({ at: now(), who, what }); STATS.audit.length = Math.min(STATS.audit.length, 400); saveSoon('stats.json', () => STATS); }
-setInterval(() => { const keep = new Set(); for (let i = 0; i < 400; i++) keep.add(dayFmt.format(new Date(now() - i * 864e5))); for (const k of Object.keys(STATS.days)) if (!keep.has(k)) delete STATS.days[k]; }, 6 * 3600e3).unref();
+function audit(who, what) { STATS.audit.unshift({ at: now(), who, what }); STATS.audit = STATS.audit.filter(x => now() - x.at < 90 * 864e5).slice(0, 400); saveSoon('stats.json', () => STATS); }
+setInterval(() => { const keep = new Set(); for (let i = 0; i < 35; i++) keep.add(dayFmt.format(new Date(now() - i * 864e5))); for (const k of Object.keys(STATS.days)) if (!keep.has(k)) delete STATS.days[k]; }, 6 * 3600e3).unref();
 
 /* ---------- inbjudningar (skapas av spel-user, används en gång) ---------- */
 function b32enc(buf) { const A = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567'; let bits = 0, val = 0, out = ''; for (const b of buf) { val = (val << 8) | b; bits += 8; while (bits >= 5) { out += A[(val >>> (bits - 5)) & 31]; bits -= 5; } } if (bits) out += A[(val << (5 - bits)) & 31]; return out; }
@@ -127,7 +127,7 @@ app.post('/auth/login', json, (req, res) => {
   // samma kod får inte användas två gånger
   const all = load('users.json', { users: {} }); if (all.users[name]) { all.users[name].lastStep = step; all.users[name].lastLogin = now(); save('users.json', all); usersMtime = 0; }
   const tok = crypto.randomBytes(32).toString('hex');
-  SESS[hashTok(tok)] = { u: name, exp: now() + SESSION_DAYS * 864e5, at: now(), ua: String(req.headers['user-agent'] || '').slice(0, 120) };
+  SESS[hashTok(tok)] = { u: name, exp: now() + SESSION_DAYS * 864e5, at: now() };
   save('sessions.json', SESS);
   bump(name, (d, u) => { d.logins++; u.logins++; });
   res.json({ token: tok, user: name, days: SESSION_DAYS });
@@ -159,7 +159,7 @@ app.post('/invite/finish', json, (req, res) => {
   save('users.json', all); usersMtime = 0;
   delete x.db.invites[x.h]; save('invites.json', x.db); audit(name, (old.secret ? 'bytte TOTP-nyckel via inbjudan' : 'skapade kontot via inbjudan'));
   const tok = crypto.randomBytes(32).toString('hex');
-  SESS[hashTok(tok)] = { u: name, exp: now() + SESSION_DAYS * 864e5, at: now(), ua: String(req.headers['user-agent'] || '').slice(0, 120) };
+  SESS[hashTok(tok)] = { u: name, exp: now() + SESSION_DAYS * 864e5, at: now() };
   save('sessions.json', SESS);
   bump(name, (d, u) => { d.logins++; u.logins++; });
   res.json({ token: tok, user: name, days: SESSION_DAYS });
@@ -169,7 +169,7 @@ app.get('/auth/me', auth, (req, res) => res.json({ user: req.user }));
 
 app.get('/turn', auth, (req, res) => {
   if (limited('turn:' + req.user, 60)) return res.status(429).json({ error: 'för många' });
-  const exp = Math.floor(now() / 1000) + TTL, username = exp + ':' + req.user;
+  const exp = Math.floor(now() / 1000) + TTL, username = exp + ':' + crypto.randomBytes(6).toString('hex');   // inget användarnamn syns i TURN-trafiken
   const credential = crypto.createHmac('sha1', SECRET).update(username).digest('base64');
   bump(req.user, d => { d.turn++; });
   res.json({ ttl: TTL, exp, iceServers: [
@@ -178,48 +178,96 @@ app.get('/turn', auth, (req, res) => {
   ] });
 });
 
-/* ---------- brevlåda för krypterade meddelanden ---------- */
-const isId = x => typeof x === 'string' && /^[0-9a-f]{16,64}$/.test(x);
-const MAXBOX = 3000, KEEP = 45 * 864e5;
+/* ---------- brevlåda för förseglade meddelanden ----------
+   Kuverten är förseglade i appen: utanpå syns bara mottagarens chatt-ID och en utfylld storlek – inte avsändaren,
+   inte innehållet. Servern sparar inte vilket konto en chatt-identitet hör till: hämtning bevisas med
+   chatt-identitetens egen nyckel (ECDH-utmaning), så brevlådan går inte att koppla till ett användarnamn. */
+const isId = x => typeof x === 'string' && /^[0-9a-f]{16}$/.test(x);
+const isB64 = (x, max) => typeof x === 'string' && x.length <= max && /^[A-Za-z0-9+/=]+$/.test(x);
+const MAXBOX = 3000, KEEP = 30 * 864e5, hourOf = t => Math.floor(t / 3600e3) * 3600e3;
+MBOX.keys = MBOX.keys || {}; delete MBOX.owner;
 function prune() { const lim = now() - KEEP; for (const id of Object.keys(MBOX.box)) { MBOX.box[id] = MBOX.box[id].filter(m => m.at > lim); if (!MBOX.box[id].length) delete MBOX.box[id]; } }
 setInterval(() => { prune(); saveSoon('mbox.json', () => MBOX); }, 3600e3).unref();
-// en chatt-identitet kopplas till det konto som först gör anspråk på den
+function rawToKey(curve, pubB64) {
+  const raw = Buffer.from(pubB64, 'base64');
+  if (curve === 'X25519' && raw.length === 32) return crypto.createPublicKey({ key: { kty: 'OKP', crv: 'X25519', x: raw.toString('base64url') }, format: 'jwk' });
+  if (curve === 'P-256' && raw.length === 65 && raw[0] === 4) return crypto.createPublicKey({ key: { kty: 'EC', crv: 'P-256', x: raw.subarray(1, 33).toString('base64url'), y: raw.subarray(33).toString('base64url') }, format: 'jwk' });
+  throw new Error('fel nyckel');
+}
+function ephFor(curve) {
+  const kp = curve === 'X25519' ? crypto.generateKeyPairSync('x25519') : crypto.generateKeyPairSync('ec', { namedCurve: 'P-256' });
+  const j = kp.publicKey.export({ format: 'jwk' });
+  const raw = curve === 'X25519' ? Buffer.from(j.x, 'base64url') : Buffer.concat([Buffer.from([4]), Buffer.from(j.x, 'base64url'), Buffer.from(j.y, 'base64url')]);
+  return { priv: kp.privateKey, pub: raw.toString('base64') };
+}
+// en chatt-identitet registreras med sin publika nyckel (ID = hash av nyckeln) – utan koppling till kontot
 app.post('/mbox/claim', auth, json, (req, res) => {
-  const ids = [].concat((req.body || {}).ids || []).filter(isId).slice(0, 8), mine = [];
-  for (const id of ids) { if (!MBOX.owner[id]) MBOX.owner[id] = req.user; if (MBOX.owner[id] === req.user) mine.push(id); }
-  saveSoon('mbox.json', () => MBOX); res.json({ ids: mine });
+  const b = req.body || {};
+  if (!isId(b.id) || !['X25519', 'P-256'].includes(b.curve) || !isB64(b.pub, 100)) return res.status(400).json({ error: 'fel' });
+  const id = crypto.createHash('sha256').update(Buffer.from(b.pub, 'base64')).digest('hex').slice(0, 16);
+  if (id !== b.id) return res.status(400).json({ error: 'fel' });
+  try { rawToKey(b.curve, b.pub); } catch (e) { return res.status(400).json({ error: 'fel' }); }
+  if (!MBOX.keys[id]) { MBOX.keys[id] = { c: b.curve, p: b.pub }; saveSoon('mbox.json', () => MBOX); }
+  res.json({ ok: MBOX.keys[id].p === b.pub });
 });
 app.post('/mbox/send', auth, json, (req, res) => {
   if (limited('send:' + req.user, 600)) return res.status(429).json({ error: 'för många' });
   const list = [].concat((req.body || {}).items || []).slice(0, 50); let n = 0;
   for (const it of list) {
-    if (!it || !isId(it.to) || !it.env || typeof it.env !== 'object') continue;
-    const raw = JSON.stringify(it.env); if (raw.length > 300000) continue;
-    const k = crypto.createHash('sha256').update(it.to + '|' + raw).digest('hex').slice(0, 24);
-    const box = MBOX.box[it.to] = MBOX.box[it.to] || [];
-    if (box.some(m => m.k === k)) { n++; continue; }
-    box.push({ k, env: it.env, at: now() }); if (box.length > MAXBOX) box.splice(0, box.length - MAXBOX); n++;
+    const e = it && it.env;
+    // bara förseglade kuvert tas emot: {t, to, e, c} och inget annat
+    if (!e || e.t !== 'sealed' || !isId(e.to) || it.to !== e.to || !isB64(e.e, 100) || typeof e.c !== 'string' || e.c.length > 360000 || Object.keys(e).length !== 4) continue;
+    const env = { t: 'sealed', to: e.to, e: e.e, c: e.c };
+    const k = crypto.createHash('sha256').update(e.to + '|' + e.e + '|' + e.c).digest('hex').slice(0, 24);
+    const box = MBOX.box[e.to] = MBOX.box[e.to] || [];
+    if (!box.some(m => m.k === k)) { box.push({ k, env, at: hourOf(now()) }); if (box.length > MAXBOX) box.splice(0, box.length - MAXBOX); }
+    n++;
   }
   saveSoon('mbox.json', () => MBOX); if (n) bump(req.user, (d, u) => { d.mbox += n; u.msgs += n; }); res.json({ stored: n });
 });
-app.post('/mbox/fetch', auth, json, (req, res) => {
-  const ids = [].concat((req.body || {}).ids || []).filter(id => isId(id) && MBOX.owner[id] === req.user).slice(0, 8);
-  const out = []; for (const id of ids) for (const m of (MBOX.box[id] || []).slice(0, 300)) out.push({ to: id, k: m.k, env: m.env, at: m.at });
-  res.json({ items: out });
+// hämtning: 1) utmaning  2) bevis med chatt-nyckeln -> innehåll + kvitto-nyckel för att radera
+const CHAL = new Map(), ACKS = new Map();
+setInterval(() => { for (const [k, v] of CHAL) if (v.exp < now()) CHAL.delete(k); for (const [k, v] of ACKS) if (v.exp < now()) ACKS.delete(k); }, 60e3).unref();
+app.post('/mbox/challenge', json, (req, res) => {
+  if (limited('chal:' + req.ip, 120)) return res.status(429).json({ error: 'för många' });
+  const id = (req.body || {}).id, key = isId(id) && MBOX.keys[id];
+  // okänt ID: svara likadant, så att man inte kan fråga ut vilka ID:n som finns
+  const curve = key ? key.c : ((req.body || {}).curve === 'P-256' ? 'P-256' : 'X25519');
+  const eph = ephFor(curve), n = crypto.randomBytes(16).toString('hex');
+  CHAL.set(n, { id, priv: eph.priv, exp: now() + 60e3 });
+  res.json({ n, e: eph.pub });
 });
-app.post('/mbox/ack', auth, json, (req, res) => {
-  const b = req.body || {}, keys = new Set([].concat(b.keys || []).filter(k => typeof k === 'string').slice(0, 1000));
-  for (const id of [].concat(b.ids || []).filter(id => isId(id) && MBOX.owner[id] === req.user)) {
-    if (MBOX.box[id]) { MBOX.box[id] = MBOX.box[id].filter(m => !keys.has(m.k)); if (!MBOX.box[id].length) delete MBOX.box[id]; } }
+app.post('/mbox/fetch', json, (req, res) => {
+  const b = req.body || {}, ch = typeof b.n === 'string' && CHAL.get(b.n); if (ch) CHAL.delete(b.n);
+  const key = ch && isId(b.id) && ch.id === b.id && MBOX.keys[b.id];
+  if (!key || !isB64(b.proof, 100)) return res.status(403).json({ error: 'nej' });
+  let ok = false;
+  try { const sh = crypto.diffieHellman({ privateKey: ch.priv, publicKey: rawToKey(key.c, key.p) });
+    const exp = crypto.createHmac('sha256', sh).update('FL-mbox-v1|' + b.id + '|' + b.n).digest();
+    const got = Buffer.from(b.proof, 'base64'); ok = got.length === exp.length && crypto.timingSafeEqual(got, exp); } catch (e) {}
+  if (!ok) return res.status(403).json({ error: 'nej' });
+  const items = (MBOX.box[b.id] || []).slice(0, 300).map(m => ({ k: m.k, env: m.env }));
+  const ack = crypto.randomBytes(16).toString('hex'); ACKS.set(ack, { id: b.id, exp: now() + 300e3 });
+  res.json({ items, ack });
+});
+app.post('/mbox/ack', json, (req, res) => {
+  const b = req.body || {}, a = typeof b.ack === 'string' && ACKS.get(b.ack); if (!a) return res.status(403).json({ error: 'nej' });
+  const keys = new Set([].concat(b.keys || []).filter(k => typeof k === 'string').slice(0, 1000));
+  if (MBOX.box[a.id]) { MBOX.box[a.id] = MBOX.box[a.id].filter(m => !keys.has(m.k)); if (!MBOX.box[a.id].length) delete MBOX.box[a.id]; }
   saveSoon('mbox.json', () => MBOX); res.json({ ok: true });
 });
 
-/* ---------- närvaro ---------- */
-const ONLINE = new Map(), LAST = new Map();
-app.post('/presence', auth, json, (req, res) => {
-  const ids = [].concat((req.body || {}).peers || []).filter(x => typeof x === 'string' && x.length < 120).slice(0, 200);
-  const out = {}; for (const id of ids) { if (ONLINE.has(id)) out[id] = 0; else if (LAST.has(id)) out[id] = LAST.get(id); }
-  res.json({ now: now(), peers: out });
+/* ---------- närvaro ----------
+   Appen skickar inte sin kontaktlista. Servern lämnar ut en lista med hashade ID:n (nytt salt varje dygn)
+   för dem som är uppkopplade, och appen jämför lokalt med sina kontakter. */
+const ONLINE = new Map(), LAST = new Map(), PEERUSER = new Map();
+const presSalt = () => crypto.createHmac('sha256', SECRET).update('pres|' + today()).digest('hex').slice(0, 16);
+const presH = (salt, peerId) => crypto.createHash('sha256').update(salt + '|' + peerId).digest('hex').slice(0, 16);
+app.get('/presence', auth, (req, res) => {
+  const salt = presSalt(), on = [], last = {};
+  for (const p of ONLINE.keys()) if (p.startsWith('fl-chat-')) on.push(presH(salt, p));
+  for (const [p, t] of LAST) if (p.startsWith('fl-chat-') && !ONLINE.has(p) && now() - t < 14 * 864e5) last[presH(salt, p)] = Math.floor(t / 300e3) * 300e3;
+  on.sort(); res.json({ now: now(), salt, on, last });
 });
 
 /* ---------- statistik från appen (bara inloggade, bara räknare) ---------- */
@@ -255,21 +303,20 @@ app.post('/admin/api/login', json, (req, res) => {
   if (tooMany('aip:' + ip, 10, 15 * 60e3) || tooMany('au:' + name, 5, 15 * 60e3)) return res.status(429).json({ error: 'För många försök. Vänta en kvart.' });
   const u = users()[name];
   const step = u && u.admin && !u.disabled && /^\d{6}$/.test(code) ? checkTotp(u.secret, code, u.lastStep) : 0;
-  if (!step) { fail('aip:' + ip); fail('au:' + name); audit(name || '?', 'misslyckad admininloggning från ' + ip); return res.status(401).json({ error: 'Fel användarnamn eller kod, eller inte admin' }); }
+  if (!step) { fail('aip:' + ip); fail('au:' + name); audit(name || '?', 'misslyckad admininloggning från ' + String(ip).replace(/\.\d+$/, '.x').replace(/:[0-9a-f]*:[0-9a-f]*$/i, ':x:x')); return res.status(401).json({ error: 'Fel användarnamn eller kod, eller inte admin' }); }
   const all = load('users.json', { users: {} }); all.users[name].lastStep = step; save('users.json', all); usersMtime = 0;
   const tok = crypto.randomBytes(32).toString('hex'); ADM.set(hashTok(tok), { u: name, exp: now() + 8 * 3600e3 });
   audit(name, 'loggade in i admin'); res.json({ token: tok, user: name });
 });
 app.post('/admin/api/logout', adm, (req, res) => { ADM.delete(hashTok(bearer(req))); res.json({ ok: true }); });
 
-function userIds(name) { return Object.entries(MBOX.owner).filter(([, u]) => u === name).map(([id]) => id); }
-function onlineIds() { const ids = new Set(); for (const p of ONLINE.keys()) { const m = p.match(/^fl-chat-v1-(?:dev-)?([0-9a-f]{16,64})$/); if (m) ids.add(m[1]); } return ids; }
+// vilka konton som är uppkopplade just nu (bara i minnet, sparas aldrig)
+function onlineUsers_() { const u = new Set(); for (const p of ONLINE.keys()) { const x = PEERUSER.get(p); if (x) u.add(x); } return u; }
 function lastDays(n) { const out = []; for (let i = n - 1; i >= 0; i--) { const k = dayFmt.format(new Date(now() - i * 864e5)); out.push({ day: k, ...(STATS.days[k] || { games: {}, users: {}, logins: 0, turn: 0, mbox: 0, calls: { n: 0, video: 0, sec: 0 } }) }); } return out; }
 function sessCount(name) { const u = users()[name] || {}; let n = 0; for (const s of Object.values(SESS)) if (s.u === name && s.exp > now() && !(u.revokedBefore && s.at < u.revokedBefore)) n++; return n; }
 
 app.get('/admin/api/overview', adm, (req, res) => {
-  const on = onlineIds(), U = users(), onlineUsers = new Set();
-  for (const id of on) if (MBOX.owner[id]) onlineUsers.add(MBOX.owner[id]);
+  const U = users(), onlineUsers = onlineUsers_();
   let chat = 0, game = 0; for (const p of ONLINE.keys()) { if (p.startsWith('fl-chat-')) chat++; else game++; }
   let pending = 0; for (const b of Object.values(MBOX.box)) pending += b.length;
   const inv = load('invites.json', { invites: {} }); const openInv = Object.values(inv.invites || {}).filter(x => x.exp > now()).length;
@@ -277,11 +324,10 @@ app.get('/admin/api/overview', adm, (req, res) => {
     sessions: Object.values(SESS).filter(s => s.exp > now()).length, onlineUsers: [...onlineUsers], peers: { chat, game }, pending, invites: openInv, days: lastDays(30), names: STATS.names || {} });
 });
 app.get('/admin/api/users', adm, (req, res) => {
-  const U = users(), on = onlineIds(), days = lastDays(30), out = [];
+  const U = users(), on = onlineUsers_(), days = lastDays(30), out = [];
   for (const [name, u] of Object.entries(U)) {
-    const ids = userIds(name); let pend = 0; for (const id of ids) pend += (MBOX.box[id] || []).length;
     const sum = { games: 0, msgs: 0, calls: 0, sec: 0, logins: 0 }; for (const d of days) { const x = d.users[name]; if (x) for (const k in sum) sum[k] += x[k] || 0; }
-    out.push({ name, admin: !!u.admin, disabled: !!u.disabled, created: u.created, lastLogin: u.lastLogin || 0, sessions: sessCount(name), online: ids.some(id => on.has(id)), chatIds: ids.length, pending: pend, last30: sum });
+    out.push({ name, admin: !!u.admin, disabled: !!u.disabled, created: u.created, lastLogin: u.lastLogin || 0, sessions: sessCount(name), online: on.has(name), last30: sum });
   }
   out.sort((a, b) => a.name.localeCompare(b.name, 'sv')); res.json({ users: out });
 });
@@ -304,8 +350,7 @@ app.post('/admin/api/users/:name/:act', adm, json, (req, res) => {
   else if (act === 'disable' || act === 'enable') editUser(name, u => { u.disabled = act === 'disable'; });
   else if (act === 'admin' || act === 'unadmin') editUser(name, u => { u.admin = act === 'admin'; });
   else if (act === 'reset') { editUser(name, u => { u.revokedBefore = now(); }); out.link = makeInvite(name, { dev: !!(req.body || {}).dev, admin: !!U[name].admin }); }
-  else if (act === 'remove') { editUser(name, (u, all) => { delete all.users[name]; });
-    for (const id of userIds(name)) { delete MBOX.owner[id]; delete MBOX.box[id]; } saveSoon('mbox.json', () => MBOX); }
+  else if (act === 'remove') { editUser(name, (u, all) => { delete all.users[name]; }); for (const [h, x] of Object.entries(SESS)) if (x.u === name) delete SESS[h]; save('sessions.json', SESS); }
   else return res.status(400).json({ error: 'okänd åtgärd' });
   for (const [h, a] of ADM) if (a.u === name && (act === 'disable' || act === 'remove' || act === 'unadmin' || act === 'logout')) ADM.delete(h);
   audit(req.admin, `${({ logout: 'loggade ut', disable: 'stängde av', enable: 'slog på', admin: 'gjorde till admin', unadmin: 'tog bort admin från', reset: 'skapade ny inbjudan (byt nyckel) för', remove: 'tog bort' })[act]} ${name}`);
@@ -337,14 +382,17 @@ const server = http.createServer(app);
 server.prependListener('upgrade', (req, socket) => {
   try {
     const u = new URL(req.url, 'http://x'); if (!u.pathname.startsWith('/peer')) return;
-    if (!session(u.searchParams.get('key'))) { socket.write('HTTP/1.1 401 Unauthorized\r\n\r\n'); socket.destroy(); return; }
+    const ss = session(u.searchParams.get('key'));
+    if (!ss) { socket.write('HTTP/1.1 401 Unauthorized\r\n\r\n'); socket.destroy(); return; }
+    const pid = u.searchParams.get('id'); if (pid) PEERUSER.set(pid, ss.u);
     u.searchParams.set('key', 'peerjs'); req.url = u.pathname + u.search;
   } catch (e) { socket.destroy(); }
 });
 const peer = ExpressPeerServer(server, { path: '/', key: 'peerjs', proxied: true, alive_timeout: 60000, allow_discovery: false });
 app.use('/peer', peer);
 peer.on('connection', c => { ONLINE.set(c.getId(), now()); LAST.set(c.getId(), now()); });
-peer.on('disconnect', c => { ONLINE.delete(c.getId()); LAST.set(c.getId(), now()); });
+peer.on('disconnect', c => { ONLINE.delete(c.getId()); PEERUSER.delete(c.getId()); LAST.set(c.getId(), now()); });
+setInterval(() => { for (const [p, t] of LAST) if (now() - t > 14 * 864e5) LAST.delete(p); }, 3600e3).unref();
 
 server.listen(PORT, '127.0.0.1', () => console.log(`spelserver lyssnar på 127.0.0.1:${PORT} (${DOMAIN})`));
 process.on('SIGTERM', () => { save('sessions.json', SESS); save('mbox.json', MBOX); save('stats.json', STATS); process.exit(0); });

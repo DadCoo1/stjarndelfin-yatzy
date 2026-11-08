@@ -21,7 +21,7 @@
   if(!same || !/[?&]bot=1/.test(location.search)){ document.documentElement.innerHTML=''; throw new Error('Inramning blockerad'); }
 })();
 /* ================= Version & utvecklingsläge ================= */
-const APP_VERSION='2026.11.08.4-dev';
+const APP_VERSION='2026.11.08.5-dev';
 const DEV = /\/dev(\/|$)/.test(location.pathname);      // testversionen ligger i mappen /dev/
 const BOT = DEV && /[?&]bot=1/.test(location.search) && window.parent!==window;   // osynlig testkompis i en ram (bara dev)
 const LSP = DEV ? (BOT ? 'dev:bot:' : 'dev:') : '';    // egen sparad data i testversionen
@@ -610,7 +610,8 @@ function peerOpts(){
   const b=netBase(), o={debug:0};
   if(b){ Object.assign(o,{host:b.host, port:b.port, secure:b.secure, path:'/peer', key:SRV_TOK||'x'});
     o.config={iceServers:[...(NET_ICE||[]), {urls:'stun:stun.l.google.com:19302'}]};
-    if(window.__FORCE_RELAY) o.config.iceTransportPolicy='relay'; }
+    // "Dölj min IP-adress": all trafik går via servern, så andra telefoner ser aldrig din IP-adress
+    if(window.__FORCE_RELAY || (lsGet('net_relay')==='1' && NET_ICE)) o.config.iceTransportPolicy='relay'; }
   return Object.assign(o, window.__PEER_OPTS||{});
 }
 function saveNet(){
@@ -2069,7 +2070,8 @@ function showSettings(){
       <div class="setnote">Status: ${permTxt}. Ljud, vibration och en stor "Din tur!"-skylt kommer alltid. Systemaviseringar fungerar bara om webbläsaren tillåter det.</div></div>
     <div class="setrow"><div class="lbl">☀️ Håll skärmen tänd under onlinespel</div>${onoff('setwake',wakeOn)}
       <div class="setnote">Rekommenderas – då tappar mobilerna inte kontakten och du märker direkt när det är din tur.</div></div>
-    ${netBase()?`<div class="appver" style="margin:10px 0">🖧 Spelserver ${esc(NET_SERVER)}: ${SRV_TOK?`inloggad som <b>${esc(SRV_USER)}</b> · <a href="#" data-act="srvout">Logga ut</a>`:`inte inloggad · <a href="#" data-act="srvin">Logga in</a>`}</div>`:''}
+    ${netBase()?`<div class="appver" style="margin:10px 0">🖧 Spelserver ${esc(NET_SERVER)}: ${SRV_TOK?`inloggad som <b>${esc(SRV_USER)}</b> · <a href="#" data-act="srvout">Logga ut</a>`:`inte inloggad · <a href="#" data-act="srvin">Logga in</a>`}</div>
+    <div class="appver" style="margin:6px 0"><a href="#" data-act="srvrelay">${lsGet('net_relay')==='1'?'✅':'⬜'} Dölj min IP-adress för andra</a> <span style="opacity:.75">– all trafik går via servern (lite långsammare)</span></div>`:''}
     <div class="btns"><button class="pri" data-act="close">Klar</button></div><div class="appver">Version ${APP_VERSION}${DEV?' · DEV':''}</div>`,'settings');
 }
 const BOT_NAMES=['Blixt 🤖','Bubbla 🤖','Kosmo 🤖','Nova 🤖'];
@@ -2345,6 +2347,7 @@ document.addEventListener('click', e=>{
     case 'openrace': openRace(); break;
     case 'srvout': srvLogout(); closeModal(); break;
     case 'srvin': closeModal(); srvAskLogin(); break;
+    case 'srvrelay': { const on=lsGet('net_relay')!=='1'; lsSet('net_relay',on?'1':'0'); toast(on?'🛡️ Din IP-adress döljs – gäller nya anslutningar':'Direktanslutningar tillåtna igen'); closeModal(); showSettings(); break; }
     case 'frlist': FR.open(); break;
     case 'frnew': FR.open(); setTimeout(()=>document.querySelector('[data-fr="new"]')?.click(),0); break;
     case 'frbug': FR.open(); setTimeout(()=>document.querySelector('[data-fr="bug"]')?.click(),0); break;
