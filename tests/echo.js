@@ -22,6 +22,7 @@ const TOK=process.env.TOK;
   const v=await p.evaluate(()=>{ const r=document.querySelector('#callUI .cl-rv'); return r && r.srcObject ? [r.srcObject.getAudioTracks().length, r.srcObject.getVideoTracks().length, r.videoWidth] : null; });
   ok(v && v[0]>0 && v[1]>0, 'ljud och bild kommer tillbaka: '+JSON.stringify(v));
   const said=await p.evaluate(()=>window.__said.join(' | ')); ok(/Donald Trump/.test(said) && said.split('|').length>=3, 'citatet lästes upp: '+said);
+  await sleep(2500); const cap=await p.evaluate(()=>document.querySelector('#callUI .cl-cap').innerText); ok(/Donald Trump/.test(cap) && /Ekot: ✅/.test(cap) && /mikrofon: ✅/.test(cap), 'citat och ljudkontroll syns: '+cap.replace(/\n/g,' '));
   await p.screenshot({path:'/tmp/echo_call.png'});
   await p.click('#callUI [data-k=end]'); await sleep(1500);
   console.log('errs',errs); console.log(fails?fails+' FEL':'alla ekotester ok'); await b.close(); process.exit(fails?1:0); })();

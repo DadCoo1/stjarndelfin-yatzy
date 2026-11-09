@@ -1026,9 +1026,10 @@ Skriv:
     "Over 1000 hamberders etc. Within one hour, it was all gone. Great guys and big eaters!" // tweet 15 jan 2019
   ];
   function botSpeakQuote(){
+    const q=TRUMP_QUOTES[rint(TRUMP_QUOTES.length)];
     try{
-      if(!('speechSynthesis' in window)) return;
-      const q=TRUMP_QUOTES[rint(TRUMP_QUOTES.length)], vs=speechSynthesis.getVoices();
+      if(!('speechSynthesis' in window)) return q;
+      const vs=speechSynthesis.getVoices();
       const L=v=>(v.lang||'').replace('_','-').toLowerCase();
       // en mörk amerikansk mansröst om telefonen har en – sedan lägre ton och långsamt, eftertryckligt tempo
       const MALE=/aaron|alex\b|fred|tom\b|evan|nathan|ralph|reed|rocko|grandpa|david|mark|guy|davis|tony|jason|eric|christopher|male/i;
@@ -1041,6 +1042,7 @@ Skriv:
       (q.match(/[^.!?,]+[.!?,]*/g)||[q]).map(x=>x.trim()).filter(Boolean).forEach(part=>say(part,'en-US',{voice:tv, pitch:.55, rate:.82}));
       say('Nu ekar jag dig. Säg något!','sv-SE');
     }catch(e){}
+    return q;
   }
   async function botCall(from, p){
     if(!p || typeof p.id!=='string') return;
