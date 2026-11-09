@@ -1025,8 +1025,18 @@ Skriv:
     "My two greatest assets have been mental stability and being, like, really smart.",// tweet 6 jan 2018
     "Over 1000 hamberders etc. Within one hour, it was all gone. Great guys and big eaters!" // tweet 15 jan 2019
   ];
-  function botSpeakQuote(){
-    const q=TRUMP_QUOTES[rint(TRUMP_QUOTES.length)];
+  // Ekokompisen spelar upp citatet som ljudfil IN i samtalet – det går alltså över nätet precis som ekot,
+  // och fungerar även på telefoner utan talsyntes (t.ex. GrapheneOS). Talsyntes i telefonen är bara reserv.
+  const sndBuf={};
+  async function loadSnd(ac,name){ if(sndBuf[name]) return sndBuf[name]; const r=await fetch(location.pathname.replace(/[^/]*$/,'')+'snd/'+name+'.mp3'); if(!r.ok) throw new Error('ljud'); const ab=await r.arrayBuffer(); return sndBuf[name]=await new Promise((ok,no)=>{ const p=ac.decodeAudioData(ab,ok,no); p && p.then && p.then(ok,no); }); }
+  async function botPlayQuote(st, ac, dest, i){
+    const bufs=[]; for(const n of ['eko-intro','trump'+i,'eko-outro']) bufs.push(await loadSnd(ac,n));
+    let t=ac.currentTime+.15;
+    bufs.forEach((b,k)=>{ const s=ac.createBufferSource(); s.buffer=b; s.connect(dest); s.start(t); t+=b.duration+(k===0?.35:.5); });
+    if(st.eg){ st.eg.gain.setValueAtTime(0,ac.currentTime); st.eg.gain.setValueAtTime(1,t+.2); }   // ekot tyst medan rösten pratar
+  }
+  function botSpeakQuote(idx){
+    const q=TRUMP_QUOTES[Number.isInteger(idx)&&TRUMP_QUOTES[idx]?idx:rint(TRUMP_QUOTES.length)];
     try{
       if(!('speechSynthesis' in window)) return q;
       const vs=speechSynthesis.getVoices();
@@ -1068,11 +1078,16 @@ Skriv:
         const tr=e.track, tx=pc.getTransceivers().find(x=>x.receiver.track===tr); if(!tx) return;
         if(tr.kind==='audio'){
           let done=false;
-          if(dest){ try{ const src=ac.createMediaStreamSource(new MediaStream([tr])), dl=ac.createDelay(3); dl.delayTime.value=1.5; src.connect(dl).connect(dest); tx.sender.replaceTrack(dest.stream.getAudioTracks()[0]); done=true; }catch(_){} }
+          if(dest){ try{ const src=ac.createMediaStreamSource(new MediaStream([tr])), dl=ac.createDelay(3); dl.delayTime.value=1.5; st.eg=ac.createGain(); src.connect(dl).connect(st.eg).connect(dest); tx.sender.replaceTrack(dest.stream.getAudioTracks()[0]); done=true; }catch(_){} }
           if(!done) tx.sender.replaceTrack(tr);   // utan ljudmotor: ditt ljud direkt tillbaka (utan fördröjning)
         } else { tx.sender.replaceTrack(tr); st.vid=true; }   // din egen bild tillbaka
       };
-      dc.onopen=()=>{ try{ dc.send(JSON.stringify({cam:true, mic:true})); }catch(_){} };
+      dc.onopen=async()=>{ try{ dc.send(JSON.stringify({cam:true, mic:true})); }catch(_){}
+        const i=rint(TRUMP_QUOTES.length); let viaCall=false;
+        await new Promise(r=>setTimeout(r,600));
+        if(dest){ try{ await botPlayQuote(st, ac, dest, i); viaCall=true; }catch(e){ console.warn('ekokompis: ljudfil', e); } }
+        try{ dc.send(JSON.stringify({quote:i, tts:!viaCall})); }catch(_){}
+      };
       dc.onmessage=e=>{ try{ const m=JSON.parse(e.data); if(m && m.end) botHang(false); }catch(_){} };
       await pc.setRemoteDescription({type:'offer', sdp:p.sdp});
       pc.getTransceivers().forEach(t=>{ t.direction='sendrecv'; });
@@ -1381,7 +1396,7 @@ Skriv:
       ok:id=>!!ME && !blocked.includes(id) && (!!contacts[id] || dirAuto(id)),
       name:id=>nameOf(id), emoji:id=>emoOf(id), myId:()=>ME && ME.id,
       online:id=>isOnline(id), connect:id=>connectTo(id),
-      isBot:id=>!!id && id===ld('botid',null), quote:()=>botSpeakQuote(), hush:()=>{ try{ speechSynthesis.cancel(); }catch(e){} },
+      isBot:id=>!!id && id===ld('botid',null), quote:i=>botSpeakQuote(i), quoteText:i=>TRUMP_QUOTES[i]||'', hush:()=>{ try{ speechSynthesis.cancel(); }catch(e){} },
       unlock:()=>{ try{ if('speechSynthesis' in window){ const u=new SpeechSynthesisUtterance(' '); u.volume=0; speechSynthesis.speak(u); speechSynthesis.getVoices(); } }catch(e){}
         // iPhone startar bara ljud efter ett knapptryck – ekokompisen lånar den här ljudmotorn för ekot
         try{ if(!window.__ekoAC || window.__ekoAC.state==='closed') window.__ekoAC=new (window.AudioContext||window.webkitAudioContext)(); window.__ekoAC.resume(); }catch(e){} },
