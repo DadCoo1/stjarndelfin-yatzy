@@ -21,7 +21,7 @@
   if(!same || !/[?&]bot=1/.test(location.search)){ document.documentElement.innerHTML=''; throw new Error('Inramning blockerad'); }
 })();
 /* ================= Version & utvecklingsläge ================= */
-const APP_VERSION='2026.11.09.14-dev';
+const APP_VERSION='2026.11.10.2-dev';
 const DEV = /\/dev(\/|$)/.test(location.pathname);      // testversionen ligger i mappen /dev/
 const BOT = /[?&]bot=1/.test(location.search) && window.parent!==window;   // osynlig ekokompis i en ram
 const LSP = DEV ? (BOT ? 'dev:bot:' : 'dev:') : (BOT ? 'bot:' : '');    // egen sparad data i testversionen
@@ -2269,6 +2269,10 @@ function showSettings(){
     <div class="setrow"><div class="lbl">🎧 Ljudeffekter även när Spotify spelar</div>${onoff('spsfx',spSfx)}</div>
     <div class="setrow"><div class="lbl">🎲 Ljud när tärningarna kastas (tryck för att lyssna)</div>
       <div class="chips">${Object.entries(DICE_SOUNDS).map(([k,v])=>`<button data-act="setdice" data-k="${k}" class="${diceSound===k?'sel':''}">${v.label}</button>`).join('')}</div></div>
+    ${typeof TODAY!=='undefined' ? TODAY.settingsHTML() : ''}
+    <div class="setrow"><div class="lbl">💾 Säkerhetskopia</div>
+      <div class="chips"><button data-act="bkopen">Säkerhetskopia och ny enhet…</button></div>
+      <div class="setnote">${(typeof BK!=='undefined' && BK.last()) ? 'Senaste kopian: '+new Date(BK.last()).toLocaleDateString('sv-SE')+(BK.hasAuto()?' · automatiskt varje dag':'') : '⚠️ Ingen kopia än – allt finns bara på den här enheten.'}</div></div>
     <div class="setrow"><div class="lbl">🔔 Notiser på låsskärmen</div>
       <div class="chips"><button data-act="ntfopen">Välj notiser…</button></div>
       <div class="setnote">Status: ${permTxt}. Meddelanden, spelinbjudningar, din tur och samtal – du väljer vilka.</div></div>
@@ -2399,7 +2403,7 @@ function lobbyHTML(){
   let h = topbarLobby() + devbar + `<div class="lobby"><div class="lob-hero"><div class="logo brand">${DOLPHIN('lg','#a5f3ff','#7c6cff').replace('<svg','<svg class="big"')}
     <h1>Fröknarna Leins</h1><div class="gb">GAME BOARD</div><div class="leoband"></div></div>
     <div class="tag">Rymden · Havet · Leopard · Spel för stjärnor</div>
-    <div class="getwell">Krya på dig! 💙🐬</div></div><div class="lob-menu">`;
+    ${typeof TODAY!=='undefined' ? TODAY.heroHTML() : '<div class="getwell">Krya på dig! 💙🐬</div>'}</div><div class="lob-menu">`;
   if(mode==='online' && G){
     const st = G.started===false ? `${G.names.length} spelare · väntar på start` : G.cur===mySeat ? '<b style="color:var(--gold)">Din tur!</b>' : `${esc(pname(G.cur))}s tur`;
     h += `<div class="bgcard"><div style="font-size:26px">${gIcon()}</div><div class="t"><b>${gName()} ${esc(gameId)} pågår</b><span>${st}</span></div><button data-act="backtogame">Tillbaka</button><button class="lv" data-act="leavegame">Lämna</button></div>`;
@@ -2410,7 +2414,8 @@ function lobbyHTML(){
       if(!sgCount()) h += `<button class="bigbtn" data-act="resumenet">↩︎ Fortsätt spelet ${esc(n.code)} mot ${esc(other)}</button>`;
     }
   }catch(e){}
-  { const n=sgCount(); if(n) h += `<button class="bigbtn" data-act="sgopen" style="background:linear-gradient(135deg,#f472b6,#a855f7 60%,#6366f1)">🎮 Pågående spel <small>${n} st – fortsätt där du var</small></button>`; }
+  if(typeof TODAY!=='undefined') h += TODAY.todayHTML();
+  else { const n=sgCount(); if(n) h += `<button class="bigbtn" data-act="sgopen" style="background:linear-gradient(135deg,#f472b6,#a855f7 60%,#6366f1)">🎮 Pågående spel <small>${n} st – fortsätt där du var</small></button>`; }
   const svSol=S||solLoad(), invS=(typeof INV!=='undefined')?INV.stats():{best:0};
   h += `<h2 class="sec"><span class="leopill"><i>🐆</i>Välj spel</span></h2>${lobbyTilesHTML(svSol, invS)}
     `;
@@ -2541,6 +2546,8 @@ document.addEventListener('click', e=>{
   const b=e.target.closest('[data-act]'); if(!b) return;
   const a=b.dataset.act;
   unlockAudio();
+  if(typeof TODAY!=='undefined' && /^(mood|greet|moodshow|moodsofa|bkopen|dailyopen|dk|snd|aq)/.test(a) && TODAY.act(a,b)) return;
+  if(typeof BK!=='undefined' && /^bk/.test(a)){ BK.act(a,b); return; }
   switch(a){
     case 'roll': doRoll(); break;
     case 'hold': toggleHold(+b.dataset.i); break;

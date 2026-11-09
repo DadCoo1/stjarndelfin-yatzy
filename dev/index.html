@@ -598,6 +598,82 @@ body.desk .brand h1{font-size:64px} body.desk .brand .gb{font-size:32px}
   background:rgba(251,191,36,.14);border:1px dashed rgba(251,191,36,.7);color:#fde68a}
 .devbar a{color:#fff;font-weight:600}
 .appver{text-align:center;font-size:11px;color:var(--dim);margin-top:10px}
+
+/* ---------- Idag: hälsning, dagsform och kort ---------- */
+.today-hero{display:flex;flex-direction:column;align-items:center;gap:10px;margin:10px auto 14px;max-width:560px}
+.today-hero .greet{all:unset;cursor:pointer;text-align:center;padding:10px 18px;border-radius:22px;background:linear-gradient(135deg,rgba(124,108,255,.28),rgba(45,212,191,.22));box-shadow:inset 0 0 0 1px rgba(255,255,255,.14),0 8px 26px rgba(0,0,0,.25);max-width:100%;box-sizing:border-box}
+.today-hero .greet b{display:block;font:700 19px Fredoka,system-ui,sans-serif;letter-spacing:.2px}
+.today-hero .greet span{display:block;font-size:14.5px;opacity:.92;margin-top:3px;line-height:1.35}
+.mood-row{display:flex;gap:6px;flex-wrap:wrap;justify-content:center;max-width:calc(100vw - 80px)}
+.mood-chip{all:unset;cursor:pointer;display:inline-flex;align-items:center;gap:5px;padding:6px 11px;border-radius:999px;font:600 12.5px Fredoka,system-ui,sans-serif;background:rgba(255,255,255,.08);box-shadow:inset 0 0 0 1px rgba(255,255,255,.16);transition:transform .15s,background .2s}
+.mood-chip i{font-style:normal;font-size:16px}
+.mood-chip.on{background:linear-gradient(135deg,#f472b6,#a855f7);box-shadow:0 4px 14px rgba(168,85,247,.45)}
+.mood-chip:active{transform:scale(.95)}
+.trow{display:flex;gap:10px;overflow-x:auto;padding:2px 2px 10px;margin:0 -2px 6px;-webkit-overflow-scrolling:touch;scroll-snap-type:x proximity}
+.trow::-webkit-scrollbar{display:none}
+.tcard{all:unset;cursor:pointer;flex:0 0 auto;width:136px;min-height:96px;scroll-snap-align:start;box-sizing:border-box;padding:11px 12px;border-radius:18px;background:linear-gradient(160deg,rgba(255,255,255,.12),rgba(255,255,255,.04));box-shadow:inset 0 0 0 1px rgba(255,255,255,.13),0 6px 18px rgba(0,0,0,.22);display:flex;flex-direction:column;gap:2px;transition:transform .15s}
+.tcard:active{transform:scale(.96)}
+.tcard i{font-style:normal;font-size:24px;line-height:1.1}
+.tcard b{font:700 14.5px Fredoka,system-ui,sans-serif;margin-top:4px}
+.tcard small{font-size:12px;opacity:.82;line-height:1.3}
+.tcard.hot{background:linear-gradient(160deg,rgba(244,114,182,.45),rgba(168,85,247,.25))}
+.tcard.new{background:linear-gradient(160deg,rgba(250,204,21,.32),rgba(249,115,22,.16))}
+.tcard.calm{background:linear-gradient(160deg,rgba(45,212,191,.3),rgba(59,130,246,.14))}
+.tcard.live i{animation:tpulse 2.4s ease-in-out infinite}
+.tcard.tip{background:linear-gradient(160deg,rgba(148,163,184,.25),rgba(148,163,184,.08))}
+@keyframes tpulse{50%{transform:scale(1.12)}}
+/* lugnt läge */
+body.sofa::after{content:'';position:fixed;top:0;right:0;bottom:0;left:0;pointer-events:none;z-index:5;background:radial-gradient(ellipse at 50% 30%,rgba(10,20,50,0),rgba(5,10,30,.35));}
+body.sofa #app{filter:saturate(.8) brightness(.94)}
+body.sofa .bigbtn{min-height:62px;font-size:1.06em}
+body.sofa .tcard{width:150px;min-height:106px}
+body.sofa .lob-hero .logo, body.sofa .leoband, body.sofa .bubbles, body.sofa .popc{animation-duration:12s!important}
+@media (prefers-reduced-motion: reduce){ .tcard.live i{animation:none} }
+/* dagens kod */
+.dk{display:flex;flex-direction:column;gap:6px;align-items:center;margin:4px 0 10px}
+.dk-row{display:flex;gap:12px;align-items:center;padding:5px 10px;border-radius:14px;background:rgba(255,255,255,.05)}
+.dk-row.cur{background:rgba(255,255,255,.1);box-shadow:inset 0 0 0 1px rgba(255,255,255,.2)}
+.dk-g{display:flex;gap:7px}
+.dk-peg{display:inline-block;width:28px;height:28px;border-radius:50%;background:radial-gradient(circle at 32% 30%,#fff 0,var(--c) 22%,var(--c) 60%,rgba(0,0,0,.45) 100%);box-shadow:0 2px 5px rgba(0,0,0,.35)}
+.dk-slot{all:unset;cursor:pointer;width:28px;height:28px;border-radius:50%;display:inline-flex}
+.dk-slot.empty{box-shadow:inset 0 0 0 2px rgba(255,255,255,.25);background:rgba(0,0,0,.2)}
+.dk-fb{display:grid;grid-template-columns:repeat(2,10px);gap:3px;width:23px}
+.dk-fb i{width:10px;height:10px;border-radius:50%;background:rgba(255,255,255,.12)}
+.dk-fb i.b{background:#0b1220;box-shadow:inset 0 0 0 2px #fff}
+.dk-fb i.w{background:#fff}
+.dk-pick{display:flex;gap:8px;justify-content:center;flex-wrap:wrap;margin:8px 0}
+.dk-pick button{all:unset;cursor:pointer;padding:3px;border-radius:50%;transition:transform .12s}
+.dk-pick button:active{transform:scale(.88)}
+.dk-res{text-align:center;margin:8px 0;font-size:15px}.dk-res small{display:block;opacity:.75;font-size:12px;margin-top:4px}
+.dk-res .dk-peg{vertical-align:middle;margin:0 2px}
+.dk-lb{margin:10px 0;border-radius:14px;background:rgba(0,0,0,.2);padding:8px 10px;font-size:14px}
+.dk-lbh{font-weight:700;margin-bottom:6px}
+.dk-lb>div:not(.dk-lbh){display:grid;grid-template-columns:22px 1fr auto auto;gap:8px;padding:3px 0}
+.dk-lb>div.me{color:var(--gold,#facc15);font-weight:700}
+.dk-lb em{font-style:normal;opacity:.85}.dk-lb i{font-style:normal;opacity:.7;font-size:12px}
+/* ljudlandskap */
+.snd-bar{display:flex;gap:8px;flex-wrap:wrap;justify-content:center}
+.snd-bar button{all:unset;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:2px;min-width:62px;padding:8px 6px;border-radius:14px;background:rgba(255,255,255,.08);font:600 12px Fredoka,system-ui,sans-serif;box-shadow:inset 0 0 0 1px rgba(255,255,255,.14)}
+.snd-bar button i{font-style:normal;font-size:22px}
+.snd-bar button.on{background:linear-gradient(135deg,#2dd4bf,#3b82f6);box-shadow:0 4px 14px rgba(59,130,246,.45)}
+.snd-opts{display:flex;flex-wrap:wrap;gap:10px;justify-content:center;align-items:center;margin-top:10px;font-size:13px}
+.snd-opts input[type=range]{width:110px;vertical-align:middle}
+.snd-opts button{all:unset;cursor:pointer;padding:3px 8px;border-radius:999px;background:rgba(255,255,255,.08);margin-left:3px}
+.snd-opts button.on{background:rgba(45,212,191,.5)}
+/* akvariet */
+#aqWrap{position:fixed;top:0;right:0;bottom:0;left:0;z-index:45;background:#0b1f3f;touch-action:none;user-select:none;-webkit-user-select:none}
+#aqC{position:absolute;top:0;left:0;width:100%;height:100%}
+.aq-top{position:absolute;top:calc(env(safe-area-inset-top,0px) + 10px);left:10px;right:10px;display:flex;gap:10px;align-items:center}
+.aq-x{all:unset;cursor:pointer;width:40px;height:40px;border-radius:50%;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,.35);font-size:18px}
+.aq-name{all:unset;cursor:pointer;display:flex;flex-direction:column;padding:6px 12px;border-radius:14px;background:rgba(0,0,0,.3);font:600 15px Fredoka,system-ui,sans-serif}
+.aq-name small{font-size:11.5px;opacity:.8;font-weight:500}
+.aq-meter{flex:1;max-width:140px;height:9px;border-radius:9px;background:rgba(255,255,255,.18);overflow:hidden;margin-left:auto}
+.aq-meter i{display:block;height:100%;background:linear-gradient(90deg,#fda4af,#fb7185);border-radius:9px;transition:width .6s}
+.aq-say{position:absolute;left:50%;top:calc(env(safe-area-inset-top,0px) + 66px);transform:translateX(-50%) translateY(-6px);max-width:min(86vw,420px);padding:10px 14px;border-radius:16px;background:rgba(255,255,255,.92);color:#0b1220;font:600 15px Fredoka,system-ui,sans-serif;text-align:center;opacity:0;transition:opacity .4s,transform .4s;pointer-events:none}
+.aq-say.on{opacity:1;transform:translateX(-50%) translateY(0)}
+.aq-help{position:absolute;left:0;right:0;bottom:calc(env(safe-area-inset-bottom,0px) + 150px);text-align:center;font-size:12px;opacity:.8;pointer-events:none;padding:0 16px;text-shadow:0 1px 3px rgba(0,0,0,.6)}
+.snd-host{position:absolute;left:10px;right:10px;bottom:calc(env(safe-area-inset-bottom,0px) + 10px);padding:10px 8px;border-radius:20px;background:rgba(8,20,40,.55);-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px)}
+.snd-host .snd-opts{color:#fff}
 </style>
 </head>
 <body>
@@ -630,6 +706,8 @@ body.desk .brand h1{font-size:64px} body.desk .brand .gb{font-size:32px}
 <script src="race.js"></script>
 <script src="chat.js"></script>
 <script src="call.js"></script>
+<script src="backup.js"></script>
+<script src="today.js"></script>
 <script src="fr.js"></script>
 </body>
 </html>
