@@ -257,6 +257,45 @@ app.post('/mbox/ack', json, (req, res) => {
   saveSoon('mbox.json', () => MBOX); res.json({ ok: true });
 });
 
+/* ---------- användarlista (katalog) ----------
+   Varje inloggad app lägger upp sitt chattkort (publik nyckel + visningsnamn) under sitt användarnamn,
+   så att alla vanliga användare kan hitta och kontakta varandra. Adminkonton och avstängda konton listas inte.
+   Dev och vanlig app har olika chattidentiteter och hålls isär. Upp till 3 enheter per användare. */
+let DIR = load('dir.json', {});                 // user -> { prod: [{card, at}], dev: [...] }
+const dirEnv = v => v === 'dev' ? 'dev' : 'prod';
+const cleanStr = (v, n) => typeof v === 'string' ? v.replace(/[\u0000-\u001f\u007f<>]/g, '').trim().slice(0, n) : '';
+function okDirCard(c) {
+  if (!c || typeof c !== 'object' || c.v !== 1 || !isId(c.id) || !['X25519', 'P-256'].includes(c.curve) || !isB64(c.ik, 100)) return null;
+  if (crypto.createHash('sha256').update(Buffer.from(c.ik, 'base64')).digest('hex').slice(0, 16) !== c.id) return null;
+  try { rawToKey(c.curve, c.ik); } catch (e) { return null; }
+  return { v: 1, id: c.id, curve: c.curve, ik: c.ik, name: cleanStr(c.name, 20) || 'Okänd', emoji: cleanStr(c.emoji, 8) };
+}
+app.post('/dir/publish', auth, json, (req, res) => {
+  if (limited('dir:' + req.user, 60)) return res.status(429).json({ error: 'för många' });
+  const b = req.body || {}, env = dirEnv(b.env), card = okDirCard(b.card);
+  if (!card) return res.status(400).json({ error: 'fel' });
+  const e = DIR[req.user] = DIR[req.user] || {};
+  const list = (e[env] || []).filter(x => x.card.id !== card.id);
+  list.unshift({ card, at: hourOf(now()) }); e[env] = list.slice(0, 3);
+  saveSoon('dir.json', () => DIR); res.json({ ok: true });
+});
+app.post('/dir/unpublish', auth, json, (req, res) => {
+  const b = req.body || {}, env = dirEnv(b.env), e = DIR[req.user];
+  if (e && e[env]) { e[env] = isId(b.id) ? e[env].filter(x => x.card.id !== b.id) : []; if (!e[env].length) delete e[env]; if (!Object.keys(e).length) delete DIR[req.user]; saveSoon('dir.json', () => DIR); }
+  res.json({ ok: true });
+});
+app.get('/dir', auth, (req, res) => {
+  const env = dirEnv(req.query.env), U = users(), out = [];
+  for (const [name, e] of Object.entries(DIR)) {
+    const u = U[name]; if (!u || u.disabled || u.admin || !e[env]) continue;
+    e[env].forEach((x, i) => out.push({ user: name, n: i, card: x.card }));
+  }
+  out.sort((a, b) => a.user.localeCompare(b.user, 'sv') || a.n - b.n);
+  res.json({ me: req.user, list: out });
+});
+// borttagna användare försvinner ur katalogen
+setInterval(() => { const U = users(); let ch = false; for (const n of Object.keys(DIR)) if (!U[n]) { delete DIR[n]; ch = true; } if (ch) save('dir.json', DIR); }, 3600e3).unref();
+
 /* ---------- närvaro ----------
    Appen skickar inte sin kontaktlista. Servern lämnar ut en lista med hashade ID:n (nytt salt varje dygn)
    för dem som är uppkopplade, och appen jämför lokalt med sina kontakter. */
@@ -350,7 +389,7 @@ app.post('/admin/api/users/:name/:act', adm, json, (req, res) => {
   else if (act === 'disable' || act === 'enable') editUser(name, u => { u.disabled = act === 'disable'; });
   else if (act === 'admin' || act === 'unadmin') editUser(name, u => { u.admin = act === 'admin'; });
   else if (act === 'reset') { editUser(name, u => { u.revokedBefore = now(); }); out.link = makeInvite(name, { dev: !!(req.body || {}).dev, admin: !!U[name].admin }); }
-  else if (act === 'remove') { editUser(name, (u, all) => { delete all.users[name]; }); for (const [h, x] of Object.entries(SESS)) if (x.u === name) delete SESS[h]; save('sessions.json', SESS); }
+  else if (act === 'remove') { editUser(name, (u, all) => { delete all.users[name]; }); delete DIR[name]; saveSoon('dir.json', () => DIR); for (const [h, x] of Object.entries(SESS)) if (x.u === name) delete SESS[h]; save('sessions.json', SESS); }
   else return res.status(400).json({ error: 'okänd åtgärd' });
   for (const [h, a] of ADM) if (a.u === name && (act === 'disable' || act === 'remove' || act === 'unadmin' || act === 'logout')) ADM.delete(h);
   audit(req.admin, `${({ logout: 'loggade ut', disable: 'stängde av', enable: 'slog på', admin: 'gjorde till admin', unadmin: 'tog bort admin från', reset: 'skapade ny inbjudan (byt nyckel) för', remove: 'tog bort' })[act]} ${name}`);
@@ -395,4 +434,4 @@ peer.on('disconnect', c => { ONLINE.delete(c.getId()); PEERUSER.delete(c.getId()
 setInterval(() => { for (const [p, t] of LAST) if (now() - t > 14 * 864e5) LAST.delete(p); }, 3600e3).unref();
 
 server.listen(PORT, '127.0.0.1', () => console.log(`spelserver lyssnar på 127.0.0.1:${PORT} (${DOMAIN})`));
-process.on('SIGTERM', () => { save('sessions.json', SESS); save('mbox.json', MBOX); save('stats.json', STATS); process.exit(0); });
+process.on('SIGTERM', () => { save('dir.json', DIR); save('sessions.json', SESS); save('mbox.json', MBOX); save('stats.json', STATS); process.exit(0); });

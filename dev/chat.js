@@ -298,8 +298,30 @@ const CHAT = (()=>{
     if(ch) sv('lastseen',lastSeen); if(vis()){ refreshHead(); }
   }
   const isOnline = id => conns.has(id) || srvPres[id]===0;
-  setInterval(()=>{ if(!document.hidden){ mbPull(); presPull(); } }, 20000);
-  document.addEventListener('visibilitychange',()=>{ if(!document.hidden){ mbPull(); presPull(); } });
+
+  /* ---------- användarlistan på servern ----------
+     Alla vanliga registrerade användare syns för varandra (inte adminkonton). Appen lägger upp sitt chattkort
+     under sitt användarnamn och hämtar de andras. Nyckeln kommer från servern – skanna QR-koden för full verifiering. */
+  let DIRL=ld('dir',[]); const dirIds=new Map(DIRL.map(x=>[x.card.id,x.user]));
+  const DIRENV = () => (typeof DEV!=='undefined' && DEV) ? 'dev' : 'prod';
+  const dirHidden = () => typeof lsGet==='function' && lsGet('dir_hide')==='1';
+  let dirAt=0;
+  async function dirSync(force){
+    if(!MB() || BOTMODE) return; if(!force && Date.now()-dirAt<60000) return; dirAt=Date.now();
+    const card=myCard(), sig=JSON.stringify(card), last=ld('dirpub',null);
+    if(dirHidden()){ if(last){ const r=await srvFetch('/dir/unpublish',{env:DIRENV(), id:ME.id}); if(r && r.ok) sv('dirpub',null); } }
+    else if(!last || last.sig!==sig || Date.now()-last.at>12*3600e3){ const r=await srvFetch('/dir/publish',{env:DIRENV(), card}); if(r && r.ok) sv('dirpub',{sig, at:Date.now()}); }
+    const r=await srvFetch('/dir?env='+DIRENV()); if(!r || !Array.isArray(r.list)) return;
+    const out=[];
+    for(const x of r.list.slice(0,500)){ if(!x || typeof x.user!=='string' || x.user===r.me || !x.card || x.card.id===ME.id || blocked.includes(x.card.id)) continue;
+      if(await remember(x.card)) out.push({user:String(x.user).slice(0,32), n:+x.n||0, card:normCard(x.card)}); }
+    DIRL=out; dirIds.clear(); out.forEach(x=>dirIds.set(x.card.id,x.user)); sv('dir',DIRL);
+    if(vis() && tab==='contacts') refresh();
+  }
+  // en registrerad användare som hör av sig blir kontakt direkt (ingen förfrågan)
+  const dirAuto = id => { if(!dirIds.has(id) || blocked.includes(id) || contacts[id]) return !!contacts[id]; addContact(id,1); return true; };
+  setInterval(()=>{ if(!document.hidden){ mbPull(); presPull(); dirSync(); } }, 20000);
+  document.addEventListener('visibilitychange',()=>{ if(!document.hidden){ mbPull(); presPull(); dirSync(); } });
   // autosvar: telefonen svarar automatiskt på en "ping" – så syns det direkt om kontakten är nåbar
   const pings={}, pingSt={};
   function pingContact(id, quiet){
@@ -322,7 +344,7 @@ const CHAT = (()=>{
     if(!owner || (BOTMODE && !botNet) || cpeer || !ME || typeof Peer==='undefined') return;
     if(typeof needIce==='function' && needIce()){ iceReady().then(()=>{ if(!cpeer && (SRV_TOK || !netBase())) startTransport(); }); return; }
     const p=cpeer=new Peer(CPREFIX+ME.id, peerOpts());
-    p.on('open',()=>{ flushAll(); presenceSweep(); mbPull(); presPull(); if(BOTMODE) window.parent.postMessage({fl:'netready'},location.origin); });
+    p.on('open',()=>{ flushAll(); presenceSweep(); mbPull(); presPull(); dirSync(true); if(BOTMODE) window.parent.postMessage({fl:'netready'},location.origin); });
     p.on('connection',c=>attach(c,null));
     p.on('disconnected',()=>{ if(cpeer===p && !p.destroyed) setTimeout(()=>{ try{ p.reconnect() }catch(e){} },2000); });
     p.on('error',e=>{
@@ -455,6 +477,7 @@ const CHAT = (()=>{
         const cid = env.k==='g' ? 'g:'+env.gid : 'd:'+from;
         if(env.k==='g' && (!GROUPS[env.gid] || !GROUPS[env.gid].members.includes(from))) return;
         if(env.k==='d' && p.gid!==undefined) return;
+        if(!contacts[from] && env.k==='d' && dirIds.has(from)) dirAuto(from);
         const isNew=!contacts[from] && env.k==='d';
         if(isNew && p.fromName && known[from]){ known[from].name=cleanName(p.fromName,20)||'Okänd'; known[from].emoji=cleanEmoji(p.fromEmoji); saveC(); }
         const c=conv(cid, isNew?{request:true}:{});
@@ -682,6 +705,14 @@ const CHAT = (()=>{
       <button class="wa-btn" data-c="create">Skapa mina krypteringsnycklar ✨</button>
       ${CHATWIN?'':'<button class="wa-link" data-c="hide">Tillbaka</button>'}</div>`;
   }
+  function dirHTML(){
+    if(BOTMODE) return '';
+    if(!MB()) return (typeof netBase==='function' && netBase() && !SRV_TOK) ? `<div class="wa-sec">Alla användare</div><div class="wa-empty">Logga in på servern under ⚙️ så ser du alla som har ett konto.</div>` : '';
+    const rest=DIRL.filter(x=>!contacts[x.card.id] && !blocked.includes(x.card.id));
+    const multi=u=>DIRL.filter(x=>x.user===u).length>1;
+    return `<div class="wa-sec">Alla användare${rest.length?` (${rest.length})`:''}</div>`+(rest.length ? rest.map(x=>`<div class="wa-row">${avatar(x.card.emoji,x.card.id,'',isOnline(x.card.id))}<span class="wa-rt"><b>${esc(x.card.name)}</b><small class="wa-sub">@${esc(x.user)}${multi(x.user)?' · enhet '+(x.n+1):''}</small></span><button class="wa-add" data-c="diradd" data-id="${x.card.id}">💬 Chatta</button></div>`).join('')
+      : `<div class="wa-empty">${DIRL.length?'Alla användare finns redan bland dina kontakter 👍':'Inga andra användare har öppnat chatten än.'}</div>`);
+  }
   function sideHTML(){
     const list = Object.values(convs).filter(c=>c.type==='note' ? c.msgs.length>0 : c.type==='dm' ? !blocked.includes(peerOfConv(c.id)) : !!GROUPS[c.id.slice(2)]).sort((a,b)=>(b.lastTs||0)-(a.lastTs||0));
     const fr=Object.entries(friends).filter(([id])=>!contacts[id]);
@@ -699,6 +730,7 @@ const CHAT = (()=>{
         <button class="wa-row act" data-c="sharecard"><span class="wa-av ic">🔗</span><span class="wa-rt"><b>Dela min kontakt</b><small class="wa-sub">Skicka en länk så kan någon lägga till dig</small></span></button>
         ${fr.length?`<div class="wa-sec">Spelkompisar – lägg till som kontakt</div>`+fr.map(([id,f])=>`<div class="wa-row">${avatar(f.card.emoji,id)}<span class="wa-rt"><b>${esc(f.card.name)}</b><small class="wa-sub">Från ${esc(f.where)}</small></span><button class="wa-add" data-c="addc" data-id="${id}">＋ Lägg till</button></div>`).join(''):''}
         ${!BOTMODE && !ld('botid',null) ? `<button class="wa-row act" data-c="mkbot"><span class="wa-av ic" style="background:#b45309">🤖</span><span class="wa-rt"><b>Skapa ekokompis</b><small class="wa-sub">Testa chatt och samtal – svarar via servern och ekar ljud och bild</small></span></button>`:''}
+        ${dirHTML()}
         <div class="wa-sec">Kontakter${cs.length?` (${cs.length})`:''}</div>
         ${cs.length?cs.map(c=>`<button class="wa-row" data-c="opendm" data-id="${c.id}">${avatar(c.emoji,c.id,'',isOnline(c.id))}<span class="wa-rt"><b>${esc(nameOf(c.id))}${vdots(c.id)}</b><small class="wa-sub">${c.bot?'🤖 ekokompis · ':''}${conns.has(c.id)?'online':'🔒 krypterad'}</small></span></button>`).join(''):'<div class="wa-empty">Spela ett onlinespel med någon – då dyker de upp här som spelkompisar.</div>'}`;
     }
@@ -997,10 +1029,16 @@ Skriv:
     try{
       if(!('speechSynthesis' in window)) return;
       const q=TRUMP_QUOTES[rint(TRUMP_QUOTES.length)], vs=speechSynthesis.getVoices();
-      const say=(t,lang,rate)=>{ const u=new SpeechSynthesisUtterance(t); u.lang=lang; u.rate=rate||1; const v=vs.find(v=>v.lang && v.lang.replace('_','-').toLowerCase().startsWith(lang.toLowerCase())); if(v) u.voice=v; speechSynthesis.speak(u); };
+      const L=v=>(v.lang||'').replace('_','-').toLowerCase();
+      // en mörk amerikansk mansröst om telefonen har en – sedan lägre ton och långsamt, eftertryckligt tempo
+      const MALE=/aaron|alex\b|fred|tom\b|evan|nathan|ralph|reed|rocko|grandpa|david|mark|guy|davis|tony|jason|eric|christopher|male/i;
+      const us=vs.filter(v=>L(v).startsWith('en-us')), en=vs.filter(v=>L(v).startsWith('en'));
+      const tv=us.find(v=>MALE.test(v.name)) || en.find(v=>MALE.test(v.name)) || us[0] || en[0] || null;
+      const say=(t,lang,o)=>{ o=o||{}; const u=new SpeechSynthesisUtterance(t); u.lang=lang; u.rate=o.rate||1; u.pitch=o.pitch||1; const v=o.voice||vs.find(v=>L(v).startsWith(lang.toLowerCase())); if(v) u.voice=v; speechSynthesis.speak(u); };
       speechSynthesis.cancel();
       say('Hej! Ekokompisen här. Dagens citat från Donald Trump:','sv-SE');
-      say(q,'en-US',.95);
+      // varje fras för sig, med en liten paus emellan – som i ett valtal
+      (q.match(/[^.!?,]+[.!?,]*/g)||[q]).map(x=>x.trim()).filter(Boolean).forEach(part=>say(part,'en-US',{voice:tv, pitch:.55, rate:.82}));
       say('Nu ekar jag dig. Säg något!','sv-SE');
     }catch(e){}
   }
@@ -1017,7 +1055,9 @@ Skriv:
       const o=(cpeer && cpeer.options && cpeer.options.config) || {iceServers:[]};
       const pc=st.pc=new RTCPeerConnection({iceServers:o.iceServers||[], ...(o.iceTransportPolicy?{iceTransportPolicy:o.iceTransportPolicy}:{})});
       const dc=st.dc=pc.createDataChannel('ctl',{negotiated:true, id:0});
-      let ac=null; try{ ac=new (window.AudioContext||window.webkitAudioContext)(); await ac.resume(); }catch(_){}
+      let ac=null, ownAc=false;
+      try{ const pa=window.parent!==window && window.parent.__ekoAC; if(pa && pa.state==='running') ac=pa; }catch(_){}
+      if(!ac){ try{ ac=new (window.AudioContext||window.webkitAudioContext)(); ownAc=true; await Promise.race([ac.resume(), new Promise(r=>setTimeout(r,600))]); }catch(_){} }
       const dest = ac && ac.state==='running' ? ac.createMediaStreamDestination() : null;
       if(dest){ // en kort signal först, sedan ekot
         const o1=ac.createOscillator(), g1=ac.createGain(); o1.frequency.value=880; g1.gain.value=0; o1.connect(g1).connect(dest); o1.start();
@@ -1025,8 +1065,9 @@ Skriv:
       pc.ontrack=e=>{
         const tr=e.track, tx=pc.getTransceivers().find(x=>x.receiver.track===tr); if(!tx) return;
         if(tr.kind==='audio'){
-          if(dest){ const src=ac.createMediaStreamSource(new MediaStream([tr])), dl=ac.createDelay(3); dl.delayTime.value=1.5; src.connect(dl).connect(dest); tx.sender.replaceTrack(dest.stream.getAudioTracks()[0]); }
-          else tx.sender.replaceTrack(tr);
+          let done=false;
+          if(dest){ try{ const src=ac.createMediaStreamSource(new MediaStream([tr])), dl=ac.createDelay(3); dl.delayTime.value=1.5; src.connect(dl).connect(dest); tx.sender.replaceTrack(dest.stream.getAudioTracks()[0]); done=true; }catch(_){} }
+          if(!done) tx.sender.replaceTrack(tr);   // utan ljudmotor: ditt ljud direkt tillbaka (utan fördröjning)
         } else { tx.sender.replaceTrack(tr); st.vid=true; }   // din egen bild tillbaka
       };
       dc.onopen=()=>{ try{ dc.send(JSON.stringify({cam:true, mic:true})); }catch(_){} };
@@ -1037,7 +1078,7 @@ Skriv:
       await new Promise(r=>{ if(pc.iceGatheringState==='complete') return r(); const tm=setTimeout(r,4000); pc.addEventListener('icegatheringstatechange',()=>{ if(pc.iceGatheringState==='complete'){ clearTimeout(tm); r(); } }); });
       if(botCallSt!==st) return;
       queueDirect(from,{type:'call', op:'answer', id:p.id, sdp:pc.localDescription.sdp},true);
-      st.ac=ac; st.endT=setTimeout(()=>botHang(true), 90000);   // ekotest i högst 90 sekunder
+      st.ac=ownAc?ac:null; st.endT=setTimeout(()=>botHang(true), 90000);   // ekotest i högst 90 sekunder
     }catch(e){ console.warn('ekokompis: samtal', e); queueDirect(from,{type:'call', op:'reject', id:p.id},true); botCallSt=null; }
   }
   function botHang(tell){
@@ -1257,7 +1298,7 @@ Skriv:
       case 'emo': case 'pfemo': case 'gemo': b.parentElement.querySelectorAll('button').forEach(x=>x.classList.remove('sel')); b.classList.add('sel'); break;
       case 'create': { if(!owner){ toast('Chatten är aktiv i ett annat fönster'); break; } const n=(document.getElementById('waName')?.value||'').trim(); if(!n){ toast('Skriv ditt namn 💬'); return; } const em=document.querySelector('.wa-emos .sel')?.dataset.e;
         b.disabled=true; b.textContent='Skapar nycklar…'; try{ await createIdentity(n,em); lsSet('ry_name',n); startTransport(); refresh(); toast('Klart! Dina nycklar finns bara på den här enheten 🔐',3500); }catch(err){ toast('Kunde inte skapa nycklar: '+err.message,5000); b.disabled=false; } break; }
-      case 'tab': tab=b.dataset.t; refresh(); break;
+      case 'tab': tab=b.dataset.t; refresh(); if(tab==='contacts') dirSync(); break;
       case 'open': openConv(b.dataset.id); break;
       case 'opendm': openConv('d:'+b.dataset.id); break;
       case 'close': openCid=null; editing=null; refresh(); break;
@@ -1277,6 +1318,7 @@ Skriv:
       case 'myqr': stopScan(); showMyQR(); break;
       case 'scanqr': showScanner(); break;
       case 'scanstop': stopScan(); closeModal(); break;
+      case 'diradd': { const id=b.dataset.id; if(dirIds.has(id)){ addContact(id,1); openChat('d:'+id); } break; }
       case 'simbot': { const c=cardOf(ld('botid',null)); if(c) onScanText(cardLink(c)); break; }
       case 'openafter': closeModal(); openChat('d:'+b.dataset.id); break;
       case 'edit': startEdit(b.dataset.mid); break;
@@ -1328,15 +1370,18 @@ Skriv:
     myId:()=>ME && ME.id,
     html, mount, refresh, open:()=>openPanel(), openChat, close:()=>closePanel(), isOpen:()=>panelOpen, docked:()=>panelOpen && dockable(), seenCards, card:()=>myCard(), unread:totalUnread,
     hasIdentity:()=>!!ME,
-    reconnect:()=>{ if(!cpeer || cpeer.destroyed){ cpeer=null; startTransport(); } mbPull(); presPull(); },
+    reconnect:()=>{ if(!cpeer || cpeer.destroyed){ cpeer=null; startTransport(); } mbPull(); presPull(); dirSync(true); },
+    dirSync:()=>dirSync(true),
     // samtal: signalerna går krypterade genom samma dubbla ratchet som meddelandena
     call:{
       send:(to,p)=>{ if(ME && owner && !BOTMODE) queueDirect(to,{...p, type:'call'},true); },
-      ok:id=>!!ME && !!contacts[id] && !blocked.includes(id),
+      ok:id=>!!ME && !blocked.includes(id) && (!!contacts[id] || dirAuto(id)),
       name:id=>nameOf(id), emoji:id=>emoOf(id), myId:()=>ME && ME.id,
       online:id=>isOnline(id), connect:id=>connectTo(id),
       isBot:id=>!!id && id===ld('botid',null), quote:()=>botSpeakQuote(), hush:()=>{ try{ speechSynthesis.cancel(); }catch(e){} },
-      unlock:()=>{ try{ if('speechSynthesis' in window){ const u=new SpeechSynthesisUtterance(' '); u.volume=0; speechSynthesis.speak(u); } }catch(e){} },
+      unlock:()=>{ try{ if('speechSynthesis' in window){ const u=new SpeechSynthesisUtterance(' '); u.volume=0; speechSynthesis.speak(u); speechSynthesis.getVoices(); } }catch(e){}
+        // iPhone startar bara ljud efter ett knapptryck – ekokompisen lånar den här ljudmotorn för ekot
+        try{ if(!window.__ekoAC || window.__ekoAC.state==='closed') window.__ekoAC=new (window.AudioContext||window.webkitAudioContext)(); window.__ekoAC.resume(); }catch(e){} },
       owner:()=>owner && !BOTMODE && !!ME,
       log:(id,text)=>{ sysMsg('d:'+id,text); if(vis()) refresh(); else if(typeof render==='function' && view==='lobby') render(); },
       unread:id=>{ const c=conv('d:'+id); c.unread=(c.unread||0)+1; saveConvs(); },
