@@ -216,7 +216,7 @@ const CALL=(function(){
   }
 
   function finish(reason, remote){
-    const c=cur; if(!c) return; const A=API();
+    const c=cur; if(!c) return; try{ if(c.aud){ c.aud.pause(); c.aud.srcObject=null; c.aud.remove(); c.aud=null; } }catch(_){} const A=API();
     if(A && A.hush && A.isBot && A.isBot(c.peer)) A.hush();
     if(!remote && A){
       if(reason==='reject' && c.dir==='in') A.send(c.peer,{op:'reject', id:c.id});
@@ -292,14 +292,22 @@ const CALL=(function(){
       <div class="cl-pill"><button class="pm" data-k="mic" aria-label="Mikrofon"></button><button class="pt" data-k="max"></button></div>`;
     el.addEventListener('click',e=>{ const b=e.target.closest('[data-k]'); if(!b) return; e.stopPropagation();
       if(dragged){ dragged=false; return; }
-      ({min:minimize, max:open, sas:()=>el.classList.toggle('showsas'), mic:toggleMic, cam:toggleCam, tap:tapSound, flip, end:hangup, rej:()=>finish('reject'), ans:()=>accept(false), ansv:()=>accept(true)})[b.dataset.k]?.(); });
+      ({min:minimize, max:open, sas:()=>el.classList.toggle('showsas'), mic:toggleMic, cam:toggleCam, tap:tapSound, beep:testBeep, flip, end:hangup, rej:()=>finish('reject'), ans:()=>accept(false), ansv:()=>accept(true)})[b.dataset.k]?.(); });
     document.body.appendChild(el); dragSetup();
     return el;
   }
   // webbläsaren stoppade ljudet (inget knapptryck än) – ett tryck startar det
+  // spelar en ton direkt i telefonen (inte via samtalet) – visar om högtalaren alls hörs
+  function testBeep(){
+    try{ const ac=window.__ekoAC && window.__ekoAC.state!=='closed' ? window.__ekoAC : (window.__ekoAC=new (window.AudioContext||window.webkitAudioContext)()); ac.resume();
+      const o=ac.createOscillator(), g=ac.createGain(); o.frequency.value=660; g.gain.setValueAtTime(0,ac.currentTime); g.gain.linearRampToValueAtTime(.4,ac.currentTime+.03); g.gain.setValueAtTime(.4,ac.currentTime+.5); g.gain.linearRampToValueAtTime(0,ac.currentTime+.6);
+      o.connect(g).connect(ac.destination); o.start(); o.stop(ac.currentTime+.65); }catch(e){}
+    tapSound();
+  }
   function tapSound(){
     const c=cur; if(!c || !el) return; c.needTap=false;
     try{ const p=el.querySelector('.cl-rv').play(); p && p.catch(()=>{}); }catch(e){}
+    try{ if(c.aud){ c.aud.muted=false; const p=c.aud.play(); p && p.catch(()=>{}); } }catch(e){}
     try{ window.__ekoAC && window.__ekoAC.resume(); }catch(e){}
     if(c.bot && Number.isInteger(c.qi)){ const A=API(); try{ A.unlock(); }catch(e){} A.quote(c.qi); }
     ui();
@@ -320,13 +328,22 @@ const CALL=(function(){
   function capPaint(){
     const c=cur; if(!c || !el) return;
     const cap=el.querySelector('.cl-cap');
-    cap.innerHTML = c.bot && c.state==='live' ? (c.quote?`<div class="q">“${esc(c.quote)}”<small>– Donald Trump</small></div>`:'')+(c.diag?`<div class="d">${esc(c.diag)}</div>`:'') : '';
+    cap.innerHTML = c.bot && c.state==='live' ? (c.quote?`<div class="q">“${esc(c.quote)}”<small>– Donald Trump</small></div>`:'')+(c.diag?`<div class="d">${esc(c.diag)}</div>`:'')+`<div class="t"><button data-k="beep">🔔 Testljud i telefonen</button><small>Hörs testljudet men inte ekot? Höj mediavolymen eller håll telefonen mot örat – vissa telefoner spelar samtal i hörluren.</small></div>` : '';
     el.classList.toggle('needtap', !!c.needTap);
   }
   function bind(){
     const c=cur; if(!c || !el) return;
     const rv=el.querySelector('.cl-rv'), lv=el.querySelector('.cl-lv');
-    if(c.remote && rv.srcObject!==c.remote){ rv.srcObject=c.remote; const p=rv.play(); p && p.catch(()=>{ if(cur===c){ c.needTap=true; ui(); } }); }
+    // bilden i videoelementet (tyst), ljudet i ett eget ljudelement som byggs om när ett nytt ljudspår kommer
+    rv.muted=true;
+    if(c.remote && rv.srcObject!==c.remote){ rv.srcObject=c.remote; const p=rv.play(); p && p.catch(()=>{}); }
+    const at=c.remote ? c.remote.getAudioTracks() : [], key=at.map(t=>t.id).join(',');
+    if(at.length && c.audKey!==key){
+      c.audKey=key;
+      if(!c.aud){ c.aud=document.createElement('audio'); c.aud.autoplay=true; c.aud.setAttribute('playsinline',''); c.aud.style.display='none'; document.body.appendChild(c.aud); }
+      c.aud.srcObject=new MediaStream(at); c.aud.volume=1; c.aud.muted=false;
+      const p=c.aud.play(); p && p.catch(()=>{ if(cur===c){ c.needTap=true; ui(); } });
+    }
     if(c.local && lv.srcObject!==c.local){ lv.srcObject=c.local; const p=lv.play(); p && p.catch(()=>{}); }
     lv.classList.toggle('back', c.facing==='environment');
     ui();
@@ -364,6 +381,8 @@ const CALL=(function(){
 .cl{position:fixed;top:0;right:0;bottom:0;left:0;z-index:9000;background:radial-gradient(120% 80% at 50% 20%,#1e3a5f,#0b1220 70%);color:#fff;font-family:'Fredoka',system-ui,sans-serif;display:flex;flex-direction:column;align-items:center;overflow:hidden;-webkit-user-select:none;user-select:none}
 .cl-cap{position:absolute;left:12px;right:12px;bottom:130px;text-align:center;pointer-events:none;text-shadow:0 1px 4px #000}
 .cl-cap .q{font-size:17px;line-height:1.35;margin-bottom:10px}.cl-cap .q small{display:block;opacity:.75;font-size:13px;margin-top:4px}
+.cl-cap .t{margin-top:10px;pointer-events:auto}.cl-cap .t button{font:600 14px 'Fredoka',system-ui,sans-serif;color:#fff;background:rgba(255,255,255,.18);border:1px solid rgba(255,255,255,.35);border-radius:999px;padding:7px 14px}
+.cl-cap .t small{display:block;font-size:11.5px;opacity:.8;margin-top:6px}
 .cl-cap .d{display:inline-block;font-size:12.5px;background:rgba(0,0,0,.45);border-radius:12px;padding:6px 10px}
 .cl-tap{display:none;position:absolute;left:50%;top:42%;transform:translateX(-50%);z-index:3;font:600 17px 'Fredoka',system-ui,sans-serif;color:#0b1220;background:#facc15;border:0;border-radius:999px;padding:14px 22px;box-shadow:0 6px 20px rgba(0,0,0,.4)}
 .cl.needtap .cl-tap{display:block}.cl.min .cl-cap,.cl.min .cl-tap{display:none}

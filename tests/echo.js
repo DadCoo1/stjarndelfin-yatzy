@@ -24,6 +24,8 @@ const TOK=process.env.TOK;
   const sq=await p.evaluate(()=>{ const s=CALL.__state(); return s ? {q:s.quote, qi:s.qi} : null; }); const said=await p.evaluate(()=>window.__said.join(' | '));
   ok(sq && sq.q && !/Donald Trump/.test(said), 'citatet spelades upp i samtalet (inte i telefonens talsyntes): '+JSON.stringify(sq));
   await sleep(2500); const cap=await p.evaluate(()=>document.querySelector('#callUI .cl-cap').innerText); ok(/Donald Trump/.test(cap) && /Ekot: ✅/.test(cap) && /mikrofon: ✅/.test(cap), 'citat och ljudkontroll syns: '+cap.replace(/\n/g,' '));
+  const au=await p.evaluate(()=>{ const a=[...document.querySelectorAll('audio')].find(x=>x.srcObject); return a ? {paused:a.paused, muted:a.muted, tracks:a.srcObject.getAudioTracks().length} : null; });
+  ok(au && !au.paused && !au.muted && au.tracks>0, 'samtalsljudet spelas i ett eget ljudelement: '+JSON.stringify(au));
   await p.screenshot({path:'/tmp/echo_call.png'});
   await p.click('#callUI [data-k=end]'); await sleep(1500);
   console.log('errs',errs); console.log(fails?fails+' FEL':'alla ekotester ok'); await b.close(); process.exit(fails?1:0); })();
