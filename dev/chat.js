@@ -244,7 +244,7 @@ const CHAT = (()=>{
     if(c && c.open){
       for(const o of items){ if(o.acked || Date.now()-(o.lastSend||0)<15000) continue; try{ const env=await makeEnv(o); sendRaw(c, env); o.lastSend=Date.now(); if(o.status==='queued'){ o.status='sent'; if(!o.ctl) markStatus(o.cid||'', o.mid, id, 'sent'); } }catch(e){ if(!/väntar/.test(e.message)) console.warn('chatt: kunde inte kryptera', e.message); } }
       saveConvs();
-      mbPush(id, items.filter(o=>!o.acked && o.lastSend && Date.now()-o.lastSend>20000));
+      mbPush(id, items.filter(o=>!o.acked && o.lastSend && Date.now()-o.lastSend>8000));
     } else {
       connectTo(id);
       mbPush(id, items);
@@ -277,11 +277,21 @@ const CHAT = (()=>{
       if(vis()) refresh(); flushAll();
     }finally{ mbBusy=false; }
   }
+  async function pushReg(sub, cats){
+    if(!MB()) return false;
+    if(!mbClaimed){ const r=await srvFetch('/mbox/claim',{id:ME.id, curve:ME.curve, pub:ME.ik.pub}); if(!(r && r.ok)) return false; mbClaimed=true; }
+    const post=(p,b)=>fetch(srvUrl(p),{method:'POST', cache:'no-store', headers:{'Content-Type':'application/json'}, body:JSON.stringify(b)}).then(r=>r.ok?r.json():null).catch(()=>null);
+    const ch=await post('/mbox/challenge',{id:ME.id, curve:ME.curve}); if(!ch || !/^[0-9a-f]{32}$/.test(ch.n||'') || !isB64(ch.e,100)) return false;
+    const proof=b64(await hmac(await dh(ME.curve, ME.ik, ch.e), te.encode('FL-push-v1|'+ME.id+'|'+ch.n)));
+    const r=await post('/mbox/push',{id:ME.id, n:ch.n, proof, sub, cats}); return !!(r && r.ok);
+  }
   async function mbPush(id, items){
     if(!MB() || !items.length) return;
     const send=items.filter(o=>!o.mbox && !NOMB.has(o.payload && o.payload.type)); if(!send.length) return;
     send.forEach(o=>o.mbox=-1);
-    const list=[]; for(const o of send){ try{ list.push({to:id, env:await seal(await makeEnv(o), id)}); }catch(e){} }
+    // notiskategori (bara en bokstav, inget innehåll): m = meddelande, i = spelinbjudan, t = din tur, c = missat samtal
+    const catOf=o=>{ const p=o.payload||{}; if(p.type==='msg') return p.invite?'i':'m'; if(p.type==='nudge' && ['t','c'].includes(p.k)) return p.k; return undefined; };
+    const list=[]; for(const o of send){ try{ const it={to:id, env:await seal(await makeEnv(o), id)}, c=catOf(o); if(c) it.p=c; list.push(it); }catch(e){} }
     const r=list.length ? await srvFetch('/mbox/send',{items:list}) : null;
     for(const o of send){ if(r && r.stored){ o.mbox=Date.now(); if(o.status==='queued'){ o.status='sent'; if(!o.ctl) markStatus(o.cid||'', o.mid, id, 'sent'); } } else o.mbox=0; }
     saveConvs();
@@ -546,6 +556,15 @@ const CHAT = (()=>{
         if(typeof CALL!=='undefined') CALL.onSignal(from,p);
         break; }
       case 'ping': { if(env.k==='d' && isH(p.n)) queueDirect(from,{type:'pong', n:p.n, at:Date.now()},true); break; }
+      case 'nudge': {                                         // "din tur" eller "missat samtal" – bara från kända (kontakt, spelkompis, användarlistan)
+        if(env.k!=='d' || !(contacts[from] || friends[from] || dirIds.has(from)) || !['t','c'].includes(p.k)) break;
+        const who=nameOf(from), g=cleanName(p.g,40);
+        if(p.k==='c'){ const cid='d:'+from; if(contacts[from]){ conv(cid); sysMsg(cid, `📞 Missat samtal – ${who} försökte ringa medan du var borta`); }
+          if(typeof sysNotify==='function') sysNotify('c', `📞 ${who} försökte ringa dig`, 'Ring tillbaka när du kan', 'call');
+          notice({icon:'📞', title:`${who} försökte ringa`, text:'Du var inte nåbar just då', actions: contacts[from]&&typeof CALL!=='undefined' ? [{label:'Ring upp', run:()=>CALL.start(from,false)}] : [], ms:12000}); }
+        else { if(typeof sysNotify==='function') sysNotify('t', `🎲 Din tur${g?' i '+g:''}!`, `${who} har gjort sitt drag`, 'turn');
+          notice({icon:'🎲', title:`Din tur${g?' i '+g:''}!`, text:`${who} väntar på ditt drag`, ms:12000}); }
+        break; }
       case 'pong': { const q=isH(p.n) && pings[p.n]; if(q && q.id===from){ delete pings[p.n]; pingSt[from]={s:'ok', ms:Date.now()-q.t0, t:Date.now()}; if(vis()) refreshHead(); infoPing(from); } break; }
       case 'skd': {
         if(!isH(p.gid) || !GROUPS[p.gid] || !GROUPS[p.gid].members.includes(from) || !isB64(p.ck,60) || !isN(p.iter,1e7) || !isB64(p.spub,120)) return;
@@ -660,6 +679,8 @@ const CHAT = (()=>{
     const title = g ? `${g.emoji} ${g.name}` : `${emoOf(from)} ${nameOf(from)}`;
     const text = (g?nameOf(from)+': ':'') + (m.invite ? `🎮 Bjuder in till ${m.invite.gname}` : (m.text||'').slice(0,80));
     notice({icon:'💬', title, text, actions:[{label:'Öppna', run:()=>openChat(cid)}], ms:9000});
+    if(typeof sysNotify==='function' && !BOTMODE){ const prev=typeof ntfGet==='function' && ntfGet().prev;
+      sysNotify(m.invite?'i':'m', m.invite ? `🎮 ${nameOf(from)} bjuder in dig` : title, m.invite ? `${m.invite.gname} – tryck för att vara med` : (prev ? text : 'Nytt meddelande'), cid); }
     if(typeof render==='function' && view==='lobby') render();
   }
   const totalUnread = () => Object.values(convs).reduce((a,c)=>a+(c.unread||0),0);
@@ -1314,6 +1335,9 @@ Skriv:
       <div class="btns"><button data-act="close">Avbryt</button><button class="pri" data-c="addc" data-id="${card.id}" data-open="1">Lägg till och chatta</button></div>`,'chatadd');
   }
   window.addEventListener('hashchange',handleHash);
+  // tryck på en notis: öppna chatten
+  if(!BOTMODE && 'serviceWorker' in navigator) navigator.serviceWorker.addEventListener('message',e=>{ if(e.data && e.data.fl==='openchat') setTimeout(()=>openPanel(),200); });
+  if(!BOTMODE && location.hash==='#chat'){ try{ history.replaceState(null,'',location.pathname+location.search); }catch(e){} setTimeout(()=>openPanel(),900); }
 
   /* ---------- händelser ---------- */
   let typingT=0;
@@ -1425,13 +1449,14 @@ Skriv:
     html, mount, refresh, open:()=>openPanel(), openChat, close:()=>closePanel(), isOpen:()=>panelOpen, docked:()=>panelOpen && dockable(), seenCards, card:()=>myCard(), unread:totalUnread,
     hasIdentity:()=>!!ME,
     reconnect:()=>{ if(!cpeer || cpeer.destroyed){ cpeer=null; startTransport(); } mbPull(); presPull(); dirSync(true); },
-    dirSync:()=>dirSync(true),
+    dirSync:()=>dirSync(true), pushReg, nudge:(id,k,g)=>{ if(!ME || !id || id===ME.id || !cardOf(id)) return false; queueDirect(id,{type:'nudge', k, g:String(g||'').slice(0,40)},true); return true; },
     netState:()=>!ME || !owner ? null : (cpeer && cpeer.open && !cpeer.disconnected ? 'open' : 'connecting'),
     // samtal: signalerna går krypterade genom samma dubbla ratchet som meddelandena
     call:{
       send:(to,p)=>{ if(ME && owner && !BOTMODE) queueDirect(to,{...p, type:'call'},true); },
       ok:id=>!!ME && !blocked.includes(id) && (!!contacts[id] || dirAuto(id)),
       name:id=>nameOf(id), emoji:id=>emoOf(id), myId:()=>ME && ME.id,
+      nudge:(id,k)=>{ if(ME && contacts[id]) queueDirect(id,{type:'nudge', k},true); },
       online:id=>isOnline(id), connect:id=>connectTo(id),
       isBot:id=>!!id && id===ld('botid',null), quote:i=>botSpeakQuote(i), quoteText:i=>TRUMP_QUOTES[i]||'', hush:()=>{ try{ speechSynthesis.cancel(); }catch(e){} },
       unlock:()=>{ try{ if('speechSynthesis' in window){ const u=new SpeechSynthesisUtterance(' '); u.volume=0; speechSynthesis.speak(u); speechSynthesis.getVoices(); } }catch(e){}

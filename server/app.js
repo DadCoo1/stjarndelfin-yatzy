@@ -78,7 +78,15 @@ function checkTotp(secret, code, lastStep) {
 /* ---------- skydd mot gissning ---------- */
 const fails = new Map();   // nyckel -> [tider]
 function tooMany(k, max, ms) { const t = (fails.get(k) || []).filter(x => now() - x < ms); fails.set(k, t); return t.length >= max; }
-function fail(k) { const t = fails.get(k) || []; t.push(now()); fails.set(k, t); }
+function fail(k) { const t = fails.get(k) || []; t.push(now()); fails.set(k, t); if (/^(ip|inv|aip):/.test(k)) secLog('fail', k.slice(k.indexOf(':') + 1)); }
+// säkerhetsrad för fail2ban: bara IP-adressen vid misslyckade inloggningar och skanningsförsök – aldrig användarnamn eller innehåll
+const secSeen = new Map();
+function secLog(kind, ip) {
+  if (!ip || !/^[0-9.]+$/.test(ip = String(ip).replace(/^::ffff:/, ''))) return;
+  const k = kind + ip, t = now(); if (t - (secSeen.get(k) || 0) < 2000) return; secSeen.set(k, t);
+  if (secSeen.size > 5000) secSeen.clear();
+  console.log(`sec ${kind} ip=${ip}`);
+}
 setInterval(() => { for (const [k, t] of fails) if (!t.some(x => now() - x < 3600e3)) fails.delete(k); }, 600e3).unref();
 const hits = new Map(); setInterval(() => hits.clear(), 60e3).unref();
 function limited(k, n) { const c = (hits.get(k) || 0) + 1; hits.set(k, c); return c > n; }
@@ -222,6 +230,7 @@ app.post('/mbox/send', auth, json, (req, res) => {
     const box = MBOX.box[e.to] = MBOX.box[e.to] || [];
     if (!box.some(m => m.k === k)) { box.push({ k, env, at: hourOf(now()) }); if (box.length > MAXBOX) box.splice(0, box.length - MAXBOX); }
     n++;
+    if (PUSHCAT.includes(it.p)) pushTo(e.to, it.p);
   }
   saveSoon('mbox.json', () => MBOX); if (n) bump(req.user, (d, u) => { d.mbox += n; u.msgs += n; }); res.json({ stored: n });
 });
@@ -237,15 +246,18 @@ app.post('/mbox/challenge', json, (req, res) => {
   CHAL.set(n, { id, priv: eph.priv, exp: now() + 60e3 });
   res.json({ n, e: eph.pub });
 });
-app.post('/mbox/fetch', json, (req, res) => {
-  const b = req.body || {}, ch = typeof b.n === 'string' && CHAL.get(b.n); if (ch) CHAL.delete(b.n);
+// bevis på att man äger chatt-nyckeln för en brevlåda (utmaningen gäller en gång)
+function proveBox(b, label) {
+  const ch = typeof b.n === 'string' && CHAL.get(b.n); if (ch) CHAL.delete(b.n);
   const key = ch && isId(b.id) && ch.id === b.id && MBOX.keys[b.id];
-  if (!key || !isB64(b.proof, 100)) return res.status(403).json({ error: 'nej' });
-  let ok = false;
+  if (!key || !isB64(b.proof, 100)) return false;
   try { const sh = crypto.diffieHellman({ privateKey: ch.priv, publicKey: rawToKey(key.c, key.p) });
-    const exp = crypto.createHmac('sha256', sh).update('FL-mbox-v1|' + b.id + '|' + b.n).digest();
-    const got = Buffer.from(b.proof, 'base64'); ok = got.length === exp.length && crypto.timingSafeEqual(got, exp); } catch (e) {}
-  if (!ok) return res.status(403).json({ error: 'nej' });
+    const exp = crypto.createHmac('sha256', sh).update(label + '|' + b.id + '|' + b.n).digest();
+    const got = Buffer.from(b.proof, 'base64'); return got.length === exp.length && crypto.timingSafeEqual(got, exp); } catch (e) { return false; }
+}
+app.post('/mbox/fetch', json, (req, res) => {
+  const b = req.body || {};
+  if (!proveBox(b, 'FL-mbox-v1')) return res.status(403).json({ error: 'nej' });
   const items = (MBOX.box[b.id] || []).slice(0, 300).map(m => ({ k: m.k, env: m.env }));
   const ack = crypto.randomBytes(16).toString('hex'); ACKS.set(ack, { id: b.id, exp: now() + 300e3 });
   res.json({ items, ack });
@@ -255,6 +267,37 @@ app.post('/mbox/ack', json, (req, res) => {
   const keys = new Set([].concat(b.keys || []).filter(k => typeof k === 'string').slice(0, 1000));
   if (MBOX.box[a.id]) { MBOX.box[a.id] = MBOX.box[a.id].filter(m => !keys.has(m.k)); if (!MBOX.box[a.id].length) delete MBOX.box[a.id]; }
   saveSoon('mbox.json', () => MBOX); res.json({ ok: true });
+});
+
+/* ---------- notiser på låsskärmen (Web Push) ----------
+   En app kan be om notiser för sin brevlåda (bevisas med chatt-nyckeln, inte kopplat till kontot).
+   Avsändaren märker kuvertet med en kategori (m = meddelande, i = spelinbjudan, t = din tur, c = missat samtal);
+   mottagaren väljer själv vilka kategorier den vill ha. Notisen innehåller bara kategorin – aldrig vem, vad eller text –
+   och är krypterad till telefonen, så Google/Apple ser inget innehåll. */
+const PUSHCAT = ['m', 'i', 't', 'c'];
+let webpush = null; try { webpush = require('web-push'); } catch (e) { console.warn('web-push saknas – notiser avstängda'); }
+let VAPID = load('vapid.json', null);
+if (webpush && !VAPID) { VAPID = webpush.generateVAPIDKeys(); save('vapid.json', VAPID); }
+if (webpush && VAPID) webpush.setVapidDetails('https://' + (process.env.DOMAIN || 'localhost'), VAPID.publicKey, VAPID.privateKey);
+let PUSH = load('push.json', {});                  // chatId -> { s: subscription, c: ['m','i'...], at }
+const pushLast = new Map();
+const b64ok = v => typeof v === 'string' && /^[A-Za-z0-9+/_=-]+$/.test(v);
+function pushTo(id, cat) {
+  const p = PUSH[id]; if (!webpush || !p || !p.c.includes(cat)) return;
+  const k = id + cat, t = now(); if (t - (pushLast.get(k) || 0) < 20e3) return; pushLast.set(k, t);   // högst en notis per typ var 20:e sekund
+  webpush.sendNotification(p.s, JSON.stringify({ k: cat }), { TTL: cat === 'c' ? 600 : 86400, urgency: 'high', topic: 'fl' + cat })
+    .catch(err => { if (err && (err.statusCode === 404 || err.statusCode === 410)) { delete PUSH[id]; saveSoon('push.json', () => PUSH); } });
+}
+app.get('/push/key', (req, res) => res.json({ key: webpush && VAPID ? VAPID.publicKey : null }));
+app.post('/mbox/push', json, (req, res) => {
+  if (limited('push:' + req.ip, 60)) return res.status(429).json({ error: 'för många' });
+  const b = req.body || {};
+  if (!proveBox(b, 'FL-push-v1')) return res.status(403).json({ error: 'nej' });
+  const cats = [].concat(b.cats || []).filter(c => PUSHCAT.includes(c));
+  if (!b.sub || !cats.length) { delete PUSH[b.id]; }
+  else { const s = b.sub; if (!(s && typeof s.endpoint === 'string' && s.keys && b64ok(s.keys.p256dh) && b64ok(s.keys.auth) && s.keys.p256dh.length < 140 && s.keys.auth.length < 40 && /^https:\/\//.test(s.endpoint) && s.endpoint.length < 900)) return res.status(400).json({ error: 'fel' });
+    PUSH[b.id] = { s: { endpoint: s.endpoint, keys: { p256dh: s.keys.p256dh, auth: s.keys.auth } }, c: [...new Set(cats)], at: hourOf(now()) }; }
+  saveSoon('push.json', () => PUSH); res.json({ ok: true, on: !!PUSH[b.id] });
 });
 
 /* ---------- användarlista (katalog) ----------
@@ -432,9 +475,12 @@ server.prependListener('upgrade', (req, socket) => {
 });
 const peer = ExpressPeerServer(server, { path: '/', key: 'peerjs', proxied: true, alive_timeout: 60000, allow_discovery: false });
 app.use('/peer', peer);
+// allt annat: 404 – och den som letar efter kända sårbarheter (wp-login, .env, phpmyadmin …) hamnar i fail2ban
+const PROBE = /(\.php|\.env|\.git|wp-|wordpress|phpmyadmin|\.aspx?|\.cgi|\/cgi-bin|\/boaform|\/actuator|\/HNAP1|\/vendor\/|\/\.well-known\/(?!acme)|\/etc\/passwd|\.\.\/|%2e%2e|\/shell|\/console|\/solr|\/owa|\/autodiscover|\.(bak|sql|zip|tar|gz|ini|log|cfg|yml|yaml|xml)$)/i;
+app.use((req, res) => { if (PROBE.test(req.originalUrl || req.url)) secLog('probe', req.ip); res.status(404).type('text/plain').send('Finns inte'); });
 peer.on('connection', c => { ONLINE.set(c.getId(), now()); LAST.set(c.getId(), now()); });
 peer.on('disconnect', c => { ONLINE.delete(c.getId()); PEERUSER.delete(c.getId()); LAST.set(c.getId(), now()); });
 setInterval(() => { for (const [p, t] of LAST) if (now() - t > 14 * 864e5) LAST.delete(p); }, 3600e3).unref();
 
 server.listen(PORT, '127.0.0.1', () => console.log(`spelserver lyssnar på 127.0.0.1:${PORT} (${DOMAIN})`));
-process.on('SIGTERM', () => { save('dir.json', DIR); save('sessions.json', SESS); save('mbox.json', MBOX); save('stats.json', STATS); process.exit(0); });
+process.on('SIGTERM', () => { save('push.json', PUSH); save('dir.json', DIR); save('sessions.json', SESS); save('mbox.json', MBOX); save('stats.json', STATS); process.exit(0); });

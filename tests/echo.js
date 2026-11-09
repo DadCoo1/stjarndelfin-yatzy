@@ -6,7 +6,7 @@ const TOK=process.env.TOK;
   await c.addInitScript(`window.__NET_SERVER='127.0.0.1:9000'; try{ if(!localStorage.getItem('dev:srv_tok')){ localStorage.setItem('dev:srv_tok','${TOK}'); localStorage.setItem('dev:srv_user','ekotest'); } }catch(e){}`);
   await c.addInitScript(`window.__said=[]; if(window.speechSynthesis){ const o=speechSynthesis.speak.bind(speechSynthesis); speechSynthesis.speak=u=>{ window.__said.push(u.text); try{o(u);}catch(e){} }; }`);
   const p=await c.newPage(); p.on('pageerror',e=>errs.push(e.message)); await p.goto('http://127.0.0.1:8811/dev/'); await sleep(1200);
-  await p.evaluate(()=>CHAT.open()); await sleep(400); await p.fill('#waName','Elsa'); await p.click('[data-c=create]'); await sleep(2500);
+  await sleep(2500); await p.evaluate(()=>CHAT.open()); await sleep(400); if(await p.$('#waName')){ await p.fill('#waName','Elsa'); await p.click('[data-c=create]'); await sleep(2500); }
   await p.evaluate(()=>closeModal()); await p.evaluate(()=>CHAT.open()); await sleep(300);
   await p.click('[data-c=tab][data-t=contacts]'); await sleep(400); await p.click('[data-c=mkbot]'); 
   let id=null; for(let i=0;i<30;i++){ await sleep(500); id=await p.evaluate(()=>{ const k=Object.keys(localStorage).find(k=>k==='dev:chat:botid'||k.endsWith(':botid')); return k?JSON.parse(localStorage.getItem(k)):null; }); if(id && await p.evaluate(id=>CHAT.__test.conns().includes(id),id)) break; }
