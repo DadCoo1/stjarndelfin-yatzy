@@ -291,7 +291,10 @@ app.get('/dir', auth, (req, res) => {
     e[env].forEach((x, i) => out.push({ user: name, n: i, card: x.card }));
   }
   out.sort((a, b) => a.user.localeCompare(b.user, 'sv') || a.n - b.n);
-  res.json({ me: req.user, list: out });
+  // alla vanliga konton syns, även de som inte har öppnat appen sedan katalogen kom (de kan läggas till när de har gjort det)
+  const people = Object.entries(U).filter(([n, u]) => n !== req.user && !u.disabled && !u.admin).map(([n]) => ({ user: n, ready: !!(DIR[n] && DIR[n][env] && DIR[n][env].length) }))
+    .sort((a, b) => a.user.localeCompare(b.user, 'sv'));
+  res.json({ me: req.user, list: out, people });
 });
 // borttagna användare försvinner ur katalogen
 setInterval(() => { const U = users(); let ch = false; for (const n of Object.keys(DIR)) if (!U[n]) { delete DIR[n]; ch = true; } if (ch) save('dir.json', DIR); }, 3600e3).unref();

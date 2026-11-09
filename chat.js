@@ -305,13 +305,27 @@ const CHAT = (()=>{
   let DIRL=ld('dir',[]); const dirIds=new Map(DIRL.map(x=>[x.card.id,x.user]));
   const DIRENV = () => (typeof DEV!=='undefined' && DEV) ? 'dev' : 'prod';
   const dirHidden = () => typeof lsGet==='function' && lsGet('dir_hide')==='1';
-  let dirAt=0;
+  let dirAt=0, DIRP=ld('dirp',[]), dirErr='';
+  // inloggad på servern men har aldrig öppnat chatten: skapa nycklar direkt, så syns man för de andra utan att behöva göra något
+  let autoBusy=false;
+  async function autoIdentity(){
+    if(ME || BOTMODE || !owner || autoBusy || typeof SRV_TOK==='undefined' || !SRV_TOK || !(typeof netBase==='function' && netBase())) return;
+    autoBusy=true;
+    try{ const n=String((typeof lsGet==='function' && lsGet('ry_name')) || SRV_USER || 'Spelare').trim().slice(0,20); await createIdentity(n.charAt(0).toUpperCase()+n.slice(1)); startTransport(); refresh(); }catch(e){}
+    autoBusy=false;
+  }
   async function dirSync(force){
+    if(!ME) await autoIdentity();
     if(!MB() || BOTMODE) return; if(!force && Date.now()-dirAt<60000) return; dirAt=Date.now();
     const card=myCard(), sig=JSON.stringify(card), last=ld('dirpub',null);
     if(dirHidden()){ if(last){ const r=await srvFetch('/dir/unpublish',{env:DIRENV(), id:ME.id}); if(r && r.ok) sv('dirpub',null); } }
     else if(!last || last.sig!==sig || Date.now()-last.at>12*3600e3){ const r=await srvFetch('/dir/publish',{env:DIRENV(), card}); if(r && r.ok) sv('dirpub',{sig, at:Date.now()}); }
-    const r=await srvFetch('/dir?env='+DIRENV()); if(!r || !Array.isArray(r.list)) return;
+    let r=null;
+    try{ const res=await fetch(srvUrl('/dir?env='+DIRENV()),{cache:'no-store', headers:{'Authorization':'Bearer '+SRV_TOK}});
+      if(res.status===404){ dirErr='Servern behöver uppdateras för att visa alla användare.'; if(vis() && tab==='contacts') refresh(); return; }
+      r=res.ok ? await res.json() : null; }catch(e){ r=null; }
+    if(!r || !Array.isArray(r.list)) return; dirErr='';
+    DIRP=Array.isArray(r.people) ? r.people.filter(x=>x && typeof x.user==='string').slice(0,500).map(x=>({user:x.user.slice(0,32), ready:!!x.ready})) : []; sv('dirp',DIRP);
     const out=[];
     for(const x of r.list.slice(0,500)){ if(!x || typeof x.user!=='string' || x.user===r.me || !x.card || x.card.id===ME.id || blocked.includes(x.card.id)) continue;
       if(await remember(x.card)) out.push({user:String(x.user).slice(0,32), n:+x.n||0, card:normCard(x.card)}); }
@@ -718,10 +732,16 @@ const CHAT = (()=>{
   function dirHTML(){
     if(BOTMODE) return '';
     if(!MB()) return (typeof netBase==='function' && netBase() && !SRV_TOK) ? `<div class="wa-sec">Alla användare</div><div class="wa-empty">Logga in på servern under ⚙️ så ser du alla som har ett konto.</div>` : '';
+    if(dirErr) return `<div class="wa-sec">Alla användare</div><div class="wa-empty">⚠️ ${esc(dirErr)}</div>`;
     const rest=DIRL.filter(x=>!contacts[x.card.id] && !blocked.includes(x.card.id));
     const multi=u=>DIRL.filter(x=>x.user===u).length>1;
-    return `<div class="wa-sec">Alla användare${rest.length?` (${rest.length})`:''}</div>`+(rest.length ? rest.map(x=>`<div class="wa-row">${avatar(x.card.emoji,x.card.id,'',isOnline(x.card.id))}<span class="wa-rt"><b>${esc(x.card.name)}</b><small class="wa-sub">@${esc(x.user)}${multi(x.user)?' · enhet '+(x.n+1):''}</small></span><button class="wa-add" data-c="diradd" data-id="${x.card.id}">💬 Chatta</button></div>`).join('')
-      : `<div class="wa-empty">${DIRL.length?'Alla användare finns redan bland dina kontakter 👍':'Inga andra användare har öppnat chatten än.'}</div>`);
+    const added=new Set(DIRL.filter(x=>contacts[x.card.id]).map(x=>x.user));
+    const waiting=DIRP.filter(p=>!p.ready && !added.has(p.user) && !DIRL.some(x=>x.user===p.user));
+    const n=rest.length+waiting.length;
+    return `<div class="wa-sec">Alla användare${n?` (${n})`:''}</div>`
+      + rest.map(x=>`<div class="wa-row">${avatar(x.card.emoji,x.card.id,'',isOnline(x.card.id))}<span class="wa-rt"><b>${esc(x.card.name)}</b><small class="wa-sub">@${esc(x.user)}${multi(x.user)?' · enhet '+(x.n+1):''}</small></span><button class="wa-add" data-c="diradd" data-id="${x.card.id}">➕ Lägg till</button></div>`).join('')
+      + waiting.map(p=>`<div class="wa-row" style="opacity:.6"><span class="wa-av ic" style="background:#475569">👤</span><span class="wa-rt"><b>${esc(p.user)}</b><small class="wa-sub">Kan läggas till när hen har öppnat den nya versionen av appen</small></span></div>`).join('')
+      + (n ? '' : `<div class="wa-empty">${DIRL.length?'Alla användare finns redan bland dina kontakter 👍':'Inga andra användare har konto än.'}</div>`);
   }
   function sideHTML(){
     const list = Object.values(convs).filter(c=>c.type==='note' ? c.msgs.length>0 : c.type==='dm' ? !blocked.includes(peerOfConv(c.id)) : !!GROUPS[c.id.slice(2)]).sort((a,b)=>(b.lastTs||0)-(a.lastTs||0));
@@ -1199,7 +1219,7 @@ Skriv:
       try{ if(cpeer) cpeer.destroy(); }catch(e){} cpeer=null; conns.clear(); connecting.clear();
       if(botFrame){ botFrame.remove(); botFrame=null; }
     } else {
-      reloadAll(); if(ME){ startTransport(); if(ld('bot',false)) spawnBot(false); }
+      reloadAll(); if(ME){ startTransport(); if(ld('bot',false)) spawnBot(false); } else setTimeout(autoIdentity,300);
     }
     if(vis()){ const pn=document.getElementById('chatPanel'); if(pn){ pn.innerHTML=html(); mount(); } }
     updateBadges();
@@ -1351,7 +1371,7 @@ Skriv:
       case 'myqr': stopScan(); showMyQR(); break;
       case 'scanqr': showScanner(); break;
       case 'scanstop': stopScan(); closeModal(); break;
-      case 'diradd': { const id=b.dataset.id; if(dirIds.has(id)){ addContact(id,1); openChat('d:'+id); } break; }
+      case 'diradd': { const id=b.dataset.id; if(dirIds.has(id)){ addContact(id,1); toast('➕ '+(cardOf(id)?.name||dirIds.get(id))+' är nu din kontakt'); refresh(); } break; }
       case 'simbot': { const c=cardOf(ld('botid',null)); if(c) onScanText(cardLink(c)); break; }
       case 'openafter': closeModal(); openChat('d:'+b.dataset.id); break;
       case 'edit': startEdit(b.dataset.mid); break;
@@ -1395,6 +1415,7 @@ Skriv:
     if(navigator.locks){ owner=false; claim(CHATWIN); }          // låset avgör vem som startar nätverket
     else if(ME){ startTransport(); if(ld('bot',false)) spawnBot(false); }
     handleHash();
+    setTimeout(()=>dirSync(true),1500);
   }
   setTimeout(boot, 300);
   return {

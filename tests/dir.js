@@ -6,7 +6,7 @@ const [TA,TB,TC]=[process.env.TA,process.env.TB,process.env.TC];
     const c=await b.newContext({viewport:{width:390,height:844}, permissions:['camera','microphone']});
     await c.addInitScript(`window.__NET_SERVER='127.0.0.1:9000'; try{ if(!localStorage.getItem('dev:srv_tok')){ localStorage.setItem('dev:srv_tok','${tok}'); localStorage.setItem('dev:srv_user','${u}'); } }catch(e){}`);
     const p=await c.newPage(); p.on('pageerror',e=>errs.push(u+': '+e.message)); await p.goto('http://127.0.0.1:8811/dev/'); await sleep(1200);
-    await p.evaluate(()=>CHAT.open()); await sleep(400); await p.fill('#waName',name); await p.click('[data-c=create]'); await sleep(2500);
+    await sleep(2500);   // nycklarna skapas automatiskt när man är inloggad
     await p.evaluate(()=>closeModal()); return p;
   }
   const A=await user(TA,process.env.UA,'Alva'), B=await user(TB,process.env.UB,'Bert'), C=await user(TC,process.env.UC,'Admin');
@@ -16,8 +16,11 @@ const [TA,TB,TC]=[process.env.TA,process.env.TB,process.env.TC];
   await A.evaluate(()=>CHAT.open()); await sleep(300); await A.click('[data-c=tab][data-t=contacts]'); await sleep(1500);
   const rows=await A.$$eval('[data-c=diradd]', bs=>bs.map(b=>b.closest('.wa-row').innerText));
   ok(rows.some(t=>t.includes('@'+process.env.UB)), 'Alva ser Bert i listan: '+JSON.stringify(rows));
-  ok(!rows.some(t=>/Admin/.test(t)), 'adminkontot syns inte');
-  await A.evaluate(u=>[...document.querySelectorAll('[data-c=diradd]')].find(b=>b.closest('.wa-row').innerText.includes('@'+u)).click(), process.env.UB); await sleep(800);
+  ok(!rows.some(t=>t.includes('@'+process.env.UC)), 'adminkontot syns inte');
+  ok(rows.some(t=>t.includes('@'+process.env.UB)) , 'Bert syns utan att ha öppnat chatten själv');
+  const bid=await A.evaluate(u=>{ const b=[...document.querySelectorAll('[data-c=diradd]')].find(b=>b.closest('.wa-row').innerText.includes('@'+u)); const id=b.dataset.id; b.click(); return id; }, process.env.UB); await sleep(800);
+  ok(await A.evaluate(id=>!!CHAT.__test.contacts()[id], bid), 'Bert lades till som kontakt');
+  await A.evaluate(id=>CHAT.openChat('d:'+id), bid); await sleep(800);
   await A.fill('#waText','hej Bert!'); await A.click('[data-c=send]'); await sleep(5000);
   const bs=await B.evaluate(()=>{ const cv=Object.values(CHAT.__test.convs()).find(c=>c.type==='dm'); return cv ? {req:!!cv.request, txt:cv.msgs.map(m=>m.text).join('|')} : null; });
   ok(bs && /hej Bert/.test(bs.txt) && !bs.req, 'Bert fick meddelandet direkt, utan kontaktförfrågan: '+JSON.stringify(bs));
