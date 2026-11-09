@@ -689,6 +689,16 @@ const CHAT = (()=>{
     return tick + esc(who + (m.invite ? `🎮 Inbjudan: ${m.invite.gname}` : m.text)); }
   function tickHTML(st){ return st==='queued' ? '<i class="tk q">🕓</i>' : st==='sent' ? '<i class="tk">✓</i>' : st==='delivered' ? '<i class="tk">✓✓</i>' : '<i class="tk rd">✓✓</i>'; }
 
+  // om något går fel när chatten ritas: visa felet i panelen i stället för en tom ruta
+  let lastErr='';
+  function safeHTML(){
+    try{ return html(); }catch(e){
+      lastErr=(e && (e.name+': '+e.message)) || String(e); try{ console.error('chatt', e); }catch(_){}
+      return `<div id="chatRoot" class="wa t-${theme}"><div class="wa-setup"><div class="wa-card"><div style="font-size:48px">😵</div><h2>Chatten kunde inte visas</h2>
+        <p>Ta gärna en skärmbild och skicka till den som bygger appen.</p><p style="font:12px ui-monospace,monospace;opacity:.85;word-break:break-word">${esc(lastErr)}<br>${esc(navigator.userAgent)}</p>
+        <button class="wa-btn" data-c="retry">Försök igen</button> <button class="wa-btn" data-c="toggle">Stäng</button></div></div></div>`;
+    }
+  }
   function html(){
     if(!owner) return `<div id="chatRoot" class="wa t-${theme}"><div class="wa-setup"><div class="wa-card"><div style="font-size:54px">💬↗️</div><h2>Chatten är öppen på annat håll</h2>
       <p>Chatten används just nu i ett annat fönster eller en annan flik. Bara en i taget kan vara aktiv – annars kan krypteringsnycklarna komma i otakt.</p>
@@ -802,8 +812,8 @@ const CHAT = (()=>{
     updateBadges();
     if(!vis()) return;
     const root=document.getElementById('chatRoot');
-    if(!root){ const pn=document.getElementById('chatPanel'); if(pn){ pn.innerHTML=html(); mount(); } return; }
-    if(!owner || (root.querySelector('.wa-setup') && ME)){ root.outerHTML=html(); mount(); return; }
+    if(!root){ const pn=document.getElementById('chatPanel'); if(pn){ pn.innerHTML=safeHTML(); mount(); } return; }
+    if(!owner || (root.querySelector('.wa-setup') && ME)){ root.outerHTML=safeHTML(); mount(); return; }
     if(!ME){ root.innerHTML=`<div class="wa-setup">${setupHTML()}</div>`; return; }
     if(!document.getElementById('waSide')){ root.outerHTML=html(); mount(); return; }
     root.className=`wa t-${theme} ${openCid?'has-open':''} ${wide()?'wide':''}`;
@@ -1130,7 +1140,7 @@ Skriv:
     tab.innerHTML='💬<i class="cbadge" data-cbadge></i>';
     const pn=document.createElement('aside'); pn.id='chatPanel'; pn.className='chat-panel'; pn.setAttribute('aria-label','Chatt');
     document.body.append(tab,pn);
-    if(CHATWIN){ document.body.classList.add('chatwin'); document.title='💬 Chatt · Fröknarna Leins'; panelOpen=true; pn.classList.add('open'); pn.innerHTML=html(); mount(); }
+    if(CHATWIN){ document.body.classList.add('chatwin'); document.title='💬 Chatt · Fröknarna Leins'; panelOpen=true; pn.classList.add('open'); pn.innerHTML=safeHTML(); mount(); }
     updateBadges();
   }
   function setDock(){
@@ -1149,7 +1159,7 @@ Skriv:
       if(!dockable() && !CHATWIN){ try{ history.pushState({flchat:1},''); chatHist=true; }catch(e){} }   // mobilens bakåtknapp stänger chatten
     }
     pn.classList.add('open'); setDock(); fitViewport();
-    pn.innerHTML=html(); mount();
+    pn.innerHTML=safeHTML(); try{ mount(); }catch(e){}
     if(openCid && convs[openCid]){ convs[openCid].unread=0; markRead(openCid); }
     updateBadges();
   }
@@ -1204,10 +1214,15 @@ Skriv:
     navigator.locks.request(LOCK, ()=>{ waiting=false; setOwner(true); return hold(); }).catch(()=>{ waiting=false; setOwner(false); waitTurn(); }); }
   function claim(steal){
     if(BOTMODE || !navigator.locks){ owner=true; return; }
-    navigator.locks.request(LOCK, steal?{steal:true}:{ifAvailable:true}, lock=>{
-      if(!lock){ setOwner(false); waitTurn(); return; }
-      setOwner(true); return hold();
-    }).catch(()=>{ setOwner(false); waitTurn(); });      // någon annan tog över (AbortError)
+    let answered=false;
+    setTimeout(()=>{ if(!answered){ answered=true; console.warn('chatt: låset svarar inte – kör utan'); setOwner(true); } },2500);
+    try{
+      navigator.locks.request(LOCK, steal?{steal:true}:{ifAvailable:true}, lock=>{
+        if(answered && owner) return hold(); answered=true;
+        if(!lock){ setOwner(false); waitTurn(); return; }
+        setOwner(true); return hold();
+      }).catch(()=>{ answered=true; setOwner(false); waitTurn(); });      // någon annan tog över (AbortError)
+    }catch(e){ answered=true; setOwner(true); }
   }
   // passiv flik: håll olästa-märket aktuellt och säg till om nya meddelanden
   window.addEventListener('storage',e=>{
@@ -1319,6 +1334,7 @@ Skriv:
       case 'open': openConv(b.dataset.id); break;
       case 'opendm': openConv('d:'+b.dataset.id); break;
       case 'close': openCid=null; editing=null; refresh(); break;
+      case 'retry': { const pn=document.getElementById('chatPanel'); if(pn){ pn.innerHTML=safeHTML(); try{ mount(); }catch(e){} } break; }
       case 'send': doSend(); break;
       case 'emoji': { pickerOpen=!pickerOpen; const ta=document.getElementById('waText');
         if(pickerOpen){ ta && ta.blur(); refresh(); } else { refresh(); document.getElementById('waText')?.focus(); }
