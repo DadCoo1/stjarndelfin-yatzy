@@ -8,3 +8,4 @@ Starta en webbserver i repots rot (`python3 -m http.server 8811`) och för onlin
 - `node tests/multi.js fia 4` – onlinespel med flera mobiler, avhopp och återkomst, returmatch
 - `TOK=… node tests/echo.js` – ekokompisen via den egna servern: chatt-eko, ping, samtal med ljud och bild, uppläst citat
 - `UA=… TA=… UB=… TB=… UC=… TC=… node tests/dir.js` – användarlistan: vanliga användare ser varandra (inte admin), meddelanden utan kontaktförfrågan och samtal
+- `UA=… TA=… UB=… TB=… node tests/push.js` – notiser: registrering med falsk push-tjänst (https-mock på 9443, servern med `NODE_EXTRA_CA_CERTS`), push för meddelande och "din tur", bara kategorin skickas

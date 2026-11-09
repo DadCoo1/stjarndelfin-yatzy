@@ -48,12 +48,118 @@ systemctl enable --now fail2ban
 # bara IPv4: inga IPv6-regler, och tjänsterna lyssnar bara på IPv4
 sed -i 's/^IPV6=.*/IPV6=no/' /etc/default/ufw
 ufw default deny incoming >/dev/null; ufw default allow outgoing >/dev/null
-ufw allow OpenSSH >/dev/null
-ufw allow 80/tcp >/dev/null; ufw allow 443/tcp >/dev/null
+ufw limit OpenSSH >/dev/null                      # max 6 nya SSH-anslutningar per 30 s och IP
+ufw delete allow OpenSSH >/dev/null 2>&1 || true
+ufw delete allow 80/tcp >/dev/null 2>&1 || true   # port 80 behövs inte: certifikatet hämtas via 443 (TLS-ALPN)
+ufw allow 443/tcp >/dev/null
 ufw allow 3478/udp >/dev/null; ufw allow 3478/tcp >/dev/null; ufw allow 5349/tcp >/dev/null
 ufw allow ${RELAY_MIN}:${RELAY_MAX}/udp >/dev/null
+ufw logging off >/dev/null                         # ingen brandväggslogg med andras IP-adresser
 ufw --force enable >/dev/null
 ufw status | sed -n '1,30p'
+
+say "Härdning: kärnan, SSH och fail2ban"
+cat > /etc/sysctl.d/90-spelserver.conf <<'EOF2'
+# skydd mot förfalskade paket, SYN-flod och omdirigeringar
+net.ipv4.tcp_syncookies = 1
+net.ipv4.conf.all.rp_filter = 1
+net.ipv4.conf.default.rp_filter = 1
+net.ipv4.conf.all.accept_redirects = 0
+net.ipv4.conf.default.accept_redirects = 0
+net.ipv4.conf.all.send_redirects = 0
+net.ipv4.conf.all.accept_source_route = 0
+net.ipv4.icmp_echo_ignore_broadcasts = 1
+net.ipv4.icmp_ignore_bogus_error_responses = 1
+kernel.kptr_restrict = 2
+kernel.dmesg_restrict = 1
+# bara IPv4
+net.ipv6.conf.all.disable_ipv6 = 1
+net.ipv6.conf.default.disable_ipv6 = 1
+EOF2
+sysctl -q --system >/dev/null 2>&1 || true
+
+# SSH: bara nyckel – men bara om det redan finns en nyckel, så att ingen låses ute
+HASKEY=""; for d in /root /home/*; do [ -s "$d/.ssh/authorized_keys" ] && HASKEY="$d"; done
+if [ -n "$HASKEY" ]; then
+  mkdir -p /etc/ssh/sshd_config.d
+  cat > /etc/ssh/sshd_config.d/10-spelserver.conf <<'EOF2'
+PasswordAuthentication no
+KbdInteractiveAuthentication no
+PermitEmptyPasswords no
+PermitRootLogin prohibit-password
+PubkeyAuthentication yes
+AuthenticationMethods publickey
+MaxAuthTries 3
+MaxStartups 10:30:30
+LoginGraceTime 20
+X11Forwarding no
+AllowAgentForwarding no
+PermitTunnel no
+ClientAliveInterval 300
+ClientAliveCountMax 2
+EOF2
+  if sshd -t 2>/dev/null; then systemctl reload ssh 2>/dev/null || systemctl reload sshd 2>/dev/null || true; echo "SSH: bara nyckelinloggning"; else rm -f /etc/ssh/sshd_config.d/10-spelserver.conf; echo "SSH: kunde inte skärpa (sshd -t klagade) – lämnade som det var"; fi
+else
+  echo "SSH: hittade ingen authorized_keys – lösenordsinloggning lämnas på tills du har lagt in en nyckel (kör skriptet igen sedan)"
+fi
+
+# fail2ban: SSH-gissare, felaktiga inloggningar i appen och sårbarhetsskannrar spärras
+mkdir -p /etc/fail2ban/filter.d /etc/fail2ban/jail.d
+cat > /etc/fail2ban/filter.d/spelserver.conf <<'EOF2'
+[Definition]
+failregex = ^.*sec fail ip=<HOST>$
+ignoreregex =
+EOF2
+cat > /etc/fail2ban/filter.d/spelserver-probe.conf <<'EOF2'
+[Definition]
+failregex = ^.*sec probe ip=<HOST>$
+ignoreregex =
+EOF2
+cat > /etc/fail2ban/jail.d/spelserver.local <<'EOF2'
+[DEFAULT]
+backend = systemd
+banaction = ufw
+ignoreip = 127.0.0.1/8
+
+[sshd]
+enabled = true
+maxretry = 3
+findtime = 10m
+bantime = 1d
+
+[spelserver]
+enabled = true
+journalmatch = _SYSTEMD_UNIT=spelserver.service
+filter = spelserver
+maxretry = 20
+findtime = 15m
+bantime = 2h
+
+[spelserver-probe]
+enabled = true
+journalmatch = _SYSTEMD_UNIT=spelserver.service
+filter = spelserver-probe
+maxretry = 4
+findtime = 10m
+bantime = 1d
+
+[recidive]
+enabled = true
+backend = auto
+logpath = /var/log/fail2ban.log
+maxretry = 3
+findtime = 1d
+bantime = 2w
+EOF2
+systemctl restart fail2ban
+
+# loggarna sparas kort (IP-adresser vid misslyckade försök ska inte ligga kvar)
+mkdir -p /etc/systemd/journald.conf.d
+printf '[Journal]\nMaxRetentionSec=14day\nSystemMaxUse=200M\n' > /etc/systemd/journald.conf.d/90-spelserver.conf
+systemctl restart systemd-journald 2>/dev/null || true
+
+# säkerhetsuppdateringar installeras automatiskt – och servern startar om kl 04:30 om en uppdatering kräver det
+printf 'Unattended-Upgrade::Automatic-Reboot "true";\nUnattended-Upgrade::Automatic-Reboot-Time "04:30";\n' > /etc/apt/apt.conf.d/52spelserver-reboot
 
 say "Hemlighet för TURN (skapas bara första gången)"
 if [ ! -f /etc/spelserver.env ]; then
@@ -100,8 +206,25 @@ say "Caddy (HTTPS)"
 cat > /etc/caddy/Caddyfile <<EOF
 {
 	default_bind 0.0.0.0
+	# ingen port 80: ingen omdirigering, certifikatet förnyas via 443
+	auto_https disable_redirects
+	servers {
+		protocols h1 h2
+		timeouts {
+			read_header 10s
+			idle 2m
+		}
+	}
 }
 $DOMAIN {
+	tls {
+		issuer acme {
+			disable_http_challenge
+		}
+	}
+	request_body {
+		max_size 20MB
+	}
 	encode gzip
 	header {
 		Strict-Transport-Security "max-age=31536000; includeSubDomains"
@@ -110,16 +233,10 @@ $DOMAIN {
 		-Server
 	}
 	# ingen åtkomstlogg: Caddy loggar inte anrop om man inte ber om det
-	reverse_proxy /peer* 127.0.0.1:9000
-	reverse_proxy /turn 127.0.0.1:9000
-	reverse_proxy /auth/* 127.0.0.1:9000
-	reverse_proxy /invite/* 127.0.0.1:9000
-	reverse_proxy /stats 127.0.0.1:9000
-	reverse_proxy /admin* 127.0.0.1:9000
-	reverse_proxy /mbox/* 127.0.0.1:9000
-	reverse_proxy /presence 127.0.0.1:9000
-	reverse_proxy /health 127.0.0.1:9000
-	respond / "Spelservern är igång" 200
+	# allt går till spelservern, som själv svarar 404 på okända adresser (och spärrar skannrar via fail2ban)
+	@root path /
+	respond @root "Spelservern är igång" 200
+	reverse_proxy 127.0.0.1:9000
 }
 EOF
 chmod 644 /etc/caddy/Caddyfile
@@ -231,9 +348,10 @@ Konton skapas bara via inbjudningslänkar. Börja med ditt eget adminkonto:
   https://$DOMAIN/admin
 Där bjuder du in fler, ser statistik och hanterar konton.
 
-Tips för säkerheten:
-  - Logga in med SSH-nyckel och stäng av lösenordsinloggning:
-      sätt  PasswordAuthentication no  i /etc/ssh/sshd_config och kör  systemctl restart ssh
-    (gör det först när du har provat att nyckeln fungerar i ett andra terminalfönster)
+Säkerheten:
+  - Öppna portar: 22 (SSH, bara nyckel, max 6 försök/30 s), 443 (HTTPS), 3478 + 5349 och reläportarna (TURN). Port 80 är stängd.
+  - fail2ban spärrar SSH-gissare (1 dygn), felaktiga inloggningar i appen (2 h) och sårbarhetsskannrar (1 dygn); återfall = 2 veckor.
+    Se spärrar:  sudo fail2ban-client status spelserver-probe
+  - Säkerhetsuppdateringar installeras automatiskt; omstart 04:30 vid behov.
   - Skicka aldrig lösenord, nycklar eller innehållet i /etc/spelserver.env till någon.
 EOF

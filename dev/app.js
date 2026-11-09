@@ -21,7 +21,7 @@
   if(!same || !/[?&]bot=1/.test(location.search)){ document.documentElement.innerHTML=''; throw new Error('Inramning blockerad'); }
 })();
 /* ================= Version & utvecklingsläge ================= */
-const APP_VERSION='2026.11.09.13-dev';
+const APP_VERSION='2026.11.09.14-dev';
 const DEV = /\/dev(\/|$)/.test(location.pathname);      // testversionen ligger i mappen /dev/
 const BOT = /[?&]bot=1/.test(location.search) && window.parent!==window;   // osynlig ekokompis i en ram
 const LSP = DEV ? (BOT ? 'dev:bot:' : 'dev:') : (BOT ? 'bot:' : '');    // egen sparad data i testversionen
@@ -409,8 +409,61 @@ let SWREG=null;
 if(!BOT && 'serviceWorker' in navigator && /^https?:$/.test(location.protocol)){
   window.addEventListener('load',()=>{ navigator.serviceWorker.register('sw.js').then(r=>{ SWREG=r; }).catch(()=>{}); });
 }
+/* ---------- notiser på låsskärmen ----------
+   Användaren väljer själv vilka: m = meddelanden, i = spelinbjudningar, t = din tur, c = samtal. prev = visa meddelandetext. */
+const NTF_DEF={m:1,i:1,t:1,c:1,prev:0};
+function ntfGet(){ try{ return Object.assign({},NTF_DEF,JSON.parse(lsGet('ntf')||'{}')); }catch(e){ return Object.assign({},NTF_DEF); } }
+function ntfSet(o){ lsSet('ntf',JSON.stringify(o)); lsSet('ntf_sync',''); pushSync(true); }
+const ntfPerm = () => ('Notification' in window) ? Notification.permission : 'unsupported';
+function sysNotify(cat, title, body, tag){
+  if(BOT || !ntfGet()[cat] || ntfPerm()!=='granted' || !document.hidden) return;
+  const o={body, tag:'fl-'+cat+(tag?'-'+tag:''), renotify:true, icon:'icon-192.png', badge:'icon-192.png', vibrate:[180,90,180], data:{url:location.pathname+(cat==='m'||cat==='i'?'#chat':'')}};
+  if(SWREG && SWREG.showNotification){ SWREG.showNotification(title,o).catch(()=>{}); return; }
+  try{ const n=new Notification(title,o); n.onclick=()=>{ try{ window.focus(); }catch(e){} n.close(); }; }catch(e){}
+}
+// Web Push: telefonen får notiser även när appen är stängd (servern vet bara kategorin, aldrig innehållet)
+const pushOK = () => 'serviceWorker' in navigator && 'PushManager' in window && ('Notification' in window);
+function b64uBytes(s){ s=s.replace(/-/g,'+').replace(/_/g,'/'); s+='='.repeat((4-s.length%4)%4); const r=atob(s), a=new Uint8Array(r.length); for(let i=0;i<r.length;i++) a[i]=r.charCodeAt(i); return a; }
+let pushState='';
+async function pushSync(force){
+  if(BOT || !pushOK() || ntfPerm()!=='granted' || !netBase() || !SRV_TOK || typeof CHAT==='undefined' || !CHAT.pushReg) return;
+  if(!force && lsGet('ntf_sync') && Date.now()-(+lsGet('ntf_sync')||0)<12*3600e3) return;
+  try{
+    const reg=SWREG || await navigator.serviceWorker.ready; if(!reg || !reg.pushManager) return;
+    const n=ntfGet(), cats=['m','i','t','c'].filter(k=>n[k]);
+    const kr=await fetch(srvUrl('/push/key'),{cache:'no-store'}).then(r=>r.ok?r.json():null).catch(()=>null);
+    if(!kr || !kr.key){ pushState='nosrv'; return; }
+    let sub=await reg.pushManager.getSubscription();
+    const want=b64uBytes(kr.key);
+    if(sub && sub.options && sub.options.applicationServerKey){ const have=new Uint8Array(sub.options.applicationServerKey); if(have.length!==want.length || have.some((v,i)=>v!==want[i])){ await sub.unsubscribe(); sub=null; } }
+    if(!sub && cats.length) sub=await reg.pushManager.subscribe({userVisibleOnly:true, applicationServerKey:want});
+    const ok=await CHAT.pushReg(cats.length && sub ? sub.toJSON() : null, cats);
+    if(ok){ lsSet('ntf_sync',String(Date.now())); pushState='on'; } else pushState='fail';
+  }catch(e){ pushState='err:'+(e && e.name || e); console.warn('push', e); }
+}
+setTimeout(()=>pushSync(false),6000);
+function showNotifySettings(){
+  const n=ntfGet(), p=ntfPerm();
+  const row=(k,lbl,note)=>`<div class="setrow"><div class="lbl">${lbl}</div><div class="seg"><button data-act="ntfset" data-k="${k}" data-v="1" class="${n[k]?'sel':''}">På</button><button data-act="ntfset" data-k="${k}" data-v="0" class="${n[k]?'':'sel'}">Av</button></div>${note?`<div class="setnote">${note}</div>`:''}</div>`;
+  const ios=/iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform==='MacIntel' && navigator.maxTouchPoints>1);
+  const standalone=(window.matchMedia && matchMedia('(display-mode: standalone)').matches) || navigator.standalone;
+  let status = p==='granted' ? '✅ Påslaget' : p==='denied' ? '🚫 Nekat i webbläsaren – ändra under webbplatsens inställningar' : p==='unsupported' ? '❌ Stöds inte här' : '⏸️ Inte påslaget än';
+  let warn='';
+  if(!pushOK()) warn = ios ? (standalone ? 'iPad/iPhone behöver iOS 16.4 eller nyare för notiser när appen är stängd. Äldre enheter får bara notiser medan appen är öppen i bakgrunden.' : 'På iPad/iPhone: lägg först appen på hemskärmen (Dela → Lägg till på hemskärmen) och öppna den därifrån – det kräver iOS 16.4 eller nyare.') : 'Den här webbläsaren kan inte ta emot notiser när appen är stängd.';
+  else if(/Android/.test(navigator.userAgent)) warn='Android: notiser när appen är stängd går via Googles push-tjänst. På GrapheneOS behövs Sandboxed Google Play för det – annars kommer notiserna bara medan appen är öppen i bakgrunden.';
+  if(pushState==='nosrv') warn+=' ⚠️ Servern behöver uppdateras för notiser när appen är stängd.';
+  else if(pushState.startsWith('err:')) warn+=' ⚠️ Kunde inte registrera notiser ('+pushState.slice(4)+').';
+  openModal(`<h3>🔔 Notiser</h3>
+    <div class="setrow"><div class="lbl">Status: ${status}</div>${p!=='granted'&&p!=='unsupported'&&p!=='denied'?'<div class="chips"><button data-act="asknotify">Slå på notiser</button></div>':''}${warn?`<div class="setnote">${esc(warn)}</div>`:''}</div>
+    ${row('m','💬 Nya meddelanden')}
+    ${row('i','🎮 Spelinbjudningar')}
+    ${row('t','🎲 När det är din tur')}
+    ${row('c','📞 Samtal och missade samtal')}
+    ${row('prev','👁️ Visa meddelandetexten på låsskärmen','Av: det står bara vem som skrev. När appen är helt stängd står det aldrig vem eller vad – servern vet inte det.')}
+    <div class="btns"><button class="ghost" data-act="settings">Tillbaka</button><button data-act="close">Klar</button></div>`);
+}
 function systemNotify(msg){
-  if(BOT) return;
+  if(BOT) return; if(!ntfGet().t) return;
   if(!('Notification' in window) || Notification.permission!=='granted') return;
   if(SWREG && SWREG.showNotification){ SWREG.showNotification('Stjärndelfin Yatzy 🐬',{body:msg, tag:'yatzy-tur', renotify:true, icon:'icon-192.png', badge:'icon-192.png', vibrate:[180,90,180]}).catch(()=>{}); return; }
   try{ const n=new Notification('Stjärndelfin Yatzy 🐬',{body:msg, tag:'yatzy-tur', renotify:true}); n.onclick=()=>{ try{ window.focus(); }catch(e){} n.close(); }; }catch(e){}
@@ -424,9 +477,10 @@ function notifyTurn(msg){
 async function askNotify(){
   if(!('Notification' in window)){ toast('Den här webbläsaren tillåter inte systemaviseringar – du får ljud, vibration och blinkande flik i stället 🔔',4500); return; }
   try{ const r=await Notification.requestPermission();
-    toast(r==='granted'?'Aviseringar påslagna 🔔':'Aviseringar blev nekade – ljud och vibration fungerar ändå',3500);
-  }catch(e){ toast('Kunde inte slå på aviseringar här',3000); }
-  if(M().classList.contains('show')) showSettings();
+    toast(r==='granted'?'Notiser påslagna 🔔':'Notiser blev nekade – ljud och vibration fungerar ändå',3500);
+    if(r==='granted') await pushSync(true);
+  }catch(e){ toast('Kunde inte slå på notiser här',3000); }
+  if(M().classList.contains('show')) showNotifySettings();
 }
 async function keepAwake(){
   if(!wakeOn || mode!=='online' || !G) return releaseWake();
@@ -766,7 +820,18 @@ function sendTo(c,m){
     c.send(JSON.stringify(m));
   }catch(e){}
 }
-function hostBroadcast(m,except){ for(const c of hostConns) if(c!==except && c._seat!=null) sendTo(c,m); }
+function hostBroadcast(m,except){ for(const c of hostConns) if(c!==except && c._seat!=null) sendTo(c,m); if(m && m.t==='state') setTimeout(turnNudge,1500); }
+// motspelaren har stängt appen och det är hens tur: skicka en knuff via brevlådan (blir en notis på låsskärmen)
+const seatCard={}, nudgedAt={};
+function turnNudge(){
+  if(role!=='host' || mode!=='online' || !G || G.over || G.started===false || typeof CHAT==='undefined' || !CHAT.nudge) return;
+  for(const c of hostConns) if(c._seat!=null && c._card && c._card.id) seatCard[c._seat]=c._card.id;
+  const seat=G.cur; if(!Number.isInteger(seat) || seat===mySeat) return;
+  if([...hostConns].some(c=>c.open && c._seat===seat)) return;
+  const id=seatCard[seat]; if(!id) return;
+  const k=gameId+':'+seat; if(Date.now()-(nudgedAt[k]||0)<10*60e3) return; nudgedAt[k]=Date.now();
+  CHAT.nudge(id,'t',gName());
+}
 function send(m){ if(role==='host') hostBroadcast(m); else sendTo(conn,m); }
 function stopPeer(){
   try{ conn && conn.close() }catch(e){}
@@ -2204,9 +2269,9 @@ function showSettings(){
     <div class="setrow"><div class="lbl">🎧 Ljudeffekter även när Spotify spelar</div>${onoff('spsfx',spSfx)}</div>
     <div class="setrow"><div class="lbl">🎲 Ljud när tärningarna kastas (tryck för att lyssna)</div>
       <div class="chips">${Object.entries(DICE_SOUNDS).map(([k,v])=>`<button data-act="setdice" data-k="${k}" class="${diceSound===k?'sel':''}">${v.label}</button>`).join('')}</div></div>
-    <div class="setrow"><div class="lbl">🔔 Aviseringar när det är din tur</div>
-      <div class="chips"><button data-act="asknotify">Slå på aviseringar</button></div>
-      <div class="setnote">Status: ${permTxt}. Ljud, vibration och en stor "Din tur!"-skylt kommer alltid. Systemaviseringar fungerar bara om webbläsaren tillåter det.</div></div>
+    <div class="setrow"><div class="lbl">🔔 Notiser på låsskärmen</div>
+      <div class="chips"><button data-act="ntfopen">Välj notiser…</button></div>
+      <div class="setnote">Status: ${permTxt}. Meddelanden, spelinbjudningar, din tur och samtal – du väljer vilka.</div></div>
     <div class="setrow"><div class="lbl">☀️ Håll skärmen tänd under onlinespel</div>${onoff('setwake',wakeOn)}
       <div class="setnote">Rekommenderas – då tappar mobilerna inte kontakten och du märker direkt när det är din tur.</div></div>
     ${netBase()?`<div class="appver" style="margin:10px 0">🖧 Spelserver ${esc(NET_SERVER)}: ${SRV_TOK?`inloggad som <b>${esc(SRV_USER)}</b> · <a href="#" data-act="srvout">Logga ut</a>`:`inte inloggad · <a href="#" data-act="srvin">Logga in</a>`}</div>
@@ -2524,6 +2589,8 @@ document.addEventListener('click', e=>{
     case 'setsfx': muted=b.dataset.v==='0'; lsSet('ry_mute',muted?'1':'0'); if(!muted) sfx.bubble(); showSettings(); break;
     case 'setdice': diceSound=b.dataset.k; lsSet('ry_dsnd',diceSound); { const m=muted; muted=false; sfx.roll(); muted=m; } showSettings(); break;
     case 'asknotify': askNotify(); break;
+    case 'ntfopen': showNotifySettings(); break;
+    case 'ntfset': { const n=ntfGet(); n[b.dataset.k]=b.dataset.v==='1'?1:0; ntfSet(n); showNotifySettings(); break; }
     case 'setwake': wakeOn=b.dataset.v==='1'; lsSet('ry_wake',wakeOn?'1':'0'); wakeOn?keepAwake():releaseWake(); showSettings(); break;
     case 'newai': chosenOrder='free'; showAI(); break;
     case 'newsolo': chosenOrder='free'; showSolo(); break;

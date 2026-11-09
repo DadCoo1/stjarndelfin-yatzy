@@ -152,6 +152,7 @@ const CALL=(function(){
     const c=cur={id:p.id, peer:from, dir:'in', video:!!p.video, offer:p.sdp, state:'incoming', cam:false, mic:true, facing:'user', rcam:!!p.video, rmic:true};
     A.send(from,{op:'ringing', id:p.id});
     c.ringT=setTimeout(()=>{ if(cur===c && c.state==='incoming') finish('missed'); }, RING_MS+5000);
+    try{ if(typeof sysNotify==='function') sysNotify('c', `${c.video?'📹':'📞'} ${A.name(from)} ringer dig`, 'Öppna appen för att svara', 'ring'); }catch(e){}
     if(autoVideo!==null){ accept(autoVideo); return; }
     ring('in'); ui();
     if(document.hidden){ try{ systemNotify(`${A.name(from)} ringer dig ${p.video?'📹':'📞'}`); startBlink && startBlink('📞 '+A.name(from)); }catch(e){} }
@@ -233,6 +234,8 @@ const CALL=(function(){
     else if(c.dir==='out') log = ({noanswer:`📞 ${n} svarade inte`, rejected:`📞 ${n} avvisade samtalet`, busy:`📞 ${n} är upptagen i ett annat samtal`, failed:'📞 Samtalet kom inte fram', cancel:`📞 Inställt ${k}`})[reason] || `📞 Inställt ${k}`;
     else log = reason==='reject' ? `📞 Du avvisade ett ${k}` : reason==='failed' ? '📞 Samtalet kom inte fram' : `📞 Missat ${k}`;
     A.log(c.peer, log);
+    // nådde aldrig fram (telefonen avstängd eller appen stängd): lämna ett "missat samtal" i brevlådan → notis när hen kan
+    if(c.dir==='out' && !c.t0 && (c.state==='unreach' || c.state==='reach') && (reason==='noanswer' || reason==='cancel') && A.nudge && !(A.isBot && A.isBot(c.peer))) A.nudge(c.peer,'c');
     if(reason==='failed') msg='Samtalet kom inte fram 📶 Telefonerna når inte varandra – vanligt på mobilnät eller med VPN. Prova att båda kör på wifi.';
     else if(reason==='lost') msg='Samtalet bröts – kontakten försvann 📶';
     else if(reason==='noanswer' && c.state==='unreach') msg=`${n} är inte nåbar just nu – telefonen är offline eller appen stängd`;
