@@ -63,7 +63,7 @@ const CALL=(function(){
       if(s==='connected'){
         clearTimeout(c.discT); clearTimeout(c.connT);
         if(!c.t0){ c.t0=Date.now(); sas(c); keepOn(); c.tick=setInterval(()=>{ if(cur===c) top(); },1000);
-          const A=API(); if(A && A.isBot && A.isBot(c.peer)){ c.bot=true; setTimeout(()=>{ if(cur===c){ c.quote=A.quote(); ui(); } },800); botDiag(c); } }
+          const A=API(); if(A && A.isBot && A.isBot(c.peer)){ c.bot=true; botDiag(c); } }
         c.state='live'; ui();
       } else if(s==='disconnected'){
         if(c.state==='live'){ c.state='reconnect'; ui(); }
@@ -78,6 +78,7 @@ const CALL=(function(){
       if(typeof m.cam==='boolean') c.rcam=m.cam;
       if(typeof m.mic==='boolean') c.rmic=m.mic;
       if(m.end) return finish('ended',true);
+      if(Number.isInteger(m.quote)){ const A=API(); if(!A.isBot || !A.isBot(c.peer)) return; c.bot=true; c.quote=A.quoteText(m.quote); c.qi=m.quote; if(m.tts) A.quote(m.quote); }
       ui(); };
     return pc;
   }
@@ -300,7 +301,7 @@ const CALL=(function(){
     const c=cur; if(!c || !el) return; c.needTap=false;
     try{ const p=el.querySelector('.cl-rv').play(); p && p.catch(()=>{}); }catch(e){}
     try{ window.__ekoAC && window.__ekoAC.resume(); }catch(e){}
-    if(c.bot){ const A=API(); try{ A.unlock(); }catch(e){} c.quote=A.quote(); }
+    if(c.bot && Number.isInteger(c.qi)){ const A=API(); try{ A.unlock(); }catch(e){} A.quote(c.qi); }
     ui();
   }
   // ekotest: visa om din mikrofon skickas och om ekot kommer tillbaka – så syns var det tar stopp
@@ -406,5 +407,5 @@ const CALL=(function(){
 
   window.addEventListener('pagehide',()=>{ if(cur) finish(cur.dir==='in'&&cur.state==='incoming'?'reject':(cur.t0?'ended':'cancel')); });
 
-  return {start, onSignal, active:()=>!!cur, __state: (typeof DEV!=='undefined' && DEV) ? ()=>cur && {id:cur.id, dir:cur.dir, state:cur.state, video:cur.video, cam:cur.cam, mic:cur.mic, rcam:cur.rcam, sas:cur.sas||null, t0:cur.t0||0} : undefined};
+  return {start, onSignal, active:()=>!!cur, __state: (typeof DEV!=='undefined' && DEV) ? ()=>cur && {id:cur.id, dir:cur.dir, state:cur.state, video:cur.video, cam:cur.cam, mic:cur.mic, rcam:cur.rcam, sas:cur.sas||null, t0:cur.t0||0, quote:cur.quote||null, qi:cur.qi} : undefined};
 })();
