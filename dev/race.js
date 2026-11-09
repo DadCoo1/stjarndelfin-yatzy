@@ -10,7 +10,7 @@ const RACE=(function(){
   const CARCOL=[['Havsblå','#0ea5e9','#075985'],['Körsbär','#e11d48','#881337'],['Citron','#facc15','#a16207'],['Mint','#34d399','#047857'],['Pärlvit','#f1f5f9','#94a3b8'],['Natt','#334155','#0f172a'],['Lila','#a855f7','#6b21a8']];
   const HAIR=[['Blont','#f4d27a'],['Brunt','#7c4a22'],['Svart','#1f1a17'],['Rött','#c2410c'],['Rosa','#f472b6'],['Blått','#60a5fa']];
   const PAS=[['Ingen','none'],['Kompis','kid'],['Hund','dog']];
-  let cfg={diff:'normal', radio:0, color:0, dh:1, ph:0, pas:'dog', auto:true};
+  let cfg={diff:'normal', radio:0, color:0, dh:1, ph:0, pas:'dog', auto:true, ghost:'me'};
   try{ cfg={...cfg, ...JSON.parse(lsGet('race_cfg')||'{}')}; }catch(e){}
   if(!DIFF[cfg.diff]) cfg.diff='normal';
   const saveCfg=()=>lsSet('race_cfg',JSON.stringify(cfg));
@@ -248,10 +248,28 @@ const RACE=(function(){
   /* ---------- tillstånd ---------- */
   let root=null, cv=null, ctx=null, W=0, H=0, U=0, HZ=.5, dpr=1, raf=0, lastT=0, acc=0, overlay='menu', built=false;
   let st=null; const keys={}, pad={l:false,r:false,g:false,b:false};
+  /* ---------- spökbilar: ditt bästa åk – eller en kompis – kör bredvid som en genomskinlig bil ---------- */
+  const GHZ=5;                                            // prover per sekund
+  const ghostKey=df=>'race_ghost_'+df;
+  const myGhost=df=>{ try{ return JSON.parse(lsGet(ghostKey(df))||'null'); }catch(e){ return null; } };
+  const better=(a,b)=>!b || (a.won && (!b.won || a.rt<b.rt)) || (!a.won && !b.won && a.pos>b.pos);
+  const friendGhosts=df=>{ try{ return (typeof CHAT!=='undefined' && CHAT.ghosts) ? CHAT.ghosts(df) : []; }catch(e){ return []; } };
+  function pickGhost(){
+    if(cfg.ghost==='off') return null;
+    if(cfg.ghost==='me'){ const g=myGhost(cfg.diff); return g ? {g, name:'Ditt bästa'} : null; }
+    const f=friendGhosts(cfg.diff).find(x=>x.id===cfg.ghost); return f ? {g:f.g, name:f.name} : null;
+  }
+  const gTime=g=>g.won ? `${Math.floor(g.rt/60)}:${String(Math.floor(g.rt%60)).padStart(2,'0')}` : 'etapp '+(g.st||'?');
+  function ghostAt(t){
+    const S=st.gh && st.gh.g.s; if(!S || !S.length) return null;
+    const f=t*GHZ, i=Math.floor(f); if(i>=S.length-1) return {pos:S[S.length-1][1], x:S[S.length-1][2]/100, done:true};
+    const a=S[i], b=S[i+1], k=f-i; return {pos:a[1]+(b[1]-a[1])*k, x:(a[2]+(b[2]-a[2])*k)/100};
+  }
   function newGame(){
     build(cfg.diff); const D=DIFF[cfg.diff];
     st={pos:0, x:0, speed:0, time:D.t, score:0, stage:0, sky:0, near:0, crash:0, spin:0, bump:0, shake:0, over:false, fin:false, finT:0, run:true, started:0, cd:3.2,
-      pops:[], parts:[], wave:0, nm:0, cps:0, startAt:Date.now(), banner:{t:2.8, a:T[0].name, b:'Etapp 1 av 5 · '+T[0].sub}, steer:0, lean:0, cheer:0, hair:0, prevT:0, tFade:1};
+      pops:[], parts:[], wave:0, nm:0, cps:0, startAt:Date.now(), banner:{t:2.8, a:T[0].name, b:'Etapp 1 av 5 · '+T[0].sub}, steer:0, lean:0, cheer:0, hair:0, prevT:0, tFade:1,
+      rt:0, rec:[], nextS:0, gh:pickGhost(), ghLead:null};
     overlay=null; showOverlay(); radio.play(cfg.radio); engine.start();
     const s=stats(); s.games++; saveStats(s); if(typeof srvStat==='function') srvStat('game',{game:'race', title:'Sommarvägen', mode:'solo'});
   }
@@ -261,6 +279,7 @@ const RACE=(function(){
     if(!st || overlay) return;
     const D=DIFF[cfg.diff];
     if(st.cd>0){ const was=Math.ceil(st.cd); st.cd-=dt; const now=Math.ceil(st.cd); if(now!==was && now>0) beep(now===1?660:440,.15); if(st.cd<=0) beep(990,.35); return; }
+    if(!st.fin && !st.over){ st.rt+=dt; if(st.rt>=st.nextS){ st.nextS+=1/GHZ; if(st.rec.length<2000) st.rec.push([Math.round(st.rt*10), Math.round(st.pos), Math.round(st.x*100)]); } }
     const pseg=findSeg(st.pos+PZ), sp=st.speed/MAXS, dx=dt*2*Math.max(sp,.18);
     const left=keys.ArrowLeft||keys.a||pad.l, right=keys.ArrowRight||keys.d||pad.r;
     const brake=keys.ArrowDown||keys.s||pad.b, gas=!st.over && !st.fin && (cfg.auto ? !brake : (keys.ArrowUp||keys.w||pad.g));
@@ -397,9 +416,14 @@ const RACE=(function(){
       const f=n/DRAW; drawSeg(s, f>.45?Math.min(1,(f-.45)*1.9)**1.5:0);
       maxy=s.p1.s.y;
     }
+    const gp=st.gh && st.cd<=0 ? ghostAt(st.rt) : null, gseg=gp ? findSeg(gp.pos+PZ).i : -1;
+    if(gp){ const lead=(gp.pos-st.pos)/SEG; st.ghLead=lead; }
     for(let n=DRAW-1;n>0;n--){
       const s=segs[base.i+n]; if(!s) continue; const a=n>DRAW*.7?clamp((DRAW-n)/(DRAW*.3),0,1):1;
       for(const c of s.cars){ const p=(c.z%SEG)/SEG, sc=lerp(s.p1.s.scale,s.p2.s.scale,p), cx=lerp(s.p1.s.x,s.p2.s.x,p)+sc*c.off*ROADW*U, cy=lerp(s.p1.s.y,s.p2.s.y,p); drawSprite(c.s,sc,cx,cy,-.5,-1,s.clip,a); }
+      if(gp && s.i===gseg){ const p=((gp.pos+PZ)%SEG)/SEG, sc=lerp(s.p1.s.scale,s.p2.s.scale,p), cx=lerp(s.p1.s.x,s.p2.s.x,p)+sc*gp.x*ROADW*U, cy=lerp(s.p1.s.y,s.p2.s.y,p);
+        drawSprite(ghostSp(), sc, cx, cy, -.5, -1, s.clip, .42*a);
+        const dw=PW*ROADW*sc*U; if(dw>26){ txt('👻 '+st.gh.name, cx, cy-dw*.62, Math.max(11,Math.min(18,dw*.12)), 'rgba(255,255,255,.85)', 'center', true); } }
       for(const sp of s.sprites){ const sc=s.p1.s.scale, sx=s.p1.s.x+sc*sp.off*ROADW*U; drawSprite(sp.s,sc,sx,s.p1.s.y,sp.off===0?-.5:sp.off<0?-1:0,-1,s.clip,a); }
       if(s===pseg) drawPlayer();
     }
@@ -472,6 +496,8 @@ const RACE=(function(){
     else { g.fillStyle='rgba(0,0,0,.12)'; g.beginPath(); g.ellipse(x,y+8*s,14*s,8*s,0,0,Math.PI); g.fill(); for(let i=0;i<5;i++){ g.fillStyle=hair; g.beginPath(); g.ellipse(x+(i-2)*6*s, y-15*s+Math.sin(phase*4+i)*1.5*s, 4*s, 4*s,0,0,7); g.fill(); } }
     g.fillStyle='rgba(255,255,255,.2)'; g.beginPath(); g.ellipse(x-5*s,y-8*s,6*s,4*s,-.4,0,7); g.fill();
   }
+  let ghC=null, ghK='';
+  function ghostSp(){ const k=cfg.color; if(!ghC || ghK!==k){ ghK=k; const b=carFrame(0); ghC={c:mk(b.width,b.height,(g,w,h)=>{ g.drawImage(b,0,0); g.globalCompositeOperation='source-atop'; g.fillStyle='rgba(170,220,255,.55)'; g.fillRect(0,0,w,h); }), ww:PW*ROADW*1.25}; } return ghC; }
   function drawPlayer(){
     const yaw=st.yaw||0, b=carFrame(yaw), q=Math.round(clamp(yaw,-1,1)*5)/5, a=Math.abs(q), sx=1-.16*a, rx=60-q*52;
     const cw=Math.min(W*.66, U*.98), ch=cw*b.height/520, pseg=findSeg(st.pos+PZ);
@@ -509,6 +535,8 @@ const RACE=(function(){
     const tcol= st.time<=10 && !st.fin ? (Math.floor(st.time*4)%2?'#fff':'#ef4444') : '#facc15';
     txt(String(Math.ceil(st.time)),14*S,top+13*S,40*S,tcol);
     txt('POÄNG',W-14*S,top,13*S,'#a5f3fc','right'); txt(fmt(st.score),W-14*S,top+13*S,24*S,'#fff','right');
+    if(st.gh && st.ghLead!=null && st.cd<=0 && !st.over){ const secs=st.ghLead*SEG/Math.max(st.speed,MAXS*.35), ahead=secs<0;
+      txt(`👻 ${ahead?'före':'efter'} ${Math.abs(secs).toFixed(1)} s`, W-14*S, top+40*S, 13*S, ahead?'#86efac':'#fca5a5', 'right', true); }
     // etapp och karta
     const pw=W*.36, px=W/2-pw/2, py=top+4*S; ctx.fillStyle='rgba(0,0,0,.35)'; ctx.beginPath(); ctx.roundRect(px,py,pw,10*S,5*S); ctx.fill();
     const prog=clamp(st.pos/(segs.goal*SEG),0,1); for(let t=1;t<T.length;t++){ const q=stageStart[t]/segs.goal; ctx.fillStyle='#fff'; ctx.fillRect(px+pw*q-1,py,2,10*S); }
@@ -612,6 +640,12 @@ const RACE=(function(){
   function end(won){
     if(overlay==='over') return;
     const s=stats(); st.won=won; if(won) s.fin++;
+    try{ const g={v:1, df:cfg.diff, won:!!won, rt:Math.round(st.rt*10)/10, pos:Math.round(st.pos), sc:Math.round(st.score), st:won?6:st.stage+1, s:st.rec, at:Date.now()};
+      st.newGhost=false;
+      if(g.s.length>5 && better(g, myGhost(cfg.diff))){ lsSet(ghostKey(cfg.diff), JSON.stringify(g)); st.newGhost=true;
+        if(typeof CHAT!=='undefined' && CHAT.share) st.shared=CHAT.share('ghost', g); }
+      if(st.gh){ st.beatGhost = better(g, st.gh.g); }
+    }catch(e){}
     const sc=Math.round(st.score); st.rec=sc>s.best; if(st.rec) s.best=sc;
     const entry={n:(lsGet('ry_name')||'Du').slice(0,14), s:sc, st:won?6:st.stage+1, d:Date.now(), df:cfg.diff};
     s.hs=[...(s.hs||[]), entry].sort((a,b)=>b.s-a.s).slice(0,10); st.rank=s.hs.indexOf(entry); saveStats(s);
@@ -646,6 +680,7 @@ const RACE=(function(){
         <div class="rc-row"><label>Bilradion</label><div>${STATIONS.map((x,i)=>sw('radio',i,x.name,cfg.radio===i)).join('')}${sw('radio',-1,'Av',cfg.radio===-1)}</div></div>
         <div class="rc-row"><label>Svårighet</label><div>${Object.entries(DIFF).map(([k,d])=>sw('diff',k,d.lab,cfg.diff===k)).join('')}</div></div>
         <div class="rc-row"><label>Gas</label><div>${sw('auto',1,'Automatisk',cfg.auto)}${sw('auto',0,'Själv',!cfg.auto)}</div></div>
+        <div class="rc-row"><label>👻 Spöke</label><div>${sw('ghost','off','Av',cfg.ghost==='off')}${(()=>{ const m=myGhost(cfg.diff); return sw('ghost','me', m?'Mitt bästa · '+gTime(m):'Mitt bästa', cfg.ghost==='me'); })()}${friendGhosts(cfg.diff).map(f=>sw('ghost',f.id,esc(f.name)+' · '+gTime(f.g),cfg.ghost===f.id)).join('')}</div></div>
         <details class="rc-det"><summary>🏆 Topplista${s.best?` · rekord ${fmt(s.best)}`:''}</summary>${hsHTML(-1)}</details>
         <div class="rc-help">${TOUCH?'◀ ▶ styr · BROMS bromsar':'← → styr · ↑ gas · ↓ broms · P paus'} · Hinn till nästa checkpoint innan tiden tar slut. Kör nära andra bilar för bonus!</div></div>`;
     } else if(overlay==='pause'){
@@ -657,9 +692,11 @@ const RACE=(function(){
         <div class="rc-sub">${done?'Hela vägen genom Sverige 🇸🇪':`Du kom till etapp ${st.stage+1}: ${T[st.stage].name}`}</div>
         <div class="rc-score">${fmt(st.score)}<small>poäng${st.rec?' · NYTT REKORD! 🏆':''}</small></div>
         <div class="rc-sub">${st.nm} nära ögat · ${st.cps} checkpoints${done?` · tidsbonus ${fmt(st.bonus||0)}`:''}</div>
+        ${st.gh?`<div class="rc-sub">${st.beatGhost?`👻 Du slog ${st.gh.name==='Ditt bästa'?'ditt eget spöke':esc(st.gh.name)+'s spöke'}! 🎉`:`👻 ${st.gh.name==='Ditt bästa'?'Spöket':esc(st.gh.name)} var snabbare den här gången – en gång till?`}</div>`:''}
+        ${st.newGhost?`<div class="rc-sub">✨ Nytt bästa åk sparat som spöke${st.shared?` · skickat till ${st.shared} kompis${st.shared>1?'ar':''}`:''}</div>`:''}
         ${hsHTML(st.rank)}
         <button class="rc-go" data-rc="go">↻ Kör igen</button><button class="rc-alt" data-rc="menu">☰ Meny</button><button class="rc-alt" data-act="lobby">🏠 Lobby</button></div>`;
-      if(st.rec || done) { try{ celebrate && celebrate(); }catch(e){} }
+      if(st.rec || done) { try{ celebrate && celebrate(done?'I MÅL! 🏁':'REKORD! 🏆'); }catch(e){} }
     }
   }
   function fit(){
@@ -709,7 +746,7 @@ const RACE=(function(){
     else if(a==='restart') newGame();
     else if(a==='menu'){ overlay='menu'; engine.stop(); radio.stop(); showOverlay(); }
     else if(a==='radio'){ cfg.radio = cfg.radio+1>=STATIONS.length ? -1 : cfg.radio+1; saveCfg(); if(!overlay) radio.play(cfg.radio); radio.cur=cfg.radio; radio.showT=3; if(cfg.radio<0) toast('📻 Radion är av'); if(overlay==='menu') showOverlay(); }
-    else if(a==='set'){ const k=b.dataset.k, v=b.dataset.v; cfg[k]= k==='diff'||k==='pas' ? v : k==='auto' ? v==='1' : +v; saveCfg();
+    else if(a==='set'){ const k=b.dataset.k, v=b.dataset.v; cfg[k]= k==='diff'||k==='pas'||k==='ghost' ? v : k==='auto' ? v==='1' : +v; saveCfg();
       if(k==='radio' && overlay==='menu'){ radio.play(cfg.radio); setTimeout(()=>{ if(overlay==='menu') radio.stop(); },6000); }
       if(k==='auto') root.querySelector('.gs')?.classList.toggle('hide',cfg.auto);
       showOverlay(); }
@@ -767,6 +804,6 @@ const RACE=(function(){
 `; document.head.appendChild(css);
 
   return {html, mount, stop, open(){ closeModal(); view='race'; render(); }, stats,
-    __test: (typeof DEV!=='undefined' && DEV) ? {draw:()=>draw(), state:()=>st, segs:()=>segs, go:()=>newGame(), cfg:()=>cfg, sim:sec=>{ for(let i=0;i<sec*60;i++) update(1/60); return st; }, overlay:()=>overlay} : undefined};
+    __test: (typeof DEV!=='undefined' && DEV) ? {draw:()=>draw(), state:()=>st, segs:()=>segs, go:()=>newGame(), cfg:()=>cfg, sim:sec=>{ for(let i=0;i<sec*60;i++) update(1/60); return st; }, overlay:()=>overlay, end:w=>end(w)} : undefined};
 })();
 function openRace(){ RACE.open(); }

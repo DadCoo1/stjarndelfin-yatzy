@@ -9,3 +9,5 @@ Starta en webbserver i repots rot (`python3 -m http.server 8811`) och för onlin
 - `TOK=… node tests/echo.js` – ekokompisen via den egna servern: chatt-eko, ping, samtal med ljud och bild, uppläst citat
 - `UA=… TA=… UB=… TB=… UC=… TC=… node tests/dir.js` – användarlistan: vanliga användare ser varandra (inte admin), meddelanden utan kontaktförfrågan och samtal
 - `UA=… TA=… UB=… TB=… node tests/push.js` – notiser: registrering med falsk push-tjänst (https-mock på 9443, servern med `NODE_EXTRA_CA_CERTS`), push för meddelande och "din tur", bara kategorin skickas
+- `TOK=… node tests/today.js` – Idag: hälsning och dagsform (även dold), lugnt läge, dagens kod, akvariet, ljudlandskap, säkerhetskopia till servern och återställning på ny enhet
+- `node tests/ghost.js` – spökbil i Sommarvägen: första åket sparas, andra åket kör mot det

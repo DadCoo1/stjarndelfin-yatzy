@@ -109,7 +109,7 @@ app.disable('x-powered-by');
 app.set('trust proxy', 'loopback');
 app.use((req, res, next) => {
   const o = req.headers.origin;
-  if (o && ORIGINS.includes(o)) { res.set('Access-Control-Allow-Origin', o); res.set('Vary', 'Origin'); res.set('Access-Control-Allow-Headers', 'Authorization, Content-Type'); res.set('Access-Control-Allow-Methods', 'GET, POST, OPTIONS'); res.set('Access-Control-Max-Age', '600'); }
+  if (o && ORIGINS.includes(o)) { res.set('Access-Control-Allow-Origin', o); res.set('Vary', 'Origin'); res.set('Access-Control-Allow-Headers', 'Authorization, Content-Type'); res.set('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE'); res.set('Access-Control-Max-Age', '600'); }
   const self = o && (o === 'https://' + DOMAIN || o === 'http://' + req.headers.host);
   if (o && !ORIGINS.includes(o) && !self && !req.path.startsWith('/peer')) return res.status(403).json({ error: 'fel ursprung' });
   if (req.path.startsWith('/admin') && o && !self) return res.status(403).json({ error: 'fel ursprung' });
@@ -299,6 +299,27 @@ app.post('/mbox/push', json, (req, res) => {
     PUSH[b.id] = { s: { endpoint: s.endpoint, keys: { p256dh: s.keys.p256dh, auth: s.keys.auth } }, c: [...new Set(cats)], at: hourOf(now()) }; }
   saveSoon('push.json', () => PUSH); res.json({ ok: true, on: !!PUSH[b.id] });
 });
+
+/* ---------- säkerhetskopia (krypterad på telefonen – servern ser bara chiffertext) ----------
+   En per användare och app (dev/vanlig). Krypteringen görs med en lösenfras som bara användaren känner till. */
+const BKDIR = path.join(DATA, 'backups'); try { fs.mkdirSync(BKDIR, { recursive: true, mode: 0o700 }); } catch (e) {}
+const bkFile = (u, env) => path.join(BKDIR, crypto.createHash('sha256').update('bk|' + u + '|' + env).digest('hex').slice(0, 32) + '.json');
+const bkJson = express.json({ limit: '12mb' });
+app.put('/backup', auth, bkJson, (req, res) => {
+  if (limited('bk:' + req.user, 30)) return res.status(429).json({ error: 'för många' });
+  const b = req.body || {}, env = dirEnv(req.query.env);
+  if (b.v !== 1 || b.app !== 'fl' || b.kdf !== 'pbkdf2' || !Number.isInteger(b.it) || b.it < 100000 || b.it > 5e6 || !b64ok(b.salt) || !b64ok(b.iv) || !b64ok(b.ct) || b.salt.length > 64 || b.iv.length > 32)
+    return res.status(400).json({ error: 'fel format' });
+  const out = { v: 1, app: 'fl', kdf: 'pbkdf2', it: b.it, salt: b.salt, iv: b.iv, ct: b.ct, at: now() };
+  const t = bkFile(req.user, env) + '.tmp'; fs.writeFileSync(t, JSON.stringify(out), { mode: 0o600 }); fs.renameSync(t, bkFile(req.user, env));
+  res.json({ ok: true, at: out.at, size: b.ct.length });
+});
+app.get('/backup', auth, (req, res) => {
+  const f = bkFile(req.user, dirEnv(req.query.env));
+  if (req.query.info) { try { const st = fs.statSync(f); return res.json({ has: true, at: st.mtimeMs, size: st.size }); } catch (e) { return res.json({ has: false }); } }
+  try { res.type('application/json').send(fs.readFileSync(f, 'utf8')); } catch (e) { res.status(404).json({ error: 'ingen kopia' }); }
+});
+app.delete('/backup', auth, (req, res) => { try { fs.unlinkSync(bkFile(req.user, dirEnv(req.query.env))); } catch (e) {} res.json({ ok: true }); });
 
 /* ---------- användarlista (katalog) ----------
    Varje inloggad app lägger upp sitt chattkort (publik nyckel + visningsnamn) under sitt användarnamn,
