@@ -34,7 +34,7 @@ function startGameLocal(kind, name, level, bots=1){
   stopNet(); clearTimeout(aiTimer); closeModal();
   mode='local'; mySeat=0; gameId=null; role=null;
   const bn=GINFO[kind].bots ? GINFO[kind].bots.slice(0,Math.max(1,Math.min(7,bots))) : [GINFO[kind].ai];
-  G=gNewState(kind,[name, ...bn],0,[false, ...bn.map(()=>level)]); KIND[kind].start(G); lsSet('ry_local', JSON.stringify(G));
+  G=gNewState(kind,[name, ...bn],0,[false, ...bn.map(()=>level)]); KIND[kind].start(G); saveLocal();
   if(typeof srvStat==='function') srvStat('game',{game:kind, title:GINFO[kind].name, mode:GINFO[kind].solo?'solo':'ai'});
   view='game'; resetDrafts(); render(); gMaybeAI();
 }
@@ -63,7 +63,7 @@ function applyAndPublish(a, seat){
   }
   G.seq=(G.seq||0)+1; G.updatedAt=Date.now();
   if(mode==='online'){ saveNet(); hostBroadcast({t:'state',state:G}); }
-  else if(mode==='local') lsSet('ry_local', JSON.stringify(G));        // spel mot datorn finns kvar om appen stängs
+  else if(mode==='local') saveLocal();        // spel mot datorn finns kvar om appen stängs
   gOnChange(prev,G); render(); gMaybeAI();
   return true;
 }
