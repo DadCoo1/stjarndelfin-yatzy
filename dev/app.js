@@ -21,7 +21,7 @@
   if(!same || !/[?&]bot=1/.test(location.search)){ document.documentElement.innerHTML=''; throw new Error('Inramning blockerad'); }
 })();
 /* ================= Version & utvecklingsläge ================= */
-const APP_VERSION='2026.11.09.7-dev';
+const APP_VERSION='2026.11.09.8-dev';
 const DEV = /\/dev(\/|$)/.test(location.pathname);      // testversionen ligger i mappen /dev/
 const BOT = /[?&]bot=1/.test(location.search) && window.parent!==window;   // osynlig ekokompis i en ram
 const LSP = DEV ? (BOT ? 'dev:bot:' : 'dev:') : (BOT ? 'bot:' : '');    // egen sparad data i testversionen
@@ -594,6 +594,30 @@ window.addEventListener('hashchange',checkInvite);
 setTimeout(checkInvite,0);
 // räknare till adminens statistik (vilket spel, ensam/datorn/online) – bara när man är inloggad på servern
 function srvStat(ev, data){ try{ if(netBase() && SRV_TOK) srvFetch('/stats',{ev, ...data}); }catch(e){} }
+/* ---------- statusprick för servern (överst i lobbyn) ----------
+   grön = inloggad och chatten uppkopplad · gul = kopplar upp · orange = inte inloggad · röd = når inte servern */
+let NETDOT={reach:null, at:0};
+async function netDotPing(){
+  if(!netBase() || document.hidden) return netDotPaint();
+  if(navigator.onLine===false){ NETDOT={reach:false, at:Date.now()}; return netDotPaint(); }
+  let ok=false; try{ const r=await Promise.race([fetch(srvUrl('/health'),{cache:'no-store'}), new Promise((_,j)=>setTimeout(()=>j(new Error('tid')),6000))]); ok=r.ok; }catch(e){}
+  NETDOT={reach:ok, at:Date.now()}; netDotPaint();
+}
+function netDotState(){
+  if(!netBase()) return null;
+  if(NETDOT.reach===false) return ['down','Når inte servern – kolla att du har nät 📵'];
+  if(NETDOT.reach===null) return ['wait','Kontrollerar uppkopplingen…'];
+  if(!SRV_TOK) return ['login','Servern nås, men du är inte inloggad – tryck för att logga in'];
+  let chat=null; try{ chat=typeof CHAT!=='undefined' && CHAT.netState ? CHAT.netState() : null; }catch(e){}
+  if(chat==='connecting') return ['wait','Inloggad som '+SRV_USER+' – chatten kopplar upp…'];
+  return ['ok','Uppkopplad mot servern som '+SRV_USER+(chat==='open'?' · chatten är online':'')];
+}
+function netDotHTML(){ const s=netDotState(); return s ? `<button class="iconbtn netdot" data-act="netdot" aria-label="Serverstatus: ${esc(s[1])}" title="${esc(s[1])}"><i data-netdot class="nd nd-${s[0]}"></i></button>` : ''; }
+function netDotPaint(){ const s=netDotState(); if(!s) return; document.querySelectorAll('[data-netdot]').forEach(el=>{ el.className='nd nd-'+s[0]; const b=el.parentNode; b.title=s[1]; b.setAttribute('aria-label','Serverstatus: '+s[1]); }); }
+setInterval(netDotPing, 30000); setInterval(netDotPaint, 3000);
+document.addEventListener('visibilitychange',()=>{ if(!document.hidden) netDotPing(); });
+window.addEventListener('online',()=>setTimeout(netDotPing,800)); window.addEventListener('offline',()=>{ NETDOT={reach:false, at:Date.now()}; netDotPaint(); });
+setTimeout(netDotPing, 400);
 function srvLogout(){ const t=SRV_TOK; if(t && netBase()) fetch(srvUrl('/auth/logout'),{method:'POST', headers:{'Authorization':'Bearer '+t}}).catch(()=>{}); SRV_TOK=''; lsSet('srv_tok',''); NET_ICE=null; toast('Utloggad från spelservern'); }
 function ensureIce(){
   const b=netBase(); if(!b || !SRV_TOK) return Promise.resolve();
@@ -701,6 +725,13 @@ function sgRemove(id){
   sgBadge(); sgRefresh(); toast('Spelet är avslutat och borttaget');
 }
 (function(){ const st=document.createElement('style'); st.textContent=`
+.netdot{width:30px;padding:0;display:inline-flex;align-items:center;justify-content:center}
+.nd{display:block;width:11px;height:11px;border-radius:50%;background:#94a3b8;box-shadow:0 0 0 2px rgba(255,255,255,.85)}
+.nd-ok{background:#22c55e;box-shadow:0 0 0 2px rgba(255,255,255,.85),0 0 8px #22c55e}
+.nd-wait{background:#facc15;animation:ndp 1.2s ease-in-out infinite}
+.nd-login{background:#fb923c}
+.nd-down{background:#ef4444;animation:ndp 1.6s ease-in-out infinite}
+@keyframes ndp{50%{opacity:.35}}
 #sgWrap{position:fixed;top:0;right:0;bottom:0;left:0;z-index:60;pointer-events:none}
 #sgWrap .sg-bg{position:absolute;top:0;right:0;bottom:0;left:0;background:rgba(2,6,23,.55);opacity:0;transition:opacity .25s}
 #sgWrap .sg-panel{position:absolute;top:0;bottom:0;left:0;width:min(380px,88vw);background:linear-gradient(180deg,#0f1b3d,#16113a);color:#e0e7ff;box-shadow:8px 0 30px rgba(0,0,0,.5);transform:translateX(-102%);transition:transform .28s cubic-bezier(.2,.8,.2,1);display:flex;flex-direction:column;padding-top:env(safe-area-inset-top);padding-bottom:env(safe-area-inset-bottom)}
@@ -2331,7 +2362,7 @@ function lobbyHTML(){
 function updateFrBadge(){ const n=(typeof FR!=='undefined')?FR.unread():0; document.querySelectorAll('[data-frbadge]').forEach(el=>{ el.textContent=n||''; el.classList.toggle('on',n>0); }); }
 function topbarLobby(){
   return `<div class="topbar"><div class="popc" id="popc" title="Poppade bubblor">🫧 ${popCount}</div><div class="tb-title" style="font-size:12px">Poppa bubblorna! 🫧</div>
-    <button class="iconbtn sgbtn" data-act="sgopen" aria-label="Pågående spel">🎮<i class="cbadge ${sgCount()?'on':''}" data-sgbadge>${sgCount()||''}</i></button><button class="iconbtn" data-act="settings" aria-label="Inställningar">⚙️</button></div>`;
+    ${netDotHTML()}<button class="iconbtn sgbtn" data-act="sgopen" aria-label="Pågående spel">🎮<i class="cbadge ${sgCount()?'on':''}" data-sgbadge>${sgCount()||''}</i></button><button class="iconbtn" data-act="settings" aria-label="Inställningar">⚙️</button></div>`;
 }
 function playersHTML(){
   const cards = G.names.map((nm,i)=>{
@@ -2504,6 +2535,7 @@ document.addEventListener('click', e=>{
     case 'joinonline': showJoin(); break;
     case 'resumenet': resumeNet(); break;
     case 'sgopen': sgOpen(true); break;
+    case 'netdot': { const s=netDotState(); if(!s) break; if(s[0]==='login'){ srvAskLogin(); break; } toast(s[1],3500); netDotPing(); if(s[0]!=='ok'){ try{ CHAT.reconnect(); }catch(e){} } break; }
     case 'sgclose': sgOpen(false); break;
     case 'sgresume': sgResume(b.dataset.id); break;
     case 'sgask': sgConfirm=b.dataset.id; sgRefresh(); break;
