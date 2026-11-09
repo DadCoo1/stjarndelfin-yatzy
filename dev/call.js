@@ -62,7 +62,8 @@ const CALL=(function(){
       const s=pc.connectionState || ({connected:'connected',completed:'connected',failed:'failed',disconnected:'disconnected',closed:'closed'})[pc.iceConnectionState] || 'new';
       if(s==='connected'){
         clearTimeout(c.discT); clearTimeout(c.connT);
-        if(!c.t0){ c.t0=Date.now(); sas(c); keepOn(); c.tick=setInterval(()=>{ if(cur===c) top(); },1000); }
+        if(!c.t0){ c.t0=Date.now(); sas(c); keepOn(); c.tick=setInterval(()=>{ if(cur===c) top(); },1000);
+          const A=API(); if(A && A.isBot && A.isBot(c.peer)) setTimeout(()=>{ if(cur===c) A.quote(); },800); }
         c.state='live'; ui();
       } else if(s==='disconnected'){
         if(c.state==='live'){ c.state='reconnect'; ui(); }
@@ -88,6 +89,7 @@ const CALL=(function(){
     if(!A || !A.owner()){ say('Chatten är öppen i ett annat fönster – ring därifrån'); return; }
     if(cur){ say('Du är redan i ett samtal 📞'); open(); return; }
     if(!A.ok(peer)){ say('Du kan bara ringa dina kontakter'); return; }
+    if(A.isBot && A.isBot(peer)) A.unlock();   // låser upp talsyntesen medan knapptrycket fortfarande gäller (iOS)
     if(typeof RTCPeerConnection==='undefined'){ say('Den här webbläsaren kan inte ringa 😕'); return; }
     const c=cur={id:hex(), peer, dir:'out', video:!!video, cam:!!video, mic:true, facing:'user', state:'media', rcam:false, rmic:true};
     try{ unlockAudio(); }catch(e){}
@@ -214,6 +216,7 @@ const CALL=(function(){
 
   function finish(reason, remote){
     const c=cur; if(!c) return; const A=API();
+    if(A && A.hush && A.isBot && A.isBot(c.peer)) A.hush();
     if(!remote && A){
       if(reason==='reject' && c.dir==='in') A.send(c.peer,{op:'reject', id:c.id});
       else if(reason==='cancel') A.send(c.peer,{op:'cancel', id:c.id});

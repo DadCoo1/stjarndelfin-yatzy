@@ -983,6 +983,27 @@ Skriv:
   }
   /* ekokompisen svarar i telefon: du hör dig själv med 1,5 sekunders fördröjning och ser din egen bild */
   let botCallSt=null;
+  // Riktiga, kontrollerade citat (källa och datum i kommentaren). Läses upp med telefonens vanliga röst – ingen härmning av hans röst.
+  const TRUMP_QUOTES=[
+    "I know words. I have the best words.",                                            // valmöte 2015
+    "Nobody knew that health care could be so complicated.",                           // guvernörsmöte, 27 feb 2017
+    "Despite the constant negative press covfefe.",                                    // tweet 31 maj 2017
+    "Who can figure out the true meaning of covfefe? Enjoy!",                          // tweet 31 maj 2017
+    "Not smart, but genius, and a very stable genius at that!",                        // tweet 6 jan 2018
+    "My two greatest assets have been mental stability and being, like, really smart.",// tweet 6 jan 2018
+    "Over 1000 hamberders etc. Within one hour, it was all gone. Great guys and big eaters!" // tweet 15 jan 2019
+  ];
+  function botSpeakQuote(){
+    try{
+      if(!('speechSynthesis' in window)) return;
+      const q=TRUMP_QUOTES[rint(TRUMP_QUOTES.length)], vs=speechSynthesis.getVoices();
+      const say=(t,lang,rate)=>{ const u=new SpeechSynthesisUtterance(t); u.lang=lang; u.rate=rate||1; const v=vs.find(v=>v.lang && v.lang.replace('_','-').toLowerCase().startsWith(lang.toLowerCase())); if(v) u.voice=v; speechSynthesis.speak(u); };
+      speechSynthesis.cancel();
+      say('Hej! Ekokompisen här. Dagens citat från Donald Trump:','sv-SE');
+      say(q,'en-US',.95);
+      say('Nu ekar jag dig. Säg något!','sv-SE');
+    }catch(e){}
+  }
   async function botCall(from, p){
     if(!p || typeof p.id!=='string') return;
     if(p.op==='cancel' || p.op==='end'){ if(botCallSt && botCallSt.id===p.id) botHang(false); return; }
@@ -1314,6 +1335,8 @@ Skriv:
       ok:id=>!!ME && !!contacts[id] && !blocked.includes(id),
       name:id=>nameOf(id), emoji:id=>emoOf(id), myId:()=>ME && ME.id,
       online:id=>isOnline(id), connect:id=>connectTo(id),
+      isBot:id=>!!id && id===ld('botid',null), quote:()=>botSpeakQuote(), hush:()=>{ try{ speechSynthesis.cancel(); }catch(e){} },
+      unlock:()=>{ try{ if('speechSynthesis' in window){ const u=new SpeechSynthesisUtterance(' '); u.volume=0; speechSynthesis.speak(u); } }catch(e){} },
       owner:()=>owner && !BOTMODE && !!ME,
       log:(id,text)=>{ sysMsg('d:'+id,text); if(vis()) refresh(); else if(typeof render==='function' && view==='lobby') render(); },
       unread:id=>{ const c=conv('d:'+id); c.unread=(c.unread||0)+1; saveConvs(); },
