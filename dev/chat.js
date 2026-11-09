@@ -1372,6 +1372,7 @@ Skriv:
     hasIdentity:()=>!!ME,
     reconnect:()=>{ if(!cpeer || cpeer.destroyed){ cpeer=null; startTransport(); } mbPull(); presPull(); dirSync(true); },
     dirSync:()=>dirSync(true),
+    netState:()=>!ME || !owner ? null : (cpeer && cpeer.open && !cpeer.disconnected ? 'open' : 'connecting'),
     // samtal: signalerna går krypterade genom samma dubbla ratchet som meddelandena
     call:{
       send:(to,p)=>{ if(ME && owner && !BOTMODE) queueDirect(to,{...p, type:'call'},true); },
