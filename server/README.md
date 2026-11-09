@@ -57,6 +57,7 @@ Portar som öppnas: 22, 80, 443 (TCP), 3478 (UDP och TCP), 5349 (TCP) och 49160�
 **Metadata som servern ser, och vad som har gjorts för att minimera den:**
 - **Brevlådan** tar bara emot *förseglade* kuvert: allt utom mottagarens chatt-ID krypteras med en engångsnyckel till mottagaren. Avsändare, meddelande-ID och tid syns inte, och storleken fylls ut till fasta steg (1, 2, 4 … 256 kB). Tiden avrundas till timmen, och allt raderas efter hämtning eller senast efter 30 dagar.
 - **Brevlådan är inte kopplad till användarnamn.** Hämtning bevisas med chatt-identitetens egen nyckel (ECDH-utmaning), inte med kontot.
+- **Användarlistan** (`dir.json`) är det enda som kopplar ett användarnamn till en chatt-identitet: varje app lägger upp sitt publika chattkort (nyckel, visningsnamn, emoji) så att alla vanliga användare kan hitta varandra. Adminkonton och avstängda konton listas inte, och borttagna konton försvinner. Den som vill slipper synas: ⚙️ → "Synas i listan över alla användare". Nycklar från listan räknas som overifierade – skanna varandras QR-kod för full verifiering, så kan inte ens servern byta ut en nyckel.
 - **Närvaro:** appen skickar aldrig sin kontaktlista. Servern ger ut hashade ID:n (nytt salt varje dygn) för dem som är online, och jämförelsen görs i telefonen.
 - **TURN-inloggningarna** innehåller inget användarnamn, bara en slumpad etikett.
 - **Loggar:** Caddy har ingen åtkomstlogg, coturn loggar inte anslutningar och spelservern skriver inte ut IP-adresser. Misslyckade admininloggningar sparas med förkortad IP-adress.
