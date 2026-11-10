@@ -35,13 +35,13 @@
   }
 
   /* ---------- ram ---------- */
-  const TABS=[['overview','📊 Översikt'],['users','👥 Användare'],['invites','✉️ Inbjudningar'],['audit','📜 Händelser']];
+  const TABS=[['overview','📊 Översikt'],['users','👥 Användare'],['invites','✉️ Inbjudningar'],['update','🔄 Uppdatering'],['audit','📜 Händelser']];
   function shell(){
     app.innerHTML=`<header><h1>🛡️ Spelservern <span>· admin</span></h1><span class="muted">${esc(ME)}</span><button class="b" id="out">Logga ut</button></header>
       <nav>${TABS.map(([k,l])=>`<button data-tab="${k}" class="${tab===k?'on':''}">${l}</button>`).join('')}</nav><main id="main"><p class="muted">Laddar…</p></main>`;
     $('#out').onclick=async()=>{ try{ await api('logout',{}); }catch(e){} TOK=''; sessionStorage.removeItem('adm'); login(); };
     app.querySelectorAll('[data-tab]').forEach(b=>b.onclick=()=>{ tab=b.dataset.tab; lastLink=null; shell(); });
-    ({overview,users,invites,audit})[tab]().catch(e=>{ if(e.message!=='utloggad') $('#main').innerHTML=`<p class="err">${esc(e.message)}</p>`; });
+    ({overview,users,invites,update,audit})[tab]().catch(e=>{ if(e.message!=='utloggad') $('#main').innerHTML=`<p class="err">${esc(e.message)}</p>`; });
   }
 
   /* ---------- översikt ---------- */
@@ -142,6 +142,30 @@
   }
 
   /* ---------- händelser ---------- */
+  /* ---------- serveruppdatering ---------- */
+  let updT=null;
+  async function update(){
+    clearTimeout(updT);
+    const d=await api('update'), st=d.status||{};
+    const S={available:['🆕','Ny version finns'], current:['✅','Servern är uppdaterad'], applying:['⏳','Uppdaterar…'], ok:['✅','Uppdateringen är klar'], rolledback:['↩️','Uppdateringen misslyckades – föregående version återställd'], failed:['⚠️','Uppdateringen misslyckades'], error:['⚠️','Något gick fel']}[st.state]||['❔','Okänt'];
+    const busy=d.pending||st.state==='applying', ch=Array.isArray(st.changes)?st.changes:[];
+    $('#main').innerHTML=`<div class="card"><h2>Serveruppdatering</h2>
+      ${!d.updater?`<p class="err">Uppdateraren är inte installerad än. Kör installationen en gång till på servern, sedan sköts uppdateringar härifrån.</p>`:''}
+      <p><b>Körs nu:</b> ${esc(d.running)}${st.available&&st.available!==d.running?` · <b>Finns:</b> ${esc(st.available)}`:''}</p>
+      <p style="font-size:17px">${S[0]} ${esc(S[1])}${st.message&&st.message!==S[1]?` – <span class="muted">${esc(st.message)}</span>`:''}</p>
+      ${st.at?`<p class="muted">Senast kollat ${fmtT(st.at)}. Servern kollar själv varje timme.</p>`:''}
+      ${st.state==='available'&&ch.length?`<h3>Det här ändras</h3><ul>${ch.map(x=>`<li>${esc(x)}</li>`).join('')}</ul>`:''}
+      <div class="row" style="gap:8px;display:flex;flex-wrap:wrap;margin-top:12px">
+        ${st.state==='available'&&!busy?`<button class="b pri" id="updGo">⬆️ Uppdatera till ${esc(st.available)}</button>`:''}
+        <button class="b" id="updChk" ${busy||d.checking?'disabled':''}>${d.checking?'Kollar…':'🔍 Kolla nu'}</button>
+      </div>
+      <p class="muted" style="margin-top:12px">Uppdateringen hämtar exakt den godkända versionen från GitHub, sparar nuvarande version och kontrollerar efteråt att allt fungerar. Annars återställs föregående version automatiskt. Hemligheter, konton och data rörs inte.</p>
+      ${st.log&&(st.state==='failed'||st.state==='rolledback'||st.state==='error'||st.state==='applying')?`<details ${st.state==='applying'?'open':''}><summary>Logg</summary><pre style="white-space:pre-wrap;font-size:12px">${esc(st.log)}</pre></details>`:''}</div>`;
+    const go=$('#updGo'); if(go) go.onclick=async()=>{ if(!confirm(`Uppdatera servern till ${st.available}? Det tar några minuter och spelet kan vara nere en kort stund.`)) return; go.disabled=true; try{ await api('update',{version:st.available}); }catch(e){ alert(e.message); } update(); };
+    const ck=$('#updChk'); if(ck) ck.onclick=async()=>{ ck.disabled=true; try{ await api('update',{check:true}); }catch(e){ alert(e.message); } setTimeout(update,1500); };
+    if(busy||d.checking) updT=setTimeout(()=>{ if(tab==='update') update().catch(()=>{}); },4000);
+  }
+
   async function audit(){
     const {audit:list}=await api('audit');
     $('#main').innerHTML=`<div class="card"><h2>Händelser</h2><p class="muted">Inloggningar i admin, ändringar av konton och nya konton. De senaste 200.</p>
