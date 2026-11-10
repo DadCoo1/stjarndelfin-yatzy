@@ -12,3 +12,4 @@ Starta en webbserver i repots rot (`python3 -m http.server 8811`) och för onlin
 - `TOK=… node tests/today.js` – Idag: hälsning och dagsform (även dold), lugnt läge, dagens kod, akvariet, ljudlandskap, säkerhetskopia till servern och återställning på ny enhet
 - `node tests/ghost.js` – spökbil i Sommarvägen: första åket sparas, andra åket kör mot det
 - `node tests/style.js` – utseende: världar, accentfärg, dekor, rörelse, textstorlek, ikonstil, och att varje spelruta behåller sin färg och får egen ikon
+- `node tests/aquarium.js` – akvariet: delfinen simmar i mjuka bågar, fastnar inte på botten, hämtar mat och stiger igen
