@@ -167,6 +167,7 @@ const PINS = (() => {
   let queue = [], showing = false, lastSig = '', checkT = 0;
   const calmView = () => typeof view === 'undefined' || view === 'lobby' || view === 'stats' || (view === 'game' && typeof G !== 'undefined' && G && G.over);
   function check(quiet) {
+    if (typeof appLocked === 'function' && appLocked()) return [];
     let D; try { D = data(); } catch (e) { return []; }
     // en aktiv dag läggs till när något nytt har hänt idag
     const sig = [D.total, D.codes, D.aqDays, D.wins].join('|'), today = day();

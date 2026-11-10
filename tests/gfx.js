@@ -16,7 +16,7 @@ const SETUP=[
 ];
 (async()=>{ const b=await chromium.launch(); const report=[];
   for(const [vn,vp] of Object.entries(VPS)){
-    const c=await b.newContext({viewport:vp,deviceScaleFactor:1,hasTouch:vn!=='dator'}); const p=await c.newPage(); const errs=[]; p.on('pageerror',e=>errs.push(e.message));
+    const c=await b.newContext({viewport:vp,deviceScaleFactor:1,hasTouch:vn!=='dator'}); await c.addInitScript("window.__NET_SERVER=''"); const p=await c.newPage(); const errs=[]; p.on('pageerror',e=>errs.push(e.message));
     await p.goto('http://127.0.0.1:8811/dev/'); await sleep(900);
     // lobbyn
     await p.screenshot({path:`shots/${vn}-lobby.png`});

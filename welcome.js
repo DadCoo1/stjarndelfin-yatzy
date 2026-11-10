@@ -8,6 +8,7 @@ const WELCOME = (() => {
   // Visa bara för den som är helt ny – inte för den som redan har spelat, och inte mitt i en inbjudan
   function fresh() {
     if (BOT || seen()) return false;
+    if (typeof appLocked === 'function' && appLocked()) return false;   // först inbjudan/inloggning
     if (/invite=|^#[A-Z0-9]{4}$/i.test(location.hash || '')) return false;
     for (const k of ['ry_name', 'style', 'mood', 'mood_hist', 'bk_last', 'ry_stats']) if (lsGet(k)) return false;
     try { const g = JSON.parse(lsGet('ry_games') || 'null'); if (g && Object.keys(g).length) return false; } catch (e) {}   // listan skapas tom vid start
