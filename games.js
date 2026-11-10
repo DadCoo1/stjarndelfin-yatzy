@@ -130,7 +130,8 @@ function gHeadHTML(sub){
 }
 function gOverHTML(text){
   const me=meSeat(), won=G.winner===me, tie=G.winner===-1;
-  return `<div class="gover ${won?'won':tie?'tie':'lost'}"><div class="gi">${won?'🏆':tie?'🤝':'🌊'}</div><h3>${tie?'Oavgjort!':won?'Du vann!':`${esc(pname(G.winner))} vann!`}</h3><p>${text||''}</p>
+  const gic = typeof STYLE!=='undefined' ? STYLE.icon(G.kind, gIcon()) : '';
+  return `<div class="gover ${won?'won':tie?'tie':'lost'}">${gic?`<div class="gbadge">${gic}</div>`:''}<div class="gi">${won?'🏆':tie?'🤝':'🌊'}</div><h3>${tie?'Oavgjort!':won?'Du vann!':`${esc(pname(G.winner))} vann!`}</h3><p>${text||''}</p>
     <div class="gbtns"><button class="pri" data-g="rematch">🔄 Spela igen</button><button data-act="lobby">🏠 Lobby</button></div></div>`;
 }
 let shipsDraft=null, mmDraft=null, hgDraft=null, gAnimT=null;

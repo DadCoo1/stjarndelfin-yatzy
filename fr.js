@@ -27,7 +27,7 @@ const FR = (()=>{
 
   /* ---------- begrepp ---------- */
   const TYPES={feature:['✨','Ny funktion'], bug:['🐞','Bugg'], improve:['💡','Förbättring'], question:['❓','Fråga']};
-  const AREAS=['Allmänt','Yatzy','Patiens','Sänka skepp','Mastermind','Hänga gubbe','Space Invaders','Kinaschack','Ordfajt','Pong','Fyra i rad','Luffarschack','Othello','Fia','Memory','Vändtia','Finns i sjön','Hjärter','Wordle','Sudoku','Chatt','Musik','Utseende'];
+  const AREAS=['Allmänt','Yatzy','Patiens','Sänka skepp','Mastermind','Hänga gubbe','Space Attack','Kinaschack','Ordfajt','Pong','Fyra i rad','Luffarschack','Othello','Fia','Memory','Vändtia','Finns i sjön','Hjärter','Wordle','Sudoku','Chatt','Musik','Utseende'];
   const FREQ=['Varje gång','Ibland','En gång'];
   // statusflöde (som i GitHub/Jira, på svenska)
   const STATUS={

@@ -556,6 +556,15 @@ const CHAT = (()=>{
         if(typeof CALL!=='undefined') CALL.onSignal(from,p);
         break; }
       case 'ping': { if(env.k==='d' && isH(p.n)) queueDirect(from,{type:'pong', n:p.n, at:Date.now()},true); break; }
+      case 'share': {                                        // spöke i Sommarvägen, resultat i dagens kod – syns inte som meddelande
+        if(env.k!=='d' || !(contacts[from] || friends[from] || dirIds.has(from)) || !p.d || typeof p.d!=='object') break;
+        if(p.k==='ghost'){ const g=p.d; if(!['easy','normal','hard'].includes(g.df) || !Array.isArray(g.s) || g.s.length>2000 || !(g.rt>0 && g.rt<900)) break;
+          const all=ld('ghosts',{}); (all[from]=all[from]||{})[g.df]={df:g.df, won:!!g.won, rt:+g.rt, pos:+g.pos||0, sc:+g.sc||0, s:g.s.filter(a=>Array.isArray(a)&&a.length===3).map(a=>a.map(n=>+n|0)), at:Date.now()}; sv('ghosts',all); }
+        else if(p.k==='daily'){ const d=p.d; if(!/^\d{4}-\d\d-\d\d$/.test(d.day||'') || !(d.tries>=1 && d.tries<=12)) break;
+          const all=ld('daily',{}); for(const k of Object.keys(all)) if(k<d.day.slice(0,8)+'00' && Object.keys(all).length>20) delete all[k];
+          (all[d.day]=all[d.day]||{})[from]={tries:d.tries|0, ok:!!d.ok, ms:Math.max(0,+d.ms|0), at:Date.now()}; sv('daily',all); }
+        try{ window.dispatchEvent(new CustomEvent('fl-share',{detail:{k:p.k, from}})); }catch(e){}
+        break; }
       case 'nudge': {                                         // "din tur" eller "missat samtal" – bara från kända (kontakt, spelkompis, användarlistan)
         if(env.k!=='d' || !(contacts[from] || friends[from] || dirIds.has(from)) || !['t','c'].includes(p.k)) break;
         const who=nameOf(from), g=cleanName(p.g,40);
@@ -1449,7 +1458,13 @@ Skriv:
     html, mount, refresh, open:()=>openPanel(), openChat, close:()=>closePanel(), isOpen:()=>panelOpen, docked:()=>panelOpen && dockable(), seenCards, card:()=>myCard(), unread:totalUnread,
     hasIdentity:()=>!!ME,
     reconnect:()=>{ if(!cpeer || cpeer.destroyed){ cpeer=null; startTransport(); } mbPull(); presPull(); dirSync(true); },
-    dirSync:()=>dirSync(true), pushReg, nudge:(id,k,g)=>{ if(!ME || !id || id===ME.id || !cardOf(id)) return false; queueDirect(id,{type:'nudge', k, g:String(g||'').slice(0,40)},true); return true; },
+    dirSync:()=>dirSync(true), pushReg,
+    share:(k,d)=>{ if(!ME || BOTMODE) return 0; let n=0; const js=JSON.stringify(d); if(js.length>60000) return 0;
+      for(const id of Object.keys(contacts)){ if(isNote('d:'+id) || id===ld('botid',null) || blocked.includes(id)) continue; queueDirect(id,{type:'share', k, d},true); n++; } return n; },
+    ghosts:df=>{ const all=ld('ghosts',{}), out=[]; for(const [id,g] of Object.entries(all)) if(g[df] && contacts[id]) out.push({id, name:nameOf(id), g:g[df]}); return out; },
+    daily:day=>{ const t=(ld('daily',{})[day])||{}; return Object.entries(t).filter(([id])=>contacts[id]).map(([id,r])=>({id, name:nameOf(id), emoji:emoOf(id), ...r})); },
+    onlineCount:()=>Object.keys(contacts).filter(id=>!isNote('d:'+id) && id!==ld('botid',null) && isOnline(id)).length,
+    myName:()=>ME ? ME.name : '', nudge:(id,k,g)=>{ if(!ME || !id || id===ME.id || !cardOf(id)) return false; queueDirect(id,{type:'nudge', k, g:String(g||'').slice(0,40)},true); return true; },
     netState:()=>!ME || !owner ? null : (cpeer && cpeer.open && !cpeer.disconnected ? 'open' : 'connecting'),
     // samtal: signalerna går krypterade genom samma dubbla ratchet som meddelandena
     call:{
