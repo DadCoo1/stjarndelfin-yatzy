@@ -1,5 +1,6 @@
 // Akvariet: delfinen simmar i mjuka bågar, fastnar inte på botten, hämtar mat (även på botten) och stiger igen.
 const {chromium}=require('playwright'); const sleep=ms=>new Promise(r=>setTimeout(r,ms));
+const devicePixelRatioOr1=t=>t[3];
 (async()=>{ const b=await chromium.launch(); let fails=0; const ok=(c,m)=>{ console.log((c?'✓ ':'✗ ')+m); if(!c) fails++; }; const errs=[];
   const c=await b.newContext({viewport:{width:390,height:844}}); await c.addInitScript("window.__NET_SERVER=''");
   const p=await c.newPage(); p.on('pageerror',e=>errs.push(e.message)); await p.goto('http://127.0.0.1:8811/dev/'); await sleep(1500);
@@ -20,5 +21,7 @@ const {chromium}=require('playwright'); const sleep=ms=>new Promise(r=>setTimeou
   ok(after>before, 'hämtar maten som sjunkit till botten');
   const t2=[]; for(let i=0;i<40;i++){ t2.push((await pos()).y); await sleep(100); }
   ok(Math.min(...t2)<sand-0.36*d1.sz-40, 'stiger upp igen efter maten');
+  const tf=await p.evaluate(()=>{ const t=document.getElementById('aqC').getContext('2d').getTransform(); return [t.a,t.b,t.c,t.d,t.e,t.f]; });
+  ok(tf[0]===devicePixelRatioOr1(tf) && tf[1]===0 && tf[2]===0 && tf[4]===0 && tf[5]===0, 'ritningen läcker inte (canvas-transform '+tf.map(x=>+x.toFixed(2))+')');
   await p.screenshot({path:'/tmp/aq_swim.png'});
   console.log('errs',errs); console.log(fails?fails+' FEL':'alla akvarietester ok'); await b.close(); process.exit(fails?1:0); })();
