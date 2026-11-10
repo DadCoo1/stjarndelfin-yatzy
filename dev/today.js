@@ -90,7 +90,7 @@ const TODAY = (() => {
     if (sg) social.push(c('sgopen', '🎲', `${sg} pågående`, 'Fortsätt där du var', 'hot'));
     if (unread) social.push(c('openchat', '💬', `${unread} nya`, unread === 1 ? 'meddelande' : 'meddelanden', 'hot'));
     if (online) social.push(c('openchat', '🟢', `${online} online`, online === 1 ? 'kompis vill kanske spela' : 'kompisar – vill någon spela?'));
-    try { const pi = PINS.cardInfo(); if (pi) social.push(c('pinsopen', pi.ic, `${pi.n} pins`, esc(pi.line), 'pins')); } catch (e) {}
+    try { const pi = PINS.cardInfo(); if (pi) social.push(c('pinsopen', pi.ic, `${pi.n} ${pi.word}`, esc(pi.line), 'pins')); } catch (e) {}
     social.push(c('dailyopen', d.done ? (d.ok ? '✅' : '🔐') : '🔐', 'Dagens kod', d.line, d.done ? '' : 'new'));
     if (m === 'sofa') cards.push(...calm, ...social); else cards.push(...social, ...calm);
     try { if (!BK.last() && ((typeof CHAT !== 'undefined' && CHAT.call.myId()) || sg)) cards.push(c('bkopen', '💾', 'Säkra dina saker', 'Kopia om telefonen försvinner', 'tip')); } catch (e) {}
@@ -243,7 +243,7 @@ const TODAY = (() => {
       go: ['Du ser pigg ut! Ska vi göra en volt? 🐬', 'Idag slår vi rekord. Jag hejar!', 'Jag hörde att spöket i Sommarvägen är nervöst.'],
       none: ['Hej! Jag har väntat på dig 🐬', 'Klappa mig så gör jag en volt!', 'Tryck i vattnet så släpper du ner mat.']
     };
-    let cv, g, raf = 0, W = 0, H = 0, DPR = 1, t0 = 0, D, food2 = [], hearts = [], bubbles = [], fish = [], jelly = [], said = '', saidT = 0, holdT = 0, holdXY = null, flip = 0, plants = [];
+    let rings = [], cv, g, raf = 0, W = 0, H = 0, DPR = 1, t0 = 0, D, food2 = [], hearts = [], bubbles = [], fish = [], jelly = [], said = '', saidT = 0, holdT = 0, holdXY = null, flip = 0, plants = [];
     function seedScene() {
       const R = rnd(hash('aq|' + (get().born || 1)));
       plants = Array.from({ length: 11 }, (_, i) => ({ x: (i + .2 + R() * .6) / 11, h: .1 + R() * .16, w: 9 + R() * 10, c: R() < .5 ? ['#0f766e', '#2dd4bf'] : ['#15803d', '#4ade80'], ph: R() * 6, n: 1 + Math.floor(R() * 3) }));
@@ -259,7 +259,9 @@ const TODAY = (() => {
         <div class="aq-say" id="aqSay"></div><div class="aq-help">Tryck i vattnet = mat · Håll på ${esc(a.name)} = klappa · Tryck på ${esc(a.name)} = volt</div><div class="snd-host">${SND.barHTML()}</div>`;
       document.body.appendChild(w); cv = w.querySelector('#aqC'); g = cv.getContext('2d'); size(); seedScene(); SND.bindVol();
       const m = showMood() ? mood() : null, f = food(a);
-      D = { x: W * .5, y: H * .42, h: 0, v: 40, face: 1, vx: 40, vy: 0, tx: W * .7, ty: H * .38, sz: Math.min(W, H) * (.16 + Math.min(careDays(a), 20) * .004), calm: m === 'sofa' || f < .2, sleep: f < .2 };
+      D = { x: W * .5, y: H * .42, h: 0, v: 40, face: 1, vx: 40, vy: 0, tx: W * .7, ty: H * .38, sz: Math.min(W, H) * (.16 + Math.min(careDays(a), 20) * .004), calm: m === 'sofa' || f < .2, sleep: f < .2,
+        th: 0, thd: 0, psi: 0, psiD: 0, turn: null, cool: 1, Z: 0, scale: 1, A: .05, ph: 0, gl: 3, gliding: false, bend: 0, lat: 0, roll: 0, trick: null, tk: 0, flap: 0, nose: null };
+      rings = [];
       say(f < .2 ? `${a.name} har somnat. Släpp ner lite mat så vaknar hen 🦐` : (LINES[m || 'none'])[Math.floor(Math.random() * 3)]);
       cv.addEventListener('pointerdown', down); cv.addEventListener('pointerup', up); cv.addEventListener('pointercancel', up);
       window.addEventListener('resize', size); t0 = performance.now(); raf = requestAnimationFrame(loop);
@@ -267,14 +269,15 @@ const TODAY = (() => {
     }
     function close() { cancelAnimationFrame(raf); raf = 0; window.removeEventListener('resize', size); const w = document.getElementById('aqWrap'); if (w) w.remove(); repaint(false); }
     function say(t) { said = t; saidT = 5.5; const el = document.getElementById('aqSay'); if (el) { el.textContent = t; el.classList.add('on'); } }
-    function onDolphin(x, y) { return Math.hypot(x - D.x, y - D.y) < D.sz * .7; }
+    function onDolphin(x, y) { return Math.hypot(x - D.x, y - D.y) < D.sz * .85 || (D.nose && Math.hypot(x - D.nose[0], y - D.nose[1]) < D.sz * .4); }
     function down(e) { const r = cv.getBoundingClientRect(), x = e.clientX - r.left, y = e.clientY - r.top; holdXY = { x, y, t: performance.now(), on: onDolphin(x, y) }; }
     function up(e) {
       if (!holdXY) return; const r = cv.getBoundingClientRect(), x = e.clientX - r.left, y = e.clientY - r.top, dt = performance.now() - holdXY.t, was = holdXY; holdXY = null;
       const a = get();
-      if (was.on && dt < 350) { flip = 1; a.joy = Math.min(1, (a.joy || .5) + .05); put(a); buzz(20); say(['Hihi! 🐬', 'Wiii!', 'En till?', 'Såg du? Perfekt tia!'][Math.floor(Math.random() * 4)]); return; }
+      if (was.on && dt < 350) { startTrick(); a.joy = Math.min(1, (a.joy || .5) + .05); put(a); buzz(20); say(['Hihi! 🐬', 'Wiii!', 'En till?', 'Såg du? Perfekt tia!'][Math.floor(Math.random() * 4)]); return; }
       if (!was.on && dt < 500) { for (let i = 0; i < 3; i++) food2.push({ x: x + (Math.random() - .5) * 18, y: Math.max(y, H * .08), vy: 14 + Math.random() * 10, ph: Math.random() * 6 }); D.sleep = false; buzz(8); }
     }
+    function startTrick() { if (!D || D.trick) return; D.tk++; D.trick = { kind: (D.tk % 2 && D.y > H * .17 + D.sz * 1.1 && !D.turn) ? 'loop' : 'roll', t: 0, dur: 0 }; D.trick.dur = D.trick.kind === 'loop' ? 1.9 : 1.25; }
     function eat() {
       const a = get(); a.food = Math.min(1, food(a) + .12); a.fedAt = Date.now(); a.joy = Math.min(1, (a.joy || .5) + .02); put(a);
       const m = document.querySelector('.aq-meter i'); if (m) m.style.width = Math.round(food(a) * 100) + '%';
@@ -283,37 +286,72 @@ const TODAY = (() => {
     function loop(now) {
       const dt = Math.min(.05, (now - t0) / 1000); t0 = now; const T = now / 1000;
       if (holdXY && holdXY.on && now - holdXY.t > 450) { holdT += dt; if (Math.random() < .25) hearts.push({ x: D.x + (Math.random() - .5) * D.sz * .5, y: D.y - D.sz * .3, v: 30 + Math.random() * 20, life: 1.6 }); if (holdT > 1.2) { holdT = 0; const a = get(); a.joy = Math.min(1, (a.joy || .5) + .06); put(a); if (Math.random() < .5) say(['Mmm… mysigt 💙', 'Mer klapp!', 'Du är min favoritmänniska.'][Math.floor(Math.random() * 3)]); } }
-      // Simning: en riktning och en fart som ändras mjukt – delfinen svänger i bågar, håller sig i vattnet
-      // och dyker bara ner mot botten för att hämta mat, sedan stiger den igen.
-      const sand = H * .76, top = H * .17, bot = sand - D.sz * .3, mx = D.sz * .55;
+      // Simning som en riktig delfin: stjärtfenan slår upp och ner (vågen går bakåt längs kroppen), slag varvas med glid,
+      // lutningen ändras i mjuka bågar och en vändning är en riktig sväng i djupled (kroppen böjer sig åt sidan och syns
+      // framifrån mitt i svängen) – aldrig en snabb spegelvändning.
+      const sand = H * .76, top = H * .17, bot = sand - D.sz * .36, mx = D.sz * .85, kL = D.sz * 1.9;
       for (const f of food2) { f.age = (f.age || 0) + dt; if (f.y < sand - 3) { f.y += f.vy * dt; f.x += Math.sin(T * 2 + f.ph) * 6 * dt; } }
       food2 = food2.filter(f => f.age < 16);                                   // mat som ingen äter löses upp
       const tgt = D.sleep ? null : food2.reduce((b, f) => !b || Math.hypot(f.x - D.x, f.y - D.y) < Math.hypot(b.x - D.x, b.y - D.y) ? f : b, null);
-      const cruise = D.sleep ? 16 : D.calm ? 46 : 74;
+      const cruise = D.sleep ? 12 : D.calm ? 44 : 70;
       let tx, ty;
       if (tgt) { tx = tgt.x; ty = Math.min(tgt.y, bot); }
       else {
-        if (D.sleep) { D.tx = W * .5 + Math.sin(T * .22) * W * .2; D.ty = H * .42 + Math.sin(T * .37) * H * .04; }
-        else if (Math.hypot(D.tx - D.x, D.ty - D.y) < D.sz * .7 || Math.random() < .002) { D.tx = W * (.14 + Math.random() * .72); D.ty = H * (.24 + Math.random() * .32); }
+        if (D.sleep) { D.tx = W * .5 + Math.sin(T * .12) * W * .22; D.ty = H * .42 + Math.sin(T * .21) * H * .03; }
+        else if (Math.hypot(D.tx - D.x, D.ty - D.y) < D.sz * .8 || Math.random() < .0015) { D.tx = W * (.14 + Math.random() * .72); D.ty = H * (.24 + Math.random() * .32); }
         tx = D.tx; ty = D.ty;
       }
-      let dx = tx - D.x, dy = ty - D.y;
-      // mjuka väggar: vänd tillbaka in i vattnet i god tid
-      if (D.y > bot - 30 && !tgt) dy -= 120; if (D.y < top + 30) dy += 120;
-      if (D.x < mx + 40) dx += 160; if (D.x > W - mx - 40) dx -= 160;
-      let want = Math.atan2(dy, dx); const lim = tgt ? .8 : .6;                 // inte rakt upp eller ner
-      const cw = Math.cos(want), sw0 = Math.max(-Math.sin(lim), Math.min(Math.sin(lim), Math.sin(want))); want = Math.atan2(sw0, cw);
-      let dh = want - D.h; while (dh > Math.PI) dh -= 2 * Math.PI; while (dh < -Math.PI) dh += 2 * Math.PI;
-      const turn = (tgt ? 2.6 : D.calm ? 1.1 : 1.6) * dt; D.h += Math.max(-turn, Math.min(turn, dh));
-      const vT = tgt ? cruise * 1.7 : cruise * (.85 + .15 * Math.sin(T * .7)); D.v += (vT - D.v) * Math.min(1, dt * 1.5);
-      D.vx = Math.cos(D.h) * D.v; D.vy = Math.sin(D.h) * D.v;
-      D.x += D.vx * dt; D.y += D.vy * dt + Math.sin(T * 1.3) * (D.sleep ? 2 : 6) * dt;
+      const dx = tx - D.x, dy = ty - D.y, face = Math.cos(D.psi) >= 0 ? 1 : -1;
+      D.cool -= dt;
+      // vändning: bara när målet verkligen ligger bakom eller väggen närmar sig – och inte igen direkt efter
+      if (!D.turn && !D.trick && D.cool <= 0) {
+        const behind = dx * face < -(tgt ? D.sz * .3 : D.sz * .7), wall = face > 0 ? D.x > W - mx - D.sz * .5 : D.x < mx + D.sz * .5;
+        if (behind || wall) {
+          const dir = Math.random() < .6 ? 1 : -1, a1 = D.psi + Math.PI, a2 = D.psi - Math.PI, mid1 = Math.sin(D.psi + Math.PI / 2);
+          D.turn = { from: D.psi, to: (mid1 > 0) === (dir > 0) ? a1 : a2, t: 0, dur: (D.sleep ? 3.4 : D.calm ? 2.3 : 1.6) * (tgt ? .8 : 1) };
+        }
+      }
+      let psiPrev = D.psi;
+      if (D.turn) { const tr = D.turn; tr.t += dt; const u = Math.min(1, tr.t / tr.dur), e = u * u * u * (u * (u * 6 - 15) + 10);
+        D.psi = tr.from + (tr.to - tr.from) * e;
+        if (u >= 1) { D.psi = Math.atan2(Math.sin(tr.to), Math.cos(tr.to)); psiPrev = D.psi; D.turn = null; D.cool = 1.4 + Math.random() * 1.5; } }
+      D.psiD = dt > 0 ? (D.psi - psiPrev) / dt : 0;
+      // lutning: en dämpad fjäder mot önskad vinkel ger mjuka bågar
+      let thd = Math.max(-.65, Math.min(.65, Math.atan2(dy, Math.abs(dx) + D.sz * .9)));
+      if (D.y < top + D.sz * .35) thd = Math.max(thd, .3);
+      if (D.y > bot - D.sz * .25 && !tgt) thd = Math.min(thd, -.32);
+      if (D.turn) thd *= .5;
+      D.thd += ((thd - D.th) * 3.2 - D.thd * 3.1) * dt; D.thd = Math.max(-.9, Math.min(.9, D.thd)); D.th += D.thd * dt;
+      // trick: volt (loop) eller rollning
+      let thR = D.th, boost = 1;
+      if (D.trick) { const k = D.trick; k.t += dt; const u = Math.min(1, k.t / k.dur), e = u * u * (3 - 2 * u);
+        if (k.kind === 'loop') thR = D.th - Math.PI * 2 * e; else D.roll = Math.PI * 2 * e;
+        boost = 1.35; if (u >= 1) { D.trick = null; D.roll = 0; D.cool = Math.max(D.cool, .6); } }
+      // fart: slag när den behöver fart, glid däremellan
+      const vT = (tgt ? cruise * 1.55 : cruise * (.9 + .1 * Math.sin(T * .5))) * (D.turn ? .72 : 1) * boost;
+      D.gl -= dt;
+      if (D.gl <= 0) { D.gliding = !D.gliding && !tgt && !D.turn; D.gl = D.gliding ? .9 + Math.random() * 1.2 : (D.sleep ? 2 : 2.4) + Math.random() * 2.6; }
+      const Atg = D.gliding ? .012 : Math.max(D.sleep ? .02 : .035, Math.min(.13, .035 + (vT - D.v) / Math.max(vT, 1) * .14 + vT / 1500));
+      D.A += (Atg - D.A) * Math.min(1, dt * 2.4);
+      D.ph += Math.PI * 2 * (D.sleep ? .4 : .7 + D.v / 115) * dt;
+      D.v += ((D.gliding ? vT * .3 : vT) - D.v) * dt * (D.gliding ? .22 : .9);
+      // rörelse i bilden (och lite i djupled under svängar – den kommer närmare och blir lite större)
+      D.vx = D.v * Math.cos(thR) * Math.cos(D.psi); D.vy = D.v * Math.sin(thR);
+      D.x += D.vx * dt; D.y += D.vy * dt;
+      D.Z += D.v * Math.cos(thR) * Math.sin(D.psi) * dt * .6; if (!D.turn) D.Z *= 1 - Math.min(1, dt * .3);
+      D.scale = 1 + Math.max(-.18, Math.min(.18, D.Z / (H * 1.1)));
       D.x = Math.max(mx, Math.min(W - mx, D.x)); D.y = Math.max(top, Math.min(bot, D.y));
-      const faceT = Math.cos(D.h) >= 0 ? 1 : -1; D.face += (faceT - D.face) * Math.min(1, dt * 5);     // vänder mjukt
-      const hx = D.x + Math.cos(D.h) * D.sz * .5, hy = D.y + Math.sin(D.h) * D.sz * .5;
-      food2 = food2.filter(f => { if (Math.hypot(f.x - hx, f.y - hy) < D.sz * .28 || Math.hypot(f.x - D.x, f.y - D.y) < D.sz * .22) { eat(); return false; } return true; });
-      if (flip > 0) flip = Math.max(0, flip - dt * .9);
-      if (Math.random() < (D.sleep ? .05 : .03)) bubbles.push({ x: D.x + Math.cos(D.h) * D.sz * .35, y: D.y - D.sz * .1, r: 2 + Math.random() * 3, v: 25 + Math.random() * 25, z: D.sleep });
+      D.h = Math.atan2(D.vy, D.vx); D.face = Math.cos(D.psi);
+      // kroppen böjer sig i bågar och åt sidan i svängar
+      const bT = Math.max(-.5, Math.min(.5, -D.thd * kL / Math.max(D.v, 25) * .32)), lT = Math.max(-.6, Math.min(.6, D.psiD * kL / Math.max(D.v, 25) * .12));
+      D.bend += (bT - D.bend) * Math.min(1, dt * 4); D.lat += (lT - D.lat) * Math.min(1, dt * 4);
+      D.flap = D.turn ? .7 * Math.sin(Math.PI * D.turn.t / D.turn.dur) : Math.sin(D.ph * .5) * .25 * Math.min(1, D.v / 60);
+      const nose = D.nose || [D.x + Math.cos(D.h) * D.sz * .8, D.y + Math.sin(D.h) * D.sz * .8];
+      food2 = food2.filter(f => { if (Math.hypot(f.x - nose[0], f.y - nose[1]) < D.sz * .3 || Math.hypot(f.x - D.x, f.y - D.y) < D.sz * .22) { eat(); return false; } return true; });
+      // ibland blåser delfinen en bubbelring ur andningshålet
+      if (!D.sleep && Math.random() < dt / 11 && D.nose) { const bx = D.nose[0] + (D.x - D.nose[0]) * .35, by = D.nose[1] + (D.y - D.nose[1]) * .35 - D.sz * .14; rings.push({ x: bx, y: by, r: D.sz * .05, life: 3.2 }); }
+      for (const r of rings) { r.y -= 22 * dt; r.r += D.sz * .045 * dt; r.life -= dt; r.x += Math.sin(T + r.y * .03) * 4 * dt; } rings = rings.filter(r => r.life > 0 && r.y > -20);
+      if (Math.random() < (D.sleep ? .05 : .025) && D.nose) bubbles.push({ x: D.nose[0] + (D.x - D.nose[0]) * .35, y: D.nose[1] + (D.y - D.nose[1]) * .35 - D.sz * .12, r: 1.5 + Math.random() * 2.5, v: 25 + Math.random() * 25, z: D.sleep });
       if (Math.random() < .06) bubbles.push({ x: W * .82, y: H * .78, r: 1.5 + Math.random() * 3.5, v: 35 + Math.random() * 30 });
       for (const b of bubbles) { b.y -= b.v * dt; b.x += Math.sin(T * 3 + b.y * .05) * 10 * dt; } bubbles = bubbles.filter(b => b.y > -10);
       for (const h of hearts) { h.y -= h.v * dt; h.life -= dt; } hearts = hearts.filter(h => h.life > 0);
@@ -362,38 +400,18 @@ const TODAY = (() => {
     function fishDraw(x, y, s, c, right) { g.save(); g.translate(x, y); if (!right) g.scale(-1, 1); g.fillStyle = c; g.beginPath(); g.ellipse(0, 0, s * 1.6, s, 0, 0, 7); g.fill(); g.beginPath(); g.moveTo(-s * 1.4, 0); g.lineTo(-s * 2.4, -s * .8); g.lineTo(-s * 2.4, s * .8); g.fill(); g.fillStyle = '#0b1220'; g.beginPath(); g.arc(s * .8, -s * .2, s * .22, 0, 7); g.fill(); g.restore(); }
     function jellyDraw(x, y, s, T) { g.save(); g.translate(x, y); g.globalCompositeOperation = 'lighter'; const p = 1 + Math.sin(T * 2) * .08; g.fillStyle = 'rgba(196,181,253,.35)'; g.beginPath(); g.ellipse(0, 0, s * p, s * .7 / p, 0, Math.PI, 0); g.fill(); g.strokeStyle = 'rgba(196,181,253,.35)'; g.lineWidth = 1.5; for (let i = -2; i <= 2; i++) { g.beginPath(); g.moveTo(i * s * .3, 0); for (let k = 1; k < 6; k++) g.lineTo(i * s * .3 + Math.sin(T * 2 + k + i) * 3, k * s * .35); g.stroke(); } g.restore(); }
     function dolphin(T, lvl) {
-      const s = D.sz, pitch = Math.atan2(Math.sin(D.h), Math.abs(Math.cos(D.h))), sw = Math.sin(T * (2 + D.v / 14)) * (D.sleep ? .04 : .07 + D.v / 900);
-      const fx = Math.abs(D.face) < .12 ? .12 * Math.sign(D.face || 1) : D.face;
-      g.save(); g.translate(D.x, D.y); g.scale(fx, 1); g.rotate(pitch + (flip > 0 ? (1 - flip) * Math.PI * 2 : 0));
-      // glöd
-      const glow = g.createRadialGradient(0, 0, s * .1, 0, 0, s * .9); glow.addColorStop(0, 'rgba(165,243,255,.18)'); glow.addColorStop(1, 'rgba(165,243,255,0)'); g.fillStyle = glow; g.beginPath(); g.arc(0, 0, s * .9, 0, 7); g.fill();
-      // kropp
-      const bd = g.createLinearGradient(0, -s * .3, 0, s * .3); bd.addColorStop(0, '#7c6cff'); bd.addColorStop(.55, '#60a5fa'); bd.addColorStop(1, '#a5f3ff');
-      g.fillStyle = bd; g.beginPath();
-      g.moveTo(s * .62, s * .02);                                                        // nos
-      g.bezierCurveTo(s * .5, -s * .2, s * .1, -s * .3, -s * .3, -s * .16);
-      g.bezierCurveTo(-s * .45, -s * .1, -s * .55, -s * .02 + sw * s, -s * .66, sw * s * 1.6);
-      g.bezierCurveTo(-s * .55, s * .08 + sw * s, -s * .3, s * .18, 0, s * .17);
-      g.bezierCurveTo(s * .3, s * .16, s * .5, s * .12, s * .62, s * .02); g.fill();
-      // mage
-      g.fillStyle = 'rgba(255,255,255,.75)'; g.beginPath(); g.moveTo(s * .55, s * .06); g.bezierCurveTo(s * .3, s * .17, 0, s * .17, -s * .3, s * .1); g.bezierCurveTo(0, s * .1, s * .3, s * .08, s * .55, s * .06); g.fill();
-      // ryggfena
-      // ryggfenan lutar bakåt mot stjärten: lång rundad framkant, spetsen bakom fenans bas, svängd bakkant
-      g.fillStyle = '#6d5ff0'; g.beginPath(); g.moveTo(s * .06, -s * .22); g.quadraticCurveTo(-s * .02, -s * .44, -s * .26, -s * .46); g.quadraticCurveTo(-s * .14, -s * .36, -s * .17, -s * .18); g.closePath(); g.fill();
-      // bröstfena
-      g.fillStyle = '#5b8def'; g.beginPath(); g.moveTo(s * .12, s * .1); g.quadraticCurveTo(s * .02, s * .3 + sw * s * .5, -s * .1, s * .3); g.quadraticCurveTo(0, s * .16, s * .02, s * .12); g.fill();
-      // stjärtfena
-      g.save(); g.translate(-s * .66, sw * s * 1.6); g.rotate(sw * 2.2); g.fillStyle = '#7c6cff'; g.beginPath(); g.moveTo(0, 0); g.quadraticCurveTo(-s * .14, -s * .13, -s * .3, -s * .12); g.quadraticCurveTo(-s * .16, -s * .02, -s * .12, 0); g.quadraticCurveTo(-s * .16, s * .02, -s * .3, s * .12); g.quadraticCurveTo(-s * .14, s * .13, 0, 0); g.fill(); g.restore();   // stjärtfenan: liggande, som en delfins
-      // stjärnor på ryggen (därav namnet)
-      g.fillStyle = '#fff'; for (const [x, y, r] of [[-.05, -.14, .028], [.12, -.16, .02], [-.22, -.1, .018]]) { const tw = .6 + .4 * Math.sin(T * 3 + x * 20); g.globalAlpha = tw; g.beginPath(); for (let i = 0; i < 10; i++) { const rr = i % 2 ? r * s * .4 : r * s, a = -Math.PI / 2 + i * Math.PI / 5; g.lineTo(x * s + Math.cos(a) * rr, y * s + Math.sin(a) * rr); } g.fill(); } g.globalAlpha = 1;
-      // öga och leende
-      if (D.sleep) { g.strokeStyle = '#0b1220'; g.lineWidth = s * .018; g.beginPath(); g.arc(s * .38, -s * .03, s * .03, .2, Math.PI - .2); g.stroke(); }
-      else { g.fillStyle = '#0b1220'; g.beginPath(); g.arc(s * .38, -s * .04, s * .035, 0, 7); g.fill(); g.fillStyle = '#fff'; g.beginPath(); g.arc(s * .392, -s * .052, s * .012, 0, 7); g.fill(); }
-      g.strokeStyle = 'rgba(11,18,32,.55)'; g.lineWidth = s * .012; g.beginPath(); g.moveTo(s * .6, s * .04); g.quadraticCurveTo(s * .5, s * .09, s * .42, s * .06); g.stroke();
-      // kind
-      g.fillStyle = 'rgba(251,113,133,.35)'; g.beginPath(); g.ellipse(s * .44, s * .04, s * .04, s * .025, 0, 0, 7); g.fill();
-      if (lvl >= 14) { g.font = `${s * .22}px system-ui`; g.fillText('👑', -s * .12, -s * .3); }
-      g.restore();
+      const k = D.sz * 1.9 * D.scale, sand = H * .76;
+      // skugga på sanden – mörkare ju närmare botten
+      const hgt = Math.max(0, sand - D.y), sa = Math.max(0, .3 - hgt / (H * 2.2)), rx = k * (.18 + .3 * Math.abs(Math.cos(D.psi)));
+      if (sa > .01) { const sg = g.createRadialGradient(D.x, sand + 10, 0, D.x, sand + 10, rx); sg.addColorStop(0, `rgba(30,40,60,${sa})`); sg.addColorStop(1, 'rgba(30,40,60,0)'); g.save(); g.translate(D.x, sand + 10); g.scale(1, .16); g.translate(-D.x, -(sand + 10)); g.fillStyle = sg; g.beginPath(); g.arc(D.x, sand + 10, rx, 0, 7); g.fill(); g.restore(); }
+      // bubbelringar
+      for (const r of rings) { g.strokeStyle = `rgba(230,250,255,${Math.min(.6, r.life * .3)})`; g.lineWidth = Math.max(1.2, r.r * .18); g.beginPath(); g.ellipse(r.x, r.y, r.r, r.r * .32, 0, 0, 7); g.stroke(); }
+      let thR = D.th; if (D.trick && D.trick.kind === 'loop') { const u = Math.min(1, D.trick.t / D.trick.dur); thR -= Math.PI * 2 * u * u * (3 - 2 * u); }
+      const heave = -D.A * Math.sin(D.ph) * k * .05;
+      const P = { bend: D.bend, lat: D.lat, A: D.A, ph: D.ph, fluke: Math.max(-.6, Math.min(.6, -D.A * 3 * Math.cos(D.ph - 2.4))), roll: D.roll, pitch: thR, yaw: D.psi, elev: .26, flap: D.flap };
+      const r = DOLPH.draw(g, P, { x: D.x, y: D.y + heave, k, eyes: D.sleep ? 'closed' : 'open', T, stars: true });
+      D.nose = r.nose;
+      if (lvl >= 14) { const hx = r.nose[0] + (D.x - r.nose[0]) * .38, hy = r.nose[1] + (D.y - r.nose[1]) * .38 - k * .13; g.font = `${k * .12}px system-ui`; g.textAlign = 'center'; g.fillText('👑', hx, hy); g.textAlign = 'start'; }
     }
     function act(a, b) {
       if (a === 'aqopen') { open(); return true; }
@@ -405,7 +423,7 @@ const TODAY = (() => {
       if (a === 'aqnameok') { const v = ((document.getElementById('aqN') || {}).value || '').trim().slice(0, 16); if (v) { const x = get(); x.name = v; put(x); const n = document.querySelector('.aq-name b'); if (n) n.textContent = v; } closeModal(); return true; }
       return false;
     }
-    return { open, close, act, status, _get: get, _d: () => D && { x: D.x, y: D.y, h: D.h, sz: D.sz } };
+    return { open, close, act, status, _get: get, _d: () => D && { x: D.x, y: D.y, h: D.h, psi: D.psi, th: D.th, sz: D.sz, turn: !!D.turn, trick: D.trick && D.trick.kind }, _trick: () => startTrick() };
   })();
 
   /* ---------- inställningar ---------- */
