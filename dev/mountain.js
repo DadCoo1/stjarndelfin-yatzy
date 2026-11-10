@@ -149,7 +149,8 @@ const MOUNTAIN = (() => {
         r = lerp(r, 205, hz); g = lerp(g, 217, hz); b2 = lerp(b2, 238, hz);
         cells.push(k, `rgb(${r | 0},${g | 0},${b2 | 0})`);
       }
-      return { nx, nz, X, Y, Z, cells, S: new Float32Array(nx * nz * 3) };
+      const nc = cells.length / 2, CX = new Float32Array(nc), CZ = new Float32Array(nc); for (let c = 0; c < nc; c++) { const k = cells[c * 2]; CX[c] = X[k] + step / 2; CZ[c] = Z[k] + step / 2; }
+      return { nx, nz, X, Y, Z, cells, nc, CX, CZ, step, S: new Float32Array(nx * nz * 3), ord: new Int32Array(nc), key: new Float32Array(nc), ox: 1e9, oz: 1e9 };
     };
     const fine = { x0: -1000, x1: 1100, z0: -700, z1: 2500 };
     grids.push(mk(D.xlim[0], D.xlim[1], D.zlim[0], D.zlim[1], LOW ? 420 : 300, (x, z) => x > fine.x0 && x < fine.x1 && z > fine.z0 && z < fine.z1));
@@ -162,32 +163,40 @@ const MOUNTAIN = (() => {
     if (D.cable) { const [a, b] = D.cable; cable = []; for (let i = 0; i <= 8; i++) { const x = lerp(a[0], b[0], i / 8), z = lerp(a[1], b[1], i / 8); cable.push([x, F.H(x, z) + 14 + Math.sin(i / 8 * Math.PI) * 30, z, F.H(x, z)]); } }
     return F.mesh = { grids, spots, cable, order: [] };
   }
-  // ritar fjället: proj(x, y, z) → [skärm-x, skärm-y, skala, djup] eller null; y0 dras av från alla höjder
-  function draw(ctx, F, proj, W, H, y0, lite) {
-    const M = buildMesh(F), L = M.order; L.length = 0;
+  // ritar fjället. proj(x, y, z, out) skriver skärmläget i out[0..1] och returnerar djupet (≤ 0 = bakom kameran); y0 dras av från alla höjder.
+  // Ytor närmare än "near" hoppas över – annars blir de jättelika spetsiga fält som flimrar över bilden (spelet ritar själv marken nära kameran).
+  // Ordningen bakifrån och fram räknas bara om när kameran har flyttat sig en bit, och inget minne skapas per bildruta.
+  const TMP = [0, 0];
+  function draw(ctx, F, proj, W, H, y0, lite, camX, camZ, near) {
+    const M = buildMesh(F); near = near || 1;
     for (let gi = 0; gi < M.grids.length; gi++) {
       const G = M.grids[gi], S = G.S, n = G.nx * G.nz;
-      for (let k = 0; k < n; k++) { const p = proj(G.X[k], G.Y[k] - y0, G.Z[k]); if (p) { S[k * 3] = p[0]; S[k * 3 + 1] = p[1]; S[k * 3 + 2] = p[3] != null ? p[3] : 1 / p[2]; } else S[k * 3 + 2] = -1; }
-      const C = G.cells, nx = G.nx;
-      for (let c = 0; c < C.length; c += 2) {
-        const k = C[c], a = k * 3, b = (k + 1) * 3, d = (k + nx + 1) * 3, e = (k + nx) * 3;
+      for (let k = 0; k < n; k++) { const d = proj(G.X[k], G.Y[k] - y0, G.Z[k], TMP); if (d > near) { S[k * 3] = TMP[0]; S[k * 3 + 1] = TMP[1]; S[k * 3 + 2] = d; } else S[k * 3 + 2] = -1; }
+      if (Math.abs(camX - G.ox) + Math.abs(camZ - G.oz) > G.step * .35) { G.ox = camX; G.oz = camZ; const key = G.key;
+        for (let c = 0; c < G.nc; c++) { const dx = G.CX[c] - camX, dz = G.CZ[c] - camZ; key[c] = dx * dx + dz * dz; G.ord[c] = c; }
+        G.ord.sort((a, b) => key[b] - key[a]); }
+    }
+    // det grova nätet först (det ligger alltid längre bort eller under det fina), sedan det fina
+    for (let gi = 0; gi < M.grids.length; gi++) {
+      const G = M.grids[gi], S = G.S, C = G.cells, nx = G.nx, ord = G.ord;
+      for (let o = 0; o < G.nc; o++) {
+        const c = ord[o] * 2, k = C[c], a = k * 3, b = a + 3, e = (k + nx) * 3, d = e + 3;
         if (S[a + 2] < 0 || S[b + 2] < 0 || S[d + 2] < 0 || S[e + 2] < 0) continue;
         const xa = S[a], xb = S[b], xd = S[d], xe = S[e]; if ((xa < 0 && xb < 0 && xd < 0 && xe < 0) || (xa > W && xb > W && xd > W && xe > W)) continue;
         const ya = S[a + 1], yb = S[b + 1], yd = S[d + 1], ye = S[e + 1]; if ((ya < 0 && yb < 0 && yd < 0 && ye < 0) || (ya > H && yb > H && yd > H && ye > H)) continue;
-        L.push({ z: S[a + 2] + S[d + 2], g: G, c });
+        // ytan görs en aning större så att inga hårfina springor syns mellan ytorna
+        const mx = (xa + xb + xd + xe) / 4, my = (ya + yb + yd + ye) / 4, g = 1.04;
+        ctx.fillStyle = C[c + 1]; ctx.beginPath(); ctx.moveTo(mx + (xa - mx) * g, my + (ya - my) * g); ctx.lineTo(mx + (xb - mx) * g, my + (yb - my) * g); ctx.lineTo(mx + (xd - mx) * g, my + (yd - my) * g); ctx.lineTo(mx + (xe - mx) * g, my + (ye - my) * g); ctx.fill();
       }
     }
-    L.sort((p, q) => q.z - p.z);
-    ctx.lineWidth = 1; ctx.lineJoin = 'round';
-    for (const it of L) { const G = it.g, S = G.S, k = G.cells[it.c], a = k * 3, b = (k + 1) * 3, d = (k + G.nx + 1) * 3, e = (k + G.nx) * 3, col = G.cells[it.c + 1];
-      ctx.fillStyle = col; ctx.strokeStyle = col; ctx.beginPath(); ctx.moveTo(S[a], S[a + 1]); ctx.lineTo(S[b], S[b + 1]); ctx.lineTo(S[d], S[d + 1]); ctx.lineTo(S[e], S[e + 1]); ctx.closePath(); ctx.fill(); ctx.stroke(); }
+    const P = (x, y, z) => { const d = proj(x, y, z, TMP); return d > near ? [TMP[0], TMP[1], 0, d] : null; }, sc = (p, x, y, z) => { const d = proj(x, y + 1, z, TMP); return d > 0 ? Math.hypot(TMP[0] - p[0], TMP[1] - p[1]) : 0; };
     if (lite) return;
     // kabinbanan upp mot toppstationen
     if (M.cable) { ctx.strokeStyle = 'rgba(51,65,85,.7)'; ctx.lineWidth = 1; ctx.beginPath(); let on = false;
-      for (const c of M.cable) { const p = proj(c[0], c[1] - y0, c[2]); if (!p) { on = false; continue; } on ? ctx.lineTo(p[0], p[1]) : ctx.moveTo(p[0], p[1]); on = true; } ctx.stroke();
-      for (let i = 1; i < M.cable.length; i += 2) { const c = M.cable[i], p = proj(c[0], c[1] - y0, c[2]), q = proj(c[0], c[3] - y0, c[2]); if (p && q && Math.abs(q[1] - p[1]) > 2) { ctx.strokeStyle = 'rgba(71,85,105,.8)'; ctx.beginPath(); ctx.moveTo(p[0], p[1]); ctx.lineTo(q[0], q[1]); ctx.stroke(); } } }
+      for (const c of M.cable) { const p = P(c[0], c[1] - y0, c[2]); if (!p) { on = false; continue; } on ? ctx.lineTo(p[0], p[1]) : ctx.moveTo(p[0], p[1]); on = true; } ctx.stroke();
+      for (let i = 1; i < M.cable.length; i += 2) { const c = M.cable[i], p = P(c[0], c[1] - y0, c[2]), q = P(c[0], c[3] - y0, c[2]); if (p && q && Math.abs(q[1] - p[1]) > 2) { ctx.strokeStyle = 'rgba(71,85,105,.8)'; ctx.beginPath(); ctx.moveTo(p[0], p[1]); ctx.lineTo(q[0], q[1]); ctx.stroke(); } } }
     // byn: röda hus med snö på taken och varmt ljus i fönstren, kyrkan
-    for (const s of M.spots) { const p = proj(s.x, s.y - y0, s.z); if (!p) continue; const u = p[2] * s.s; if (u < 1.2 || p[0] < -20 || p[0] > W + 20) continue;
+    for (const s of M.spots) { const p = P(s.x, s.y - y0, s.z); if (!p) continue; const u = sc(p, s.x, s.y - y0, s.z) * s.s; if (u < 1.2 || p[0] < -20 || p[0] > W + 20) continue;
       if (s.t === 'church') { ctx.fillStyle = '#f5f1e8'; ctx.fillRect(p[0] - u * .6, p[1] - u * .7, u * 1.2, u * .7); ctx.fillStyle = '#3f3f46'; ctx.beginPath(); ctx.moveTo(p[0] - u * .7, p[1] - u * .7); ctx.lineTo(p[0], p[1] - u * 1.3); ctx.lineTo(p[0] + u * .7, p[1] - u * .7); ctx.fill(); continue; }
       ctx.fillStyle = s.c < .7 ? '#a3271f' : s.c < .85 ? '#e8dcc0' : '#4b5563'; ctx.fillRect(p[0] - u, p[1] - u * .75, u * 2, u * .75);
       ctx.fillStyle = '#f8fafc'; ctx.beginPath(); ctx.moveTo(p[0] - u * 1.15, p[1] - u * .75); ctx.lineTo(p[0], p[1] - u * 1.35); ctx.lineTo(p[0] + u * 1.15, p[1] - u * .75); ctx.fill();
@@ -196,15 +205,15 @@ const MOUNTAIN = (() => {
   // kamera som tittar från en punkt mot en annan
   function camera(px, py, pz, lx, ly, lz, f, W, H) {
     const dx = lx - px, dy = ly - py, dz = lz - pz, yaw = Math.atan2(dx, dz), pitch = Math.atan2(-dy, Math.hypot(dx, dz)), cy = Math.cos(yaw), sy = Math.sin(yaw), cp = Math.cos(pitch), sp = Math.sin(pitch);
-    return (x, y, z) => { const ax = x - px, ay = y - py, az = z - pz, X = ax * cy - az * sy, Z0 = ax * sy + az * cy, Y = ay * cp + Z0 * sp, Z = -ay * sp + Z0 * cp; if (Z < 40) return null; return [W / 2 + X * f / Z, H / 2 - Y * f / Z, f / Z, Z]; };
+    return (x, y, z, out) => { const ax = x - px, ay = y - py, az = z - pz, X = ax * cy - az * sy, Z0 = ax * sy + az * cy, Y = ay * cp + Z0 * sp, Z = -ay * sp + Z0 * cp; if (Z < 40) return -1; out[0] = W / 2 + X * f / Z; out[1] = H / 2 - Y * f / Z; return Z; };
   }
   // förhandsvisning i menyn: fjället snurrar långsamt, tävlingsbacken är markerad
   function preview(cv, vid, t) {
     const m = get(vid), F = m.F, D = F.D, W = cv.width, Hh = cv.height, g = cv.getContext('2d');
     const sky = g.createLinearGradient(0, 0, 0, Hh); sky.addColorStop(0, '#4f86d4'); sky.addColorStop(.6, '#b9d2f0'); sky.addColorStop(1, '#fde7d3'); g.fillStyle = sky; g.fillRect(0, 0, W, Hh);
     const a = Math.sin(t * .22) * .7, R = F.id === 'are' ? 8200 : 5600, cz = F.id === 'are' ? -300 : 500, ty = lerp(D.lake, D.top, .3);
-    const proj = camera(Math.sin(a) * R, ty + R * .3, cz + Math.cos(a) * R, 0, ty, cz, W * 1.7, W, Hh);
-    draw(g, F, proj, W, Hh, 0, false);
+    const pr = camera(Math.sin(a) * R, ty + R * .3, cz + Math.cos(a) * R, 0, ty, cz, W * 1.7, W, Hh), po = [0, 0], proj = (x, y, z) => pr(x, y, z, po) > 0 ? [po[0], po[1]] : null;
+    draw(g, F, pr, W, Hh, 0, false, Math.sin(a) * R, cz + Math.cos(a) * R, 40);
     // tävlingsbacken
     const z0 = m.zOfDrop(m.p.race.gs), line = (x, col, w) => { g.strokeStyle = col; g.lineWidth = w; g.lineCap = 'round'; g.beginPath(); let on = false; for (let z = z0; z <= m.zFin; z += 20) { const p = proj(m.mid(z) + x(z), m.H(m.mid(z), z) + 4, z); if (!p) { on = false; continue; } on ? g.lineTo(p[0], p[1]) : g.moveTo(p[0], p[1]); on = true; } g.stroke(); };
     line(() => 0, 'rgba(15,23,42,.55)', Math.max(3, W * .012)); line(() => 0, '#facc15', Math.max(1.6, W * .006));
