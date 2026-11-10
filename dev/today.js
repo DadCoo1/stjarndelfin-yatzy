@@ -300,7 +300,7 @@ const TODAY = (() => {
       // mjuka väggar: vänd tillbaka in i vattnet i god tid
       if (D.y > bot - 30 && !tgt) dy -= 120; if (D.y < top + 30) dy += 120;
       if (D.x < mx + 40) dx += 160; if (D.x > W - mx - 40) dx -= 160;
-      let want = Math.atan2(dy, dx); const lim = tgt ? 1.1 : .75;                 // inte rakt upp eller ner
+      let want = Math.atan2(dy, dx); const lim = tgt ? .8 : .6;                 // inte rakt upp eller ner
       const cw = Math.cos(want), sw0 = Math.max(-Math.sin(lim), Math.min(Math.sin(lim), Math.sin(want))); want = Math.atan2(sw0, cw);
       let dh = want - D.h; while (dh > Math.PI) dh -= 2 * Math.PI; while (dh < -Math.PI) dh += 2 * Math.PI;
       const turn = (tgt ? 2.6 : D.calm ? 1.1 : 1.6) * dt; D.h += Math.max(-turn, Math.min(turn, dh));
@@ -377,11 +377,12 @@ const TODAY = (() => {
       // mage
       g.fillStyle = 'rgba(255,255,255,.75)'; g.beginPath(); g.moveTo(s * .55, s * .06); g.bezierCurveTo(s * .3, s * .17, 0, s * .17, -s * .3, s * .1); g.bezierCurveTo(0, s * .1, s * .3, s * .08, s * .55, s * .06); g.fill();
       // ryggfena
-      g.fillStyle = '#6d5ff0'; g.beginPath(); g.moveTo(-s * .02, -s * .24); g.quadraticCurveTo(-s * .1, -s * .48, -s * .2, -s * .44); g.quadraticCurveTo(-s * .16, -s * .3, -s * .2, -s * .19); g.fill();
+      // ryggfenan lutar bakåt mot stjärten: lång rundad framkant, spetsen bakom fenans bas, svängd bakkant
+      g.fillStyle = '#6d5ff0'; g.beginPath(); g.moveTo(s * .06, -s * .22); g.quadraticCurveTo(-s * .02, -s * .44, -s * .26, -s * .46); g.quadraticCurveTo(-s * .14, -s * .36, -s * .17, -s * .18); g.closePath(); g.fill();
       // bröstfena
       g.fillStyle = '#5b8def'; g.beginPath(); g.moveTo(s * .12, s * .1); g.quadraticCurveTo(s * .02, s * .3 + sw * s * .5, -s * .1, s * .3); g.quadraticCurveTo(0, s * .16, s * .02, s * .12); g.fill();
       // stjärtfena
-      g.save(); g.translate(-s * .66, sw * s * 1.6); g.rotate(sw * 2.2); g.fillStyle = '#7c6cff'; g.beginPath(); g.moveTo(0, 0); g.quadraticCurveTo(-s * .12, -s * .22, -s * .26, -s * .2); g.quadraticCurveTo(-s * .12, -s * .04, -s * .08, 0); g.quadraticCurveTo(-s * .12, s * .04, -s * .26, s * .2); g.quadraticCurveTo(-s * .12, s * .22, 0, 0); g.fill(); g.restore();
+      g.save(); g.translate(-s * .66, sw * s * 1.6); g.rotate(sw * 2.2); g.fillStyle = '#7c6cff'; g.beginPath(); g.moveTo(0, 0); g.quadraticCurveTo(-s * .14, -s * .13, -s * .3, -s * .12); g.quadraticCurveTo(-s * .16, -s * .02, -s * .12, 0); g.quadraticCurveTo(-s * .16, s * .02, -s * .3, s * .12); g.quadraticCurveTo(-s * .14, s * .13, 0, 0); g.fill(); g.restore();   // stjärtfenan: liggande, som en delfins
       // stjärnor på ryggen (därav namnet)
       g.fillStyle = '#fff'; for (const [x, y, r] of [[-.05, -.14, .028], [.12, -.16, .02], [-.22, -.1, .018]]) { const tw = .6 + .4 * Math.sin(T * 3 + x * 20); g.globalAlpha = tw; g.beginPath(); for (let i = 0; i < 10; i++) { const rr = i % 2 ? r * s * .4 : r * s, a = -Math.PI / 2 + i * Math.PI / 5; g.lineTo(x * s + Math.cos(a) * rr, y * s + Math.sin(a) * rr); } g.fill(); } g.globalAlpha = 1;
       // öga och leende
