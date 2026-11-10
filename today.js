@@ -258,7 +258,7 @@ const TODAY = (() => {
         <div class="aq-say" id="aqSay"></div><div class="aq-help">Tryck i vattnet = mat · Håll på ${esc(a.name)} = klappa · Tryck på ${esc(a.name)} = volt</div><div class="snd-host">${SND.barHTML()}</div>`;
       document.body.appendChild(w); cv = w.querySelector('#aqC'); g = cv.getContext('2d'); size(); seedScene(); SND.bindVol();
       const m = showMood() ? mood() : null, f = food(a);
-      D = { x: W * .5, y: H * .45, vx: 30, vy: 0, a: 0, tx: W * .5, ty: H * .45, sz: Math.min(W, H) * (.16 + Math.min(careDays(a), 20) * .004), calm: m === 'sofa' || f < .2, sleep: f < .2 };
+      D = { x: W * .5, y: H * .42, h: 0, v: 40, face: 1, vx: 40, vy: 0, tx: W * .7, ty: H * .38, sz: Math.min(W, H) * (.16 + Math.min(careDays(a), 20) * .004), calm: m === 'sofa' || f < .2, sleep: f < .2 };
       say(f < .2 ? `${a.name} har somnat. Släpp ner lite mat så vaknar hen 🦐` : (LINES[m || 'none'])[Math.floor(Math.random() * 3)]);
       cv.addEventListener('pointerdown', down); cv.addEventListener('pointerup', up); cv.addEventListener('pointercancel', up);
       window.addEventListener('resize', size); t0 = performance.now(); raf = requestAnimationFrame(loop);
@@ -282,18 +282,37 @@ const TODAY = (() => {
     function loop(now) {
       const dt = Math.min(.05, (now - t0) / 1000); t0 = now; const T = now / 1000;
       if (holdXY && holdXY.on && now - holdXY.t > 450) { holdT += dt; if (Math.random() < .25) hearts.push({ x: D.x + (Math.random() - .5) * D.sz * .5, y: D.y - D.sz * .3, v: 30 + Math.random() * 20, life: 1.6 }); if (holdT > 1.2) { holdT = 0; const a = get(); a.joy = Math.min(1, (a.joy || .5) + .06); put(a); if (Math.random() < .5) say(['Mmm… mysigt 💙', 'Mer klapp!', 'Du är min favoritmänniska.'][Math.floor(Math.random() * 3)]); } }
-      // mat sjunker, delfinen jagar närmaste biten
-      for (const f of food2) { f.y += f.vy * dt; f.x += Math.sin(T * 2 + f.ph) * 6 * dt; if (f.y > H * .76) f.y = H * .76; }
-      const tgt = food2.reduce((b, f) => !b || Math.hypot(f.x - D.x, f.y - D.y) < Math.hypot(b.x - D.x, b.y - D.y) ? f : b, null);
-      const sp = D.sleep ? 12 : D.calm ? 45 : 85;
-      if (tgt) { D.tx = tgt.x; D.ty = tgt.y; } else if (Math.hypot(D.tx - D.x, D.ty - D.y) < 30 || Math.random() < .004) { D.tx = W * (.15 + Math.random() * .7); D.ty = H * (.2 + Math.random() * .42); }
-      if (D.sleep) { D.tx = W * .5 + Math.sin(T * .3) * 40; D.ty = H * .62; }
-      const ax = D.tx - D.x, ay = D.ty - D.y, d = Math.hypot(ax, ay) || 1;
-      D.vx += (ax / d * sp - D.vx) * Math.min(1, dt * (tgt ? 2.6 : 1)); D.vy += (ay / d * sp * .7 - D.vy) * Math.min(1, dt * (tgt ? 2.6 : 1));
-      D.x += D.vx * dt; D.y += D.vy * dt; D.y += Math.sin(T * 1.6) * (D.sleep ? .1 : .3);
-      food2 = food2.filter(f => { if (Math.hypot(f.x - D.x - Math.sign(D.vx) * D.sz * .4, f.y - D.y) < D.sz * .35) { eat(); return false; } return true; });
+      // Simning: en riktning och en fart som ändras mjukt – delfinen svänger i bågar, håller sig i vattnet
+      // och dyker bara ner mot botten för att hämta mat, sedan stiger den igen.
+      const sand = H * .76, top = H * .17, bot = sand - D.sz * .3, mx = D.sz * .55;
+      for (const f of food2) { f.age = (f.age || 0) + dt; if (f.y < sand - 3) { f.y += f.vy * dt; f.x += Math.sin(T * 2 + f.ph) * 6 * dt; } }
+      food2 = food2.filter(f => f.age < 16);                                   // mat som ingen äter löses upp
+      const tgt = D.sleep ? null : food2.reduce((b, f) => !b || Math.hypot(f.x - D.x, f.y - D.y) < Math.hypot(b.x - D.x, b.y - D.y) ? f : b, null);
+      const cruise = D.sleep ? 16 : D.calm ? 46 : 74;
+      let tx, ty;
+      if (tgt) { tx = tgt.x; ty = Math.min(tgt.y, bot); }
+      else {
+        if (D.sleep) { D.tx = W * .5 + Math.sin(T * .22) * W * .2; D.ty = H * .42 + Math.sin(T * .37) * H * .04; }
+        else if (Math.hypot(D.tx - D.x, D.ty - D.y) < D.sz * .7 || Math.random() < .002) { D.tx = W * (.14 + Math.random() * .72); D.ty = H * (.24 + Math.random() * .32); }
+        tx = D.tx; ty = D.ty;
+      }
+      let dx = tx - D.x, dy = ty - D.y;
+      // mjuka väggar: vänd tillbaka in i vattnet i god tid
+      if (D.y > bot - 30 && !tgt) dy -= 120; if (D.y < top + 30) dy += 120;
+      if (D.x < mx + 40) dx += 160; if (D.x > W - mx - 40) dx -= 160;
+      let want = Math.atan2(dy, dx); const lim = tgt ? 1.1 : .75;                 // inte rakt upp eller ner
+      const cw = Math.cos(want), sw0 = Math.max(-Math.sin(lim), Math.min(Math.sin(lim), Math.sin(want))); want = Math.atan2(sw0, cw);
+      let dh = want - D.h; while (dh > Math.PI) dh -= 2 * Math.PI; while (dh < -Math.PI) dh += 2 * Math.PI;
+      const turn = (tgt ? 2.6 : D.calm ? 1.1 : 1.6) * dt; D.h += Math.max(-turn, Math.min(turn, dh));
+      const vT = tgt ? cruise * 1.7 : cruise * (.85 + .15 * Math.sin(T * .7)); D.v += (vT - D.v) * Math.min(1, dt * 1.5);
+      D.vx = Math.cos(D.h) * D.v; D.vy = Math.sin(D.h) * D.v;
+      D.x += D.vx * dt; D.y += D.vy * dt + Math.sin(T * 1.3) * (D.sleep ? 2 : 6) * dt;
+      D.x = Math.max(mx, Math.min(W - mx, D.x)); D.y = Math.max(top, Math.min(bot, D.y));
+      const faceT = Math.cos(D.h) >= 0 ? 1 : -1; D.face += (faceT - D.face) * Math.min(1, dt * 5);     // vänder mjukt
+      const hx = D.x + Math.cos(D.h) * D.sz * .5, hy = D.y + Math.sin(D.h) * D.sz * .5;
+      food2 = food2.filter(f => { if (Math.hypot(f.x - hx, f.y - hy) < D.sz * .28 || Math.hypot(f.x - D.x, f.y - D.y) < D.sz * .22) { eat(); return false; } return true; });
       if (flip > 0) flip = Math.max(0, flip - dt * .9);
-      if (Math.random() < (D.sleep ? .05 : .03)) bubbles.push({ x: D.x + Math.sign(D.vx || 1) * D.sz * .35, y: D.y - D.sz * .1, r: 2 + Math.random() * 3, v: 25 + Math.random() * 25, z: D.sleep });
+      if (Math.random() < (D.sleep ? .05 : .03)) bubbles.push({ x: D.x + Math.cos(D.h) * D.sz * .35, y: D.y - D.sz * .1, r: 2 + Math.random() * 3, v: 25 + Math.random() * 25, z: D.sleep });
       if (Math.random() < .06) bubbles.push({ x: W * .82, y: H * .78, r: 1.5 + Math.random() * 3.5, v: 35 + Math.random() * 30 });
       for (const b of bubbles) { b.y -= b.v * dt; b.x += Math.sin(T * 3 + b.y * .05) * 10 * dt; } bubbles = bubbles.filter(b => b.y > -10);
       for (const h of hearts) { h.y -= h.v * dt; h.life -= dt; } hearts = hearts.filter(h => h.life > 0);
@@ -342,8 +361,9 @@ const TODAY = (() => {
     function fishDraw(x, y, s, c, right) { g.save(); g.translate(x, y); if (!right) g.scale(-1, 1); g.fillStyle = c; g.beginPath(); g.ellipse(0, 0, s * 1.6, s, 0, 0, 7); g.fill(); g.beginPath(); g.moveTo(-s * 1.4, 0); g.lineTo(-s * 2.4, -s * .8); g.lineTo(-s * 2.4, s * .8); g.fill(); g.fillStyle = '#0b1220'; g.beginPath(); g.arc(s * .8, -s * .2, s * .22, 0, 7); g.fill(); g.restore(); }
     function jellyDraw(x, y, s, T) { g.save(); g.translate(x, y); g.globalCompositeOperation = 'lighter'; const p = 1 + Math.sin(T * 2) * .08; g.fillStyle = 'rgba(196,181,253,.35)'; g.beginPath(); g.ellipse(0, 0, s * p, s * .7 / p, 0, Math.PI, 0); g.fill(); g.strokeStyle = 'rgba(196,181,253,.35)'; g.lineWidth = 1.5; for (let i = -2; i <= 2; i++) { g.beginPath(); g.moveTo(i * s * .3, 0); for (let k = 1; k < 6; k++) g.lineTo(i * s * .3 + Math.sin(T * 2 + k + i) * 3, k * s * .35); g.stroke(); } g.restore(); }
     function dolphin(T, lvl) {
-      const s = D.sz, dir = D.vx >= 0 ? 1 : -1, tilt = Math.max(-.5, Math.min(.5, D.vy / 120)), sw = Math.sin(T * (D.sleep ? 2 : D.calm ? 4 : 7)) * (D.sleep ? .05 : .14);
-      g.save(); g.translate(D.x, D.y); g.scale(dir, 1); g.rotate(tilt * dir + (flip > 0 ? (1 - flip) * Math.PI * 2 : 0));
+      const s = D.sz, pitch = Math.atan2(Math.sin(D.h), Math.abs(Math.cos(D.h))), sw = Math.sin(T * (2 + D.v / 14)) * (D.sleep ? .04 : .07 + D.v / 900);
+      const fx = Math.abs(D.face) < .12 ? .12 * Math.sign(D.face || 1) : D.face;
+      g.save(); g.translate(D.x, D.y); g.scale(fx, 1); g.rotate(pitch + (flip > 0 ? (1 - flip) * Math.PI * 2 : 0));
       // glöd
       const glow = g.createRadialGradient(0, 0, s * .1, 0, 0, s * .9); glow.addColorStop(0, 'rgba(165,243,255,.18)'); glow.addColorStop(1, 'rgba(165,243,255,0)'); g.fillStyle = glow; g.beginPath(); g.arc(0, 0, s * .9, 0, 7); g.fill();
       // kropp
@@ -383,7 +403,7 @@ const TODAY = (() => {
       if (a === 'aqnameok') { const v = ((document.getElementById('aqN') || {}).value || '').trim().slice(0, 16); if (v) { const x = get(); x.name = v; put(x); const n = document.querySelector('.aq-name b'); if (n) n.textContent = v; } closeModal(); return true; }
       return false;
     }
-    return { open, close, act, status, _get: get };
+    return { open, close, act, status, _get: get, _d: () => D && { x: D.x, y: D.y, h: D.h, sz: D.sz } };
   })();
 
   /* ---------- inställningar ---------- */
