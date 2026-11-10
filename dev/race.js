@@ -644,7 +644,7 @@ const RACE=(function(){
       st.newGhost=false;
       if(g.s.length>5 && better(g, myGhost(cfg.diff))){ lsSet(ghostKey(cfg.diff), JSON.stringify(g)); st.newGhost=true;
         if(typeof CHAT!=='undefined' && CHAT.share) st.shared=CHAT.share('ghost', g); }
-      if(st.gh){ st.beatGhost = better(g, st.gh.g); }
+      if(st.gh){ st.beatGhost = better(g, st.gh.g); if(st.beatGhost && st.gh.name!=='Ditt bästa') s.fghost=(s.fghost||0)+1; }
     }catch(e){}
     const sc=Math.round(st.score); st.rec=sc>s.best; if(st.rec) s.best=sc;
     const entry={n:(lsGet('ry_name')||'Du').slice(0,14), s:sc, st:won?6:st.stage+1, d:Date.now(), df:cfg.diff};

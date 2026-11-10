@@ -591,6 +591,8 @@ const CHAT = (()=>{
         else if(p.k==='daily'){ const d=p.d; if(!/^\d{4}-\d\d-\d\d$/.test(d.day||'') || !(d.tries>=1 && d.tries<=12)) break;
           const all=ld('daily',{}); for(const k of Object.keys(all)) if(k<d.day.slice(0,8)+'00' && Object.keys(all).length>20) delete all[k];
           (all[d.day]=all[d.day]||{})[from]={tries:d.tries|0, ok:!!d.ok, ms:Math.max(0,+d.ms|0), at:Date.now()}; sv('daily',all); }
+        else if(p.k==='pins'){ const d=p.d; if(!(Number.isInteger(d.n) && d.n>=0 && d.n<=999) || !Array.isArray(d.top) || d.top.length>6 || !d.top.every(x=>typeof x==='string' && /^[a-z0-9_]{1,24}:[0-3]$/.test(x))) break;
+          const all=ld('pinboard',{}); if(d.hide) delete all[from]; else all[from]={n:d.n, lvl:Math.max(0,Math.min(9,d.lvl|0)), top:d.top, at:Date.now()}; sv('pinboard',all); }
         try{ window.dispatchEvent(new CustomEvent('fl-share',{detail:{k:p.k, from}})); }catch(e){}
         break; }
       case 'sync': {                                         // något jag skrev på en annan av mina enheter
@@ -1503,6 +1505,8 @@ Skriv:
       for(const id of Object.keys(contacts)){ if(isNote('d:'+id) || id===ld('botid',null) || blocked.includes(id)) continue; queueDirect(id,{type:'share', k, d},true); n++; } return n; },
     ghosts:df=>{ const all=ld('ghosts',{}), out=[]; for(const [id,g] of Object.entries(all)) if(g[df] && contacts[id]) out.push({id, name:nameOf(id), g:g[df]}); return out; },
     daily:day=>{ const t=(ld('daily',{})[day])||{}; return Object.entries(t).filter(([id])=>contacts[id]).map(([id,r])=>({id, name:nameOf(id), emoji:emoOf(id), ...r})); },
+    pinboard:()=>{ const all=ld('pinboard',{}); return Object.entries(all).filter(([id])=>contacts[id] && !isAlias(id) && !blocked.includes(id)).map(([id,r])=>({id, name:nameOf(id), emoji:emoOf(id), ...r})); },
+    contactCount:()=>Object.keys(contacts).filter(id=>!isAlias(id) && !isNote('d:'+id) && id!==ld('botid',null)).length,
     onlineCount:()=>Object.keys(contacts).filter(id=>!isAlias(id) && !isNote('d:'+id) && id!==ld('botid',null) && isOnline(id)).length,
     devices:id=>devicesOf(id), myDevices:()=>[...myDev()], primaryOf:id=>primaryOf(id),
     myName:()=>ME ? ME.name : '', nudge:(id,k,g)=>{ if(!ME || !id || id===ME.id || !cardOf(id)) return false; queueDirect(id,{type:'nudge', k, g:String(g||'').slice(0,40)},true); return true; },

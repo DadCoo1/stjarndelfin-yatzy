@@ -90,6 +90,7 @@ const TODAY = (() => {
     if (sg) social.push(c('sgopen', '🎲', `${sg} pågående`, 'Fortsätt där du var', 'hot'));
     if (unread) social.push(c('openchat', '💬', `${unread} nya`, unread === 1 ? 'meddelande' : 'meddelanden', 'hot'));
     if (online) social.push(c('openchat', '🟢', `${online} online`, online === 1 ? 'kompis vill kanske spela' : 'kompisar – vill någon spela?'));
+    try { const pi = PINS.cardInfo(); if (pi) social.push(c('pinsopen', pi.ic, `${pi.n} pins`, esc(pi.line), 'pins')); } catch (e) {}
     social.push(c('dailyopen', d.done ? (d.ok ? '✅' : '🔐') : '🔐', 'Dagens kod', d.line, d.done ? '' : 'new'));
     if (m === 'sofa') cards.push(...calm, ...social); else cards.push(...social, ...calm);
     try { if (!BK.last() && ((typeof CHAT !== 'undefined' && CHAT.call.myId()) || sg)) cards.push(c('bkopen', '💾', 'Säkra dina saker', 'Kopia om telefonen försvinner', 'tip')); } catch (e) {}

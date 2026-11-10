@@ -8,7 +8,7 @@
 <title>Stjärndelfin Yatzy</title>
 <meta name="theme-color" content="#071a45">
 <meta name="description" content="Svensk Yatzy i rymden och havet">
-<script src="boot.js?v=2026.11.10.12-dev"></script>
+<script src="boot.js?v=2026.11.10.13-dev"></script>
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="icon-192.png">
 <link rel="apple-touch-icon" href="icon-180.png">
@@ -784,6 +784,50 @@ body.w-light .ob-card input{background:rgba(255,255,255,.7)}
 .ob-opt i{font-style:normal;font-size:26px}.ob-opt b{display:block}.ob-opt span{font-size:13px;opacity:.85}
 .ob-opt button{border:0;border-radius:999px;padding:9px 14px;font-weight:700;background:var(--acc);color:#0b1220}.ob-opt em{font-style:normal;font-weight:700}
 .ob-small{font-size:13px;opacity:.75}
+/* ---- pins ---- */
+.tcard.pins{background:linear-gradient(160deg,rgba(250,204,21,.22),rgba(168,85,247,.10))}
+.pin-svg{display:block;overflow:visible}
+.pin-svg.locked{filter:grayscale(1) brightness(.75);opacity:.5}
+.pin-head{margin:-4px 0 8px}
+.pin-lvl{display:flex;gap:10px;align-items:center}
+.pin-lvl i{font-style:normal;font-size:30px}
+.pin-lvl b{display:block;font-size:17px}
+.pin-lvl small{opacity:.75}
+.pin-bar,.pin-pr{display:block;height:7px;border-radius:9px;background:rgba(255,255,255,.12);overflow:hidden;margin:8px 0}
+.pin-bar i,.pin-pr i{display:block;height:100%;border-radius:9px;background:linear-gradient(90deg,#facc15,#f472b6)}
+.pin-tabs{margin-top:6px}
+.pin-cat{margin:14px 0 6px;font-size:13px;letter-spacing:.06em;text-transform:uppercase;opacity:.7}
+.pin-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(84px,1fr));gap:8px}
+.pin-cell{all:unset;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:3px;padding:8px 4px;border-radius:14px;background:var(--glass,rgba(255,255,255,.05));text-align:center;transition:transform .15s}
+.pin-cell:active{transform:scale(.94)}
+.pin-cell b{font-size:12px;line-height:1.15}
+.pin-cell small{font-size:11px;opacity:.7}
+.pin-cell .pin-pr{width:70%;height:5px;margin:2px 0 0}
+.pin-cell:not(.off) .pin-svg{animation:pinIdle 6s ease-in-out infinite}
+.pin-one{text-align:center}
+.pin-big{display:flex;justify-content:center;margin:4px 0}
+.pin-step{display:flex;gap:10px;align-items:center;text-align:left;padding:6px 8px;border-radius:12px;margin:6px 0;background:rgba(255,255,255,.04)}
+.pin-step.ok{background:rgba(250,204,21,.12)}
+.pin-step small{display:block;opacity:.75}
+.pin-kpis{grid-template-columns:repeat(3,1fr)}
+.pin-lb{display:grid;grid-template-columns:24px 1fr auto auto;gap:8px;align-items:center;padding:7px 6px;border-radius:10px}
+.pin-lb.me{background:rgba(250,204,21,.14)}
+.pin-lb em{display:flex;gap:2px;font-style:normal}
+.pin-lb i{font-style:normal;font-weight:700}
+.pin-pop{position:fixed;inset:0;z-index:80;display:flex;align-items:center;justify-content:center;background:rgba(5,10,30,.55);animation:pinFade .3s ease-out}
+.pin-pop.out{opacity:0;transition:opacity .35s}
+.pin-pop-in{position:relative;display:flex;flex-direction:column;align-items:center;gap:4px;text-align:center;color:#fff;padding:20px;max-width:300px}
+.pin-pop-in small{text-transform:uppercase;letter-spacing:.14em;font-size:12px;color:#fde68a}
+.pin-pop-in b{font-size:24px}
+.pin-pop-in span{opacity:.85;font-size:14px}
+.pin-pop-pin{position:relative;z-index:1;animation:pinIn .8s cubic-bezier(.2,1.4,.4,1) both}
+.pin-pop-rays{position:absolute;top:0;left:50%;width:260px;height:260px;margin-left:-130px;margin-top:-40px;border-radius:50%;background:repeating-conic-gradient(rgba(253,230,138,.28) 0 10deg,transparent 10deg 30deg);animation:pinSpin 9s linear infinite;-webkit-mask:radial-gradient(circle,#000 30%,transparent 70%);mask:radial-gradient(circle,#000 30%,transparent 70%)}
+@keyframes pinIn{0%{transform:scale(.2) rotate(-200deg);opacity:0}70%{opacity:1}100%{transform:none}}
+@keyframes pinSpin{to{transform:rotate(360deg)}}
+@keyframes pinFade{from{opacity:0}}
+@keyframes pinIdle{0%,92%,100%{transform:none}96%{transform:rotate(-6deg) scale(1.04)}}
+body.mo-lugn .pin-cell .pin-svg,body.mo-av .pin-cell .pin-svg,body.mo-av .pin-pop-rays,body.mo-av .pin-pop-pin{animation:none!important}
+@media (prefers-reduced-motion:reduce){.pin-pop-pin,.pin-pop-rays,.pin-cell .pin-svg{animation:none!important}}
 </style>
 </head>
 <body>
@@ -797,29 +841,30 @@ body.w-light .ob-card input{background:rgba(255,255,255,.7)}
 <div id="party"></div>
 <div id="modal"></div>
 
-<script src="app.js?v=2026.11.10.12-dev"></script>
-<script src="games.js?v=2026.11.10.12-dev"></script>
-<script src="kina.js?v=2026.11.10.12-dev"></script>
-<script src="ordfajt.js?v=2026.11.10.12-dev"></script>
-<script src="pong.js?v=2026.11.10.12-dev"></script>
-<script src="kit.js?v=2026.11.10.12-dev"></script>
-<script src="strat.js?v=2026.11.10.12-dev"></script>
-<script src="family.js?v=2026.11.10.12-dev"></script>
-<script src="cards.js?v=2026.11.10.12-dev"></script>
-<script src="puzzle.js?v=2026.11.10.12-dev"></script>
-<script src="drone.js?v=2026.11.10.12-dev"></script>
-<script src="replay.js?v=2026.11.10.12-dev"></script>
-<script src="weather.js?v=2026.11.10.12-dev"></script>
-<script src="slalom.js?v=2026.11.10.12-dev"></script>
-<script src="biathlon.js?v=2026.11.10.12-dev"></script>
-<script src="invaders.js?v=2026.11.10.12-dev"></script>
-<script src="race.js?v=2026.11.10.12-dev"></script>
-<script src="chat.js?v=2026.11.10.12-dev"></script>
-<script src="call.js?v=2026.11.10.12-dev"></script>
-<script src="backup.js?v=2026.11.10.12-dev"></script>
-<script src="today.js?v=2026.11.10.12-dev"></script>
-<script src="style.js?v=2026.11.10.12-dev"></script>
-<script src="welcome.js?v=2026.11.10.12-dev"></script>
-<script src="fr.js?v=2026.11.10.12-dev"></script>
+<script src="app.js?v=2026.11.10.13-dev"></script>
+<script src="games.js?v=2026.11.10.13-dev"></script>
+<script src="kina.js?v=2026.11.10.13-dev"></script>
+<script src="ordfajt.js?v=2026.11.10.13-dev"></script>
+<script src="pong.js?v=2026.11.10.13-dev"></script>
+<script src="kit.js?v=2026.11.10.13-dev"></script>
+<script src="strat.js?v=2026.11.10.13-dev"></script>
+<script src="family.js?v=2026.11.10.13-dev"></script>
+<script src="cards.js?v=2026.11.10.13-dev"></script>
+<script src="puzzle.js?v=2026.11.10.13-dev"></script>
+<script src="drone.js?v=2026.11.10.13-dev"></script>
+<script src="replay.js?v=2026.11.10.13-dev"></script>
+<script src="weather.js?v=2026.11.10.13-dev"></script>
+<script src="slalom.js?v=2026.11.10.13-dev"></script>
+<script src="biathlon.js?v=2026.11.10.13-dev"></script>
+<script src="invaders.js?v=2026.11.10.13-dev"></script>
+<script src="race.js?v=2026.11.10.13-dev"></script>
+<script src="chat.js?v=2026.11.10.13-dev"></script>
+<script src="call.js?v=2026.11.10.13-dev"></script>
+<script src="backup.js?v=2026.11.10.13-dev"></script>
+<script src="today.js?v=2026.11.10.13-dev"></script>
+<script src="style.js?v=2026.11.10.13-dev"></script>
+<script src="welcome.js?v=2026.11.10.13-dev"></script>
+<script src="pins.js?v=2026.11.10.13-dev"></script>
+<script src="fr.js?v=2026.11.10.13-dev"></script>
 </body>
 </html>
