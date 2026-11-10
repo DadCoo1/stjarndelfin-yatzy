@@ -40,6 +40,7 @@ const STYLE = (() => {
     try { if (typeof backSVG === 'function') r.setProperty('--cardback', backSVG(typeof solTheme !== 'undefined' ? solTheme : 'ocean')); } catch (e) {}
     const z = s.size === 'stor' ? 1.1 : s.size === 'xstor' ? 1.22 : 1; b.style.zoom = z === 1 ? '' : z;
     const mc = document.querySelector('meta[name=theme-color]'); if (mc) mc.setAttribute('content', w.bg[0]);
+    try { const v = {}; ['--deep', '--bg1', '--bg2', '--bg3', '--glow1', '--glow2', '--aqua', '--acc', '--acc2', '--txt', '--dim', '--glass', '--glass2', '--line'].forEach(k => v[k] = r.getPropertyValue(k)); lsSet('style_cache', JSON.stringify({ v, bg: w.bg[0] })); } catch (e) {}
     const k = s.world + s.decor + mo; if (k !== skyKey) { skyKey = k; sky(w, s, mo); }
   }
   // himlen/havet bakom allt – byggs om bara när världen eller dekoren ändras
@@ -155,6 +156,6 @@ const STYLE = (() => {
     if (a === 'styrnd') { const ws = Object.keys(WORLDS), as = Object.keys(ACCENTS); const s = get(); s.world = ws[Math.floor(Math.random() * ws.length)]; s.acc = as[Math.floor(Math.random() * as.length)]; lsSet('style', JSON.stringify(s)); apply(); if (typeof render === 'function') render(); show(); return true; }
     return false;
   }
-  apply(); setTimeout(() => { try { if (typeof render === 'function') render(); } catch (e) {} }, 0);
+  apply();
   return { apply, get, set, show, act, icon, motif, decorateTile, gameCtx, gradOf, ICONS, WORLDS };
 })();
