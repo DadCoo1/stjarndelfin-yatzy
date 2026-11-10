@@ -21,7 +21,7 @@
   if(!same || !/[?&]bot=1/.test(location.search)){ document.documentElement.innerHTML=''; throw new Error('Inramning blockerad'); }
 })();
 /* ================= Version & utvecklingsläge ================= */
-const APP_VERSION='2026.11.10.13-dev';
+const APP_VERSION='2026.11.10.14-dev';
 const DEV = /\/dev(\/|$)/.test(location.pathname);      // testversionen ligger i mappen /dev/
 const BOT = /[?&]bot=1/.test(location.search) && window.parent!==window;   // osynlig ekokompis i en ram
 const LSP = DEV ? (BOT ? 'dev:bot:' : 'dev:') : (BOT ? 'bot:' : '');    // egen sparad data i testversionen
@@ -564,6 +564,21 @@ const NET_SERVER = window.__NET_SERVER!==undefined ? window.__NET_SERVER : 'klei
 let NET_ICE=null, NET_ICE_EXP=0, NET_ICE_FAIL=0, netIceP=null;
 let SRV_TOK=lsGet('srv_tok')||'', SRV_USER=lsGet('srv_user')||'', srvWait=[];
 function netBase(){ const s=NET_SERVER; if(!s) return null; const [h,pt]=s.split(':'); const local=/^(127\.|localhost)/.test(h); return {host:h, port:+(pt||(local?9000:443)), secure:!local}; }
+/* ---------- privat app: bara den som har blivit inbjuden får använda den ----------
+   Kräver att enheten har loggat in på spelservern minst en gång (via inbjudan eller inloggning).
+   Därefter fungerar allt lokalt även utan nät – men om servern säger att kontot inte längre gäller låses appen igen. */
+function appLocked(){ return !BOT && !!netBase() && !SRV_TOK; }
+function lockHTML(){
+  return `<div class="lockwrap"><div class="lockcard">
+    <div class="lockdol">${typeof DOLPHIN==='function'?DOLPHIN('lk','#c4b5fd','#3ee6ff'):'🐬'}</div>
+    <h1>Fröknarna Leins<br><small>game board</small></h1>
+    <p>Det här är ett privat spel för inbjudna. 🔐</p>
+    <button class="bigbtn" data-act="srvin" style="margin:16px auto;max-width:260px">🔑 Logga in</button>
+    <p class="sub">Har du fått en inbjudningslänk? Öppna länken så skapas ditt konto.<br>Har du ingen? Be den som har bjudit in dig om en.</p>
+    <p class="sub" style="font-size:12px;opacity:.7">När du har loggat in en gång fungerar spelen även utan internet.</p>
+  </div></div>`;
+}
+function afterAuth(){ render(); try{ if(typeof WELCOME!=='undefined' && WELCOME.fresh()) setTimeout(()=>WELCOME.open(false),400); }catch(e){} }
 const srvUrl=p=>{ const b=netBase(); return (b.secure?'https://':'http://')+b.host+':'+b.port+p; };
 // anrop till spelservern med inloggning; 401 = logga in igen
 async function srvFetch(p, body){
@@ -574,7 +589,7 @@ async function srvFetch(p, body){
     return r.ok ? await r.json() : null;
   }catch(e){ return null; }
 }
-function srvLoggedOut(){ SRV_TOK=''; lsSet('srv_tok',''); NET_ICE=null; srvAskLogin(); }
+function srvLoggedOut(){ SRV_TOK=''; lsSet('srv_tok',''); NET_ICE=null; render(); srvAskLogin(); }
 // väntar tills användaren har loggat in (visar inloggningsrutan en gång)
 function srvReady(){ if(!netBase() || SRV_TOK) return Promise.resolve(true); return new Promise(r=>{ srvWait.push(r); srvAskLogin(); }); }
 let srvAsking=false;
@@ -601,7 +616,7 @@ function srvAskLogin(){
       go.disabled=true; err.textContent='Loggar in…';
       try{ const r=await fetch(srvUrl('/auth/login'),{method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({user, code})}); const j=await r.json().catch(()=>({}));
         if(!r.ok || !j.token){ err.textContent=j.error||'Det gick inte att logga in.'; go.disabled=false; c.value=''; c.focus(); return; }
-        SRV_TOK=j.token; SRV_USER=j.user; lsSet('srv_tok',SRV_TOK); lsSet('srv_user',SRV_USER); srvAsking=false; closeModal(); toast('✅ Inloggad som '+SRV_USER);
+        SRV_TOK=j.token; SRV_USER=j.user; lsSet('srv_tok',SRV_TOK); lsSet('srv_user',SRV_USER); srvAsking=false; closeModal(); toast('✅ Inloggad som '+SRV_USER); afterAuth();
         const w=srvWait; srvWait=[]; w.forEach(f=>f(true)); ensureIce(); if(typeof CHAT!=='undefined' && CHAT.reconnect) CHAT.reconnect();
       }catch(e){ err.textContent='Når inte servern. Kolla internet och försök igen.'; go.disabled=false; }
     });
@@ -641,7 +656,7 @@ async function srvInvite(tok){
     try{ const r=await post('/invite/finish',{token:tok, code:c.value});
       if(!r.ok || !r.j.token){ err.textContent=r.j.error||'Det gick inte.'; go.disabled=false; c.value=''; c.focus(); return; }
       SRV_TOK=r.j.token; SRV_USER=r.j.user; lsSet('srv_tok',SRV_TOK); lsSet('srv_user',SRV_USER); srvAsking=false; closeModal();
-      toast('🎉 Kontot är klart – du är inloggad som '+SRV_USER,4000);
+      toast('🎉 Kontot är klart – du är inloggad som '+SRV_USER,4000); afterAuth();
       const w=srvWait; srvWait=[]; w.forEach(f=>f(true)); ensureIce(); if(typeof CHAT!=='undefined' && CHAT.reconnect) CHAT.reconnect();
     }catch(e){ err.textContent='Når inte servern. Försök igen.'; go.disabled=false; }
   });
@@ -675,7 +690,7 @@ setInterval(netDotPing, 30000); setInterval(netDotPaint, 3000);
 document.addEventListener('visibilitychange',()=>{ if(!document.hidden) netDotPing(); });
 window.addEventListener('online',()=>setTimeout(netDotPing,800)); window.addEventListener('offline',()=>{ NETDOT={reach:false, at:Date.now()}; netDotPaint(); });
 setTimeout(netDotPing, 400);
-function srvLogout(){ const t=SRV_TOK; if(t && netBase()) fetch(srvUrl('/auth/logout'),{method:'POST', headers:{'Authorization':'Bearer '+t}}).catch(()=>{}); SRV_TOK=''; lsSet('srv_tok',''); NET_ICE=null; toast('Utloggad från spelservern'); }
+function srvLogout(){ const t=SRV_TOK; if(t && netBase()) fetch(srvUrl('/auth/logout'),{method:'POST', headers:{'Authorization':'Bearer '+t}}).catch(()=>{}); SRV_TOK=''; lsSet('srv_tok',''); NET_ICE=null; toast('Utloggad från spelservern'); render(); }
 function ensureIce(){
   const b=netBase(); if(!b || !SRV_TOK) return Promise.resolve();
   if(NET_ICE && Date.now()<NET_ICE_EXP) return Promise.resolve();
@@ -2380,6 +2395,8 @@ function renderInner(){
   rememberWhere();
   const app=document.getElementById('app'), dock=document.getElementById('dockRoot');
   const desk=isDesk(); document.body.classList.toggle('desk', desk);
+  const lk=appLocked(); document.body.classList.toggle('locked', lk);
+  if(lk){ stopBubbles(); if(view!=='lobby'){ try{ if(typeof INV!=='undefined') INV.stop(); if(typeof RACE!=='undefined') RACE.stop(); }catch(e){} view='lobby'; G=null; mode=null; } app.innerHTML=lockHTML(); dock.innerHTML=''; return; }
   view==='lobby' ? startBubbles() : stopBubbles();
   document.body.classList.toggle('ingame', view!=='lobby');
   if(typeof STYLE!=='undefined') STYLE.gameCtx(view==='game' ? (isKind()?G.kind:'yatzy') : ['sol','race','inv'].includes(view) ? view : null);
