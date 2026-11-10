@@ -84,7 +84,7 @@ const TODAY = (() => {
     const d = DAILY.status(), aq = AQ.status(), snd = SND.playing();
     const calm = [
       c('aqopen', '🐬', esc(aq.name), aq.line, 'calm'),
-      c('sndopen', snd ? SND.icon(snd) : '🌧️', snd ? SND.label(snd) + ' spelar' : 'Ljudlandskap', snd ? 'Tryck för att ändra' : 'Regn, åska, vågor, vind, brasa…', 'calm' + (snd ? ' live' : ''))
+      c('sndopen', snd ? SND.icon(snd) : '🌧️', snd ? SND.active().map(SND.label).join(' + ') : 'Ljudlandskap', snd ? 'Spelar · tryck för att ändra' : 'Regn, åska, vågor, bäck, vind, brasa…', 'calm' + (snd ? ' live' : ''))
     ];
     const social = [];
     if (sg) social.push(c('sgopen', '🎲', `${sg} pågående`, 'Fortsätt där du var', 'hot'));
@@ -171,8 +171,8 @@ const TODAY = (() => {
        • händelser som kommer oregelbundet: vågor som byggs upp, bryter och drar sig tillbaka med fräsande skum,
          åskknallar på olika avstånd med långt muller, vindbyar som tjuter, vedträn som smäller
        • ett rum (efterklang) och långsam, slumpad rörelse så att inget låter som en kort slinga */
-    const KINDS = { rain: ['🌧️', 'Regn'], thunder: ['⛈️', 'Åska'], shore: ['🏖️', 'Vågor'], sea: ['🌊', 'Hav'], wind: ['🌬️', 'Vind'], fire: ['🔥', 'Brasa'], bub: ['🫧', 'Bubblor'] };
-    let ac = null, out = null, conv = null, an = null, now = null, scene = null, timers = [], stopAt = 0, vol = +(lsGet('snd_vol') || .6), ducked = false, tok = 0;
+    const KINDS = { rain: ['🌧️', 'Regn'], thunder: ['🌩️', 'Åska'], shore: ['🏖️', 'Vågor'], sea: ['🌊', 'Hav'], brook: ['🏞️', 'Bäck'], wind: ['🌬️', 'Vind'], fjall: ['🏔️', 'Fjällvind'], fire: ['🔥', 'Brasa'], bub: ['🫧', 'Bubblor'] };
+    let ac = null, out = null, conv = null, an = null, live = {}, cur = null, stopAt = 0, watchT = 0, vol = +(lsGet('snd_vol') || .6), ducked = false;
     const BUF = {}, R = (a, b) => a + Math.random() * (b - a);
     function ctx() {
       if (!ac) {
@@ -216,8 +216,8 @@ const TODAY = (() => {
       for (let i = 0; i < sec * 14; i++) { const a = R(.08, .3), f = R(500, 1500), tau = sr * R(.004, .012), len = Math.floor(tau * 6), w = 2 * Math.PI * f / sr;
         add(Math.random() * sec, len, R(-.9, .9), k => (Math.sin(w * k * (1 - k / len * .25)) * .8 + (k < 40 ? (Math.random() * 2 - 1) : 0)) * Math.exp(-k / tau) * a); } });
     const crackBuf = () => grains('crack', 11, (add, sr, sec) => {
-      for (let i = 0; i < sec * 22; i++) { const t = Math.random() * sec, m = Math.random() < .25 ? 1 + Math.floor(Math.random() * 4) : 1, a0 = Math.pow(Math.random(), 4) * .9 + .03, pan = R(-.7, .7);
-        for (let j = 0; j < m; j++) { const tau = sr * R(.00015, .0012), len = Math.floor(tau * 7) + 8, a = a0 * (j ? R(.3, .8) : 1); let lp = 0, kk = R(.35, .95);
+      for (let i = 0; i < sec * 9; i++) { const t = Math.random() * sec, m = Math.random() < .3 ? 1 + Math.floor(Math.random() * 4) : 1, a0 = Math.pow(Math.random(), 3) * .8 + .04, pan = R(-.7, .7);
+        for (let j = 0; j < m; j++) { const tau = sr * R(.0004, .0028), len = Math.floor(tau * 7) + 8, a = a0 * (j ? R(.3, .8) : 1); let lp = 0, kk = R(.15, .6);
           add(t + j * R(.006, .05), len, pan, k => { lp += ((Math.random() * 2 - 1) - lp) * kk; return lp * Math.exp(-k / tau) * a; }); } } });
     const bubBuf = () => grains('bub', 13, (add, sr, sec) => {
       const one = (t, f0, a, pan) => { const dur = Math.min(.16, 40 / f0 + .02), len = Math.floor(sr * dur), rise = R(1.15, 1.55), tau = len / 4; let ph = 0;
@@ -225,11 +225,17 @@ const TODAY = (() => {
       for (let i = 0; i < sec * 1.3; i++) { let t = Math.random() * sec, f = R(350, 1100); const m = 2 + Math.floor(Math.random() * 9), pan = R(-.8, .8);
         for (let j = 0; j < m; j++) { one(t, f, R(.06, .2) * (700 / (f + 300)), pan + R(-.15, .15)); t += R(.03, .11); f *= R(1.02, 1.22); } }
       for (let i = 0; i < sec * 3; i++) one(Math.random() * sec, R(900, 2600), R(.01, .05), R(-1, 1)); });
+    const brookBuf = () => grains('brook', 12, (add, sr, sec) => {
+      for (let i = 0; i < sec * 46; i++) { const f0 = R(450, 2600), up = Math.random() < .6 ? R(1.1, 1.7) : R(.7, .95), dur = R(.018, .075), len = Math.floor(sr * dur), a = Math.pow(Math.random(), 2) * .11 + .012, tau = len / 3.2; let ph = 0;
+        add(Math.random() * sec, len, R(-.9, .9), k => { ph += 2 * Math.PI * f0 * (1 + (up - 1) * k / len) / sr; return Math.sin(ph) * Math.min(1, k / (sr * .002)) * Math.exp(-k / tau) * a; }); }
+      for (let i = 0; i < sec * 2.2; i++) { let t = Math.random() * sec, f = R(380, 900); const m = 3 + Math.floor(Math.random() * 6), pan = R(-.7, .7);      // kluck-kluck-kluck
+        for (let j = 0; j < m; j++) { const len = Math.floor(sr * R(.03, .06)), f0 = f, tau = len / 3; let ph = 0; add(t, len, pan, k => { ph += 2 * Math.PI * f0 * (1 + .5 * k / len) / sr; return Math.sin(ph) * Math.min(1, k / 90) * Math.exp(-k / tau) * .1; }); t += R(.04, .09); f *= R(.95, 1.15); } } });
     const fizzBuf = () => grains('fizz', 7, (add, sr, sec) => { for (let i = 0; i < sec * 1500; i++) { const a = Math.pow(Math.random(), 2) * .2, len = 6 + Math.floor(Math.random() * 20); add(Math.random() * sec, len, R(-1, 1), k => (Math.random() * 2 - 1) * (1 - k / len) * a); } });
 
     /* ---------- byggstenar ---------- */
-    const later = (fn, ms) => { const my = tok, id = setTimeout(() => { if (my === tok && now) fn(); }, ms); timers.push(id); };
-    function src(buf, loop, S) { const s = ac.createBufferSource(); s.buffer = buf; s.loop = loop !== false; s.start(0, Math.random() * buf.duration); (S || scene).srcs.push(s); return s; }
+    // flera landskap kan spela samtidigt: "cur" är det landskap som just nu bygger eller schemalägger ljud
+    const later = (fn, ms) => { const S = cur; if (!S) return; S.timers.push(setTimeout(() => { if (!S.alive) return; cur = S; try { fn(); } catch (e) {} }, ms)); };
+    function src(buf, loop, S) { const s = ac.createBufferSource(); s.buffer = buf; s.loop = loop !== false; s.start(0, Math.random() * buf.duration); (S || cur).srcs.push(s); return s; }
     function filt(type, f, q) { const x = ac.createBiquadFilter(); x.type = type; x.frequency.value = f; if (q) x.Q.value = q; return x; }
     function gain(v) { const g = ac.createGain(); g.gain.value = v; return g; }
     function pan(v) { if (!ac.createStereoPanner) return gain(1); const p = ac.createStereoPanner(); p.pan.value = v; return p; }
@@ -240,16 +246,16 @@ const TODAY = (() => {
     /* ---------- landskapen ---------- */
     function rainLayers(S, k) {
       const mix = gain(k); mix.connect(S.dry); mix.connect(S.wet);
-      link(src(noise('pink', 10)), filt('highpass', 900), filt('lowpass', 8500), gain(.5), mix);       // det jämna suset
-      link(src(rainBuf()), filt('highpass', 1300), gain(.9), mix);                                      // tusentals droppar
-      link(src(noise('brown', 8)), filt('lowpass', 190), gain(.22), mix);                               // dovt mot tak och mark
+      link(src(noise('pink', 10)), filt('highpass', 1200), filt('lowpass', 7000), gain(.2), mix);       // det jämna suset
+      link(src(rainBuf()), filt('highpass', 1100), gain(1.15), mix);                                      // tusentals droppar
+      link(src(noise('brown', 8)), filt('lowpass', 190), gain(.07), mix);                               // dovt mot tak och mark
       wander(mix.gain, k * .8, k * 1.15, 3, 7);
       const drip = () => { const t = ac.currentTime, o = ac.createOscillator(), g = gain(0), f = R(700, 1700); o.frequency.setValueAtTime(f, t); o.frequency.exponentialRampToValueAtTime(f * .55, t + .06);
         g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(R(.015, .05) * k, t + .003); g.gain.exponentialRampToValueAtTime(.0001, t + R(.05, .12)); link(o, g, pan(R(-.8, .8)), mix); o.start(t); o.stop(t + .2); later(drip, R(180, 1300)); };
       later(drip, 600);
     }
     function strike(S, near) {
-      S = S || scene; if (!S) return; const t = ac.currentTime + .05, dist = near != null ? near : Math.pow(Math.random(), .7), dur = R(5, 8) + dist * 4, pk = .95 - dist * .6;
+      S = S || cur; if (!S) return; cur = S; const t = ac.currentTime + .05, dist = near != null ? near : Math.pow(Math.random(), .7), dur = R(5, 8) + dist * 4, pk = .95 - dist * .6;
       // mullret: brunt brus som rullar i flera omgångar och blir allt dovare
       const f = filt('lowpass', 1000 - dist * 780), g = gain(0), s = src(noise('brown', 8), true, S), sub = filt('lowpass', 85), gs = gain(0);
       f.frequency.setValueAtTime(1000 - dist * 780, t); f.frequency.exponentialRampToValueAtTime(70, t + dur);
@@ -265,15 +271,17 @@ const TODAY = (() => {
       later(() => { try { s.stop(); } catch (e) {} }, dur * 1000 + 500);
     }
     function wave(S, big) {
-      S = S || scene; if (!S) return; const t = ac.currentTime + .05, B = R(2.4, 4.4), W = R(4.5, 7.5), P = (big || R(.45, 1)) * .55, p0 = R(-.6, .6), pn = pan(p0); pn.connect(S.dry); pn.connect(S.wet);
+      S = S || cur; if (!S) return; cur = S; const t = ac.currentTime + .05, B = R(1.6, 3), W = R(4.5, 7), P = (big || R(.5, 1)) * .62, p0 = R(-.6, .6), pn = pan(p0); pn.connect(S.dry); pn.connect(S.wet);
       if (pn.pan) pn.pan.linearRampToValueAtTime(clampP(p0 + R(-.7, .7)), t + B + W);
       // vågen reser sig (dovt, allt ljusare), bryter och rinner ut
       const s = src(noise('pink', 10), true, S), f = filt('lowpass', 220), g = gain(0);
       f.frequency.setValueAtTime(220, t); f.frequency.exponentialRampToValueAtTime(R(2600, 5200), t + B); f.frequency.exponentialRampToValueAtTime(500, t + B + W);
-      g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(P * .22, t + B * .6); g.gain.linearRampToValueAtTime(P, t + B); g.gain.exponentialRampToValueAtTime(P * .28, t + B + 1.3); g.gain.linearRampToValueAtTime(0, t + B + W);
+      g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(P * .12, t + B * .75); g.gain.linearRampToValueAtTime(P * 1.25, t + B); g.gain.exponentialRampToValueAtTime(P * .3, t + B + 1.1); g.gain.linearRampToValueAtTime(0, t + B + W);
       link(s, f, g, pn);
       // dunsen när den slår i
-      const th = src(noise('brown', 8), true, S), tf = filt('lowpass', 130), tg = gain(0); tg.gain.setValueAtTime(0, t + B - .15); tg.gain.linearRampToValueAtTime(P * 1.2, t + B + .05); tg.gain.exponentialRampToValueAtTime(.001, t + B + 1.2); link(th, tf, tg, pn);
+      const th = src(noise('brown', 8), true, S), tf = filt('lowpass', 130), tg = gain(0); tg.gain.setValueAtTime(0, t + B - .15); tg.gain.linearRampToValueAtTime(P * 2.2, t + B + .04); tg.gain.exponentialRampToValueAtTime(.001, t + B + 1.5);
+      // själva brottet: ett brett, kort dån när vågen slår i stranden
+      const cb = src(noise('white', 2), true, S), cf = filt('lowpass', 5200), cg = gain(0); cg.gain.setValueAtTime(0, t + B - .08); cg.gain.linearRampToValueAtTime(P * .75, t + B + .03); cg.gain.exponentialRampToValueAtTime(.001, t + B + .9); link(cb, cf, cg, pn); later(() => { try { cb.stop(); } catch (e) {} }, (B + 2) * 1000); link(th, tf, tg, pn);
       // skummet: ljust fräs som dröjer kvar och drar sig tillbaka över sanden
       const fz = src(fizzBuf(), true, S), w2 = src(noise('white', 2), true, S), hf = filt('highpass', 3200), fg = gain(0);
       fg.gain.setValueAtTime(0, t + B - .4); fg.gain.linearRampToValueAtTime(P * .5, t + B + .5); fg.gain.exponentialRampToValueAtTime(P * .12, t + B + W * .55); fg.gain.linearRampToValueAtTime(0, t + B + W);
@@ -282,83 +290,88 @@ const TODAY = (() => {
       later(() => { for (const x of [s, th, fz, w2]) try { x.stop(); } catch (e) {} try { pn.disconnect(); } catch (e) {} }, (B + W) * 1000 + 600);
     }
     const clampP = v => Math.max(-1, Math.min(1, v));
+    function whistle(S, f0, f1, q, g1) { const f = filt('bandpass', f0, q), g = gain(0), p = pan(R(-.6, .6)); link(src(noise('pink', 10)), f, g, p, S.dry); p.connect(S.wet); return { f, g, f0, f1, g1 }; }
     const SCENES = {
       rain(S) { rainLayers(S, .5); },
-      thunder(S) { rainLayers(S, .36);
-        const w = gain(.12); link(src(noise('pink', 10)), filt('bandpass', 380, .8), w, S.dry); wander(w.gain, .04, .2, 3, 6);
-        const loop = () => { strike(S); later(loop, R(13000, 36000)); }; later(loop, R(3500, 7000)); },
-      shore(S) { link(src(noise('pink', 10)), filt('lowpass', 1100), gain(.1), S.dry); link(src(noise('brown', 8)), filt('lowpass', 260), gain(.16), S.dry);     // bränningar längre bort
-        const loop = () => { wave(S); later(loop, R(6000, 10500)); }; later(loop, 300); later(() => wave(S, .4), 3500); },
-      sea(S) { const a = gain(.3), fa = filt('lowpass', 520), b = gain(.06), fb = filt('lowpass', 1500);
-        link(src(noise('brown', 8)), fa, a, S.dry); link(src(noise('pink', 10)), fb, b, S.dry); b.connect(S.wet);
-        wander(a.gain, .16, .48, 4, 8); wander(fa.frequency, 300, 900, 4, 8); wander(b.gain, .02, .12, 5, 9); wander(fb.frequency, 700, 2400, 5, 9);
-        const swell = () => { const t = ac.currentTime, g = gain(0), f = filt('bandpass', R(350, 700), .7), s = src(noise('pink', 10), true, S), d = R(5, 8); g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(R(.08, .2), t + d * .45); g.gain.linearRampToValueAtTime(0, t + d);
-          link(s, f, g, pan(R(-.5, .5)), S.dry); later(() => { try { s.stop(); } catch (e) {} }, d * 1000 + 300); later(swell, R(5000, 9000)); }; later(swell, 1500); },
+      // bara åskan: knallar och muller på olika avstånd, ibland två tätt efter varandra, ibland bara ett långt rullande långt borta
+      thunder(S) { const loop = () => { const k = Math.random(); if (k < .3) strike(S, R(.75, 1)); else if (k < .5) { strike(S, R(0, .3)); later(() => strike(S, R(.4, .9)), R(900, 2600)); } else strike(S);
+          later(loop, R(7000, 22000)); }; later(loop, R(800, 2500)); },
+      shore(S) { const loop = () => { wave(S); later(loop, R(5500, 9500)); }; later(loop, 200); later(() => wave(S, .45), 3200); },
+      sea(S) { const a = gain(.2), fa = filt('lowpass', 480);
+        link(src(noise('brown', 8)), fa, a, S.dry); wander(a.gain, .08, .3, 4, 8); wander(fa.frequency, 260, 800, 4, 8);
+        const swell = () => { const t = ac.currentTime, g = gain(0), f = filt('bandpass', R(300, 650), .7), s = src(noise('pink', 10), true, S), d = R(5, 9); g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(R(.12, .28), t + d * .45); g.gain.linearRampToValueAtTime(0, t + d);
+          const p = pan(R(-.5, .5)); link(s, f, g, p, S.dry); p.connect(S.wet); later(() => { try { s.stop(); } catch (e) {} }, d * 1000 + 300); later(swell, R(4000, 8000)); }; later(swell, 800); },
+      // porlande bäck: vatten som kluckar i toner (små luftfickor) över ett lätt brus som rör sig mellan stenarna
+      brook(S) { const b = gain(1.4); link(src(brookBuf()), filt('lowpass', 5200), b, S.dry); b.connect(S.wet); wander(b.gain, 1.1, 1.7, 3, 7);
+        [[700, 1500, .035], [1500, 3200, .03]].forEach(([lo, hi, v]) => { const f = filt('bandpass', (lo + hi) / 2, 3.5), g = gain(v), p = pan(R(-.6, .6)); link(src(noise('pink', 10)), f, g, p, S.dry); wander(f.frequency, lo, hi, .4, 1.6); wander(g.gain, v * .5, v * 1.4, .5, 2); }); },
       wind(S) {
         const mk = (q, f0, f1, g0, g1, pv) => { const f = filt('bandpass', f0, q), g = gain(g0), p = pan(pv); link(src(noise('pink', 10)), f, g, p, S.dry); p.connect(S.wet); return { f, g, f0, f1, g0, g1 }; };
-        const Ls = [mk(1.1, 190, 760, .18, .8, -.25), mk(2.4, 420, 1500, .03, .34, .35), mk(16, 700, 1650, 0, .1, .1)];
-        link(src(noise('brown', 8)), filt('lowpass', 110), gain(.24), S.dry);
-        // vindbyar: styrka och ton följs åt, tjutet hörs bara i de hårda byarna
-        const gust = () => { const s = Math.pow(Math.random(), 1.6), d = R(1.4, 4.2), t = ac.currentTime;
-          Ls.forEach((l, i) => { const k = i === 2 ? Math.max(0, s - .55) / .45 : s * R(.8, 1.1); l.f.frequency.setTargetAtTime(l.f0 + (l.f1 - l.f0) * Math.min(1, s * R(.8, 1.15)), t, d / 3); l.g.gain.setTargetAtTime(l.g0 + (l.g1 - l.g0) * Math.min(1, k), t, d / 3); });
+        const Ls = [mk(1.1, 190, 700, .06, .7, -.25), mk(2.4, 420, 1300, .01, .28, .35)];
+        // vindbyar: styrka och ton följs åt, med stilla stunder emellan
+        const gust = () => { const s = Math.pow(Math.random(), 1.4), d = R(1.6, 4.5), t = ac.currentTime;
+          Ls.forEach(l => { l.f.frequency.setTargetAtTime(l.f0 + (l.f1 - l.f0) * Math.min(1, s * R(.8, 1.15)), t, d / 3); l.g.gain.setTargetAtTime(l.g0 + (l.g1 - l.g0) * Math.min(1, s * R(.8, 1.1)), t, d / 3); });
           later(gust, d * R(700, 1300)); }; gust(); },
+      // vinande fjällvind: smala, tjutande toner som stiger och faller med byarna, över kalfjället
+      fjall(S) { const body = gain(.05), bf = filt('bandpass', 300, 1); link(src(noise('pink', 10)), bf, body, S.dry);
+        const Ws = [whistle(S, 520, 1250, 22, .5), whistle(S, 760, 1900, 30, .34), whistle(S, 1100, 2600, 34, .2)];
+        const gust = () => { const s = Math.pow(Math.random(), 1.1), d = R(1.2, 4), t = ac.currentTime;
+          body.gain.setTargetAtTime(.03 + s * .3, t, d / 3); bf.frequency.setTargetAtTime(240 + s * 520, t, d / 3);
+          Ws.forEach((w, i) => { const k = Math.max(0, s - .15 - i * .18) / (.85 - i * .18) * R(.6, 1.1); w.f.frequency.setTargetAtTime(w.f0 + (w.f1 - w.f0) * Math.min(1, s * R(.7, 1.2)), t, d / 2.5); w.g.gain.setTargetAtTime(w.g1 * Math.min(1, k), t, d / 3); });
+          later(gust, d * R(600, 1200)); }; gust(); },
+      // lägereld i skogen: mjukt, varmt sprak i lugn takt, lågornas dova fladder och ett vedträ som knäpper till ibland
       fire(S) {
-        // lågornas dova brus fladdrar oregelbundet
-        const roar = gain(.24), body = gain(.07), fl = gain(.5);
-        link(src(noise('brown', 8)), filt('lowpass', 360), roar, S.dry); link(src(noise('pink', 10)), filt('bandpass', 650, .6), body, S.dry);
-        link(src(noise('brown', 8)), filt('lowpass', 9), fl); fl.connect(roar.gain); const fl2 = gain(.25); fl.connect(fl2); fl2.connect(body.gain);
-        wander(roar.gain, .18, .28, 3, 7);
-        const cr = gain(1.1); link(src(crackBuf()), filt('highpass', 700), cr, S.dry); cr.connect(S.wet); wander(cr.gain, .7, 1.3, 2, 6);      // sprak
-        link(src(noise('white', 2)), filt('highpass', 5200), gain(.012), S.dry);                                                                   // fräs
-        // ett vedträ smäller till
-        const pop = () => { const t = ac.currentTime, a = R(.2, .6), p = pan(R(-.6, .6)); p.connect(S.dry); p.connect(S.wet);
-          const n = src(noise('white', 2), true, S), bp = filt('bandpass', R(450, 1400), 3), g = gain(0); g.gain.setValueAtTime(a, t); g.gain.exponentialRampToValueAtTime(.0005, t + R(.02, .06)); link(n, bp, g, p);
-          const o = ac.createOscillator(), og = gain(0); o.frequency.setValueAtTime(R(110, 170), t); o.frequency.exponentialRampToValueAtTime(55, t + .07); og.gain.setValueAtTime(a * .5, t); og.gain.exponentialRampToValueAtTime(.0005, t + .09); link(o, og, p); o.start(t); o.stop(t + .15);
-          later(() => { try { n.stop(); } catch (e) {} try { p.disconnect(); } catch (e) {} }, 400); later(pop, R(700, 4500)); }; later(pop, 1200); },
+        const roar = gain(.1), fl = gain(.22); link(src(noise('brown', 8)), filt('lowpass', 260), roar, S.dry); link(src(noise('brown', 8)), filt('lowpass', 7), fl); fl.connect(roar.gain); wander(roar.gain, .07, .13, 3, 7);
+        const cr = gain(1.4); link(src(crackBuf()), filt('highpass', 350), filt('lowpass', 5200), cr, S.dry); cr.connect(S.wet); wander(cr.gain, .9, 1.7, 2, 6);
+        const pop = () => { const t = ac.currentTime, a = R(.1, .32), p = pan(R(-.5, .5)); p.connect(S.dry); p.connect(S.wet);
+          const n = src(noise('white', 2), true, S), bp = filt('bandpass', R(350, 950), 2.5), g = gain(0); g.gain.setValueAtTime(a, t); g.gain.exponentialRampToValueAtTime(.0005, t + R(.03, .08)); link(n, bp, g, p);
+          const o = ac.createOscillator(), og = gain(0); o.frequency.setValueAtTime(R(100, 150), t); o.frequency.exponentialRampToValueAtTime(55, t + .08); og.gain.setValueAtTime(a * .6, t); og.gain.exponentialRampToValueAtTime(.0005, t + .1); link(o, og, p); o.start(t); o.stop(t + .15);
+          later(() => { try { n.stop(); } catch (e) {} try { p.disconnect(); } catch (e) {} }, 400); later(pop, R(1500, 7000)); }; later(pop, 1800); },
       bub(S) {
-        const bed = gain(.15), fb = filt('lowpass', 230); link(src(noise('brown', 8)), fb, bed, S.dry); wander(bed.gain, .1, .19, 4, 8); wander(fb.frequency, 160, 320, 4, 8);     // vattnets djupa tryck
-        link(src(noise('pink', 10)), filt('bandpass', 420, .7), gain(.035), S.dry);
+        const bed = gain(.07), fb = filt('lowpass', 220); link(src(noise('brown', 8)), fb, bed, S.dry); wander(bed.gain, .04, .09, 4, 8);
         const b = gain(1.2), lp = filt('lowpass', 3600); link(src(bubBuf()), lp, b, S.dry); const bw = gain(.5); b.connect(bw); bw.connect(conv); wander(b.gain, .8, 1.4, 3, 7);
         const glug = () => { const t = ac.currentTime, o = ac.createOscillator(), g = gain(0), f = R(140, 320), d = R(.12, .22); o.frequency.setValueAtTime(f, t); o.frequency.exponentialRampToValueAtTime(f * R(1.5, 2.2), t + d);
           g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(R(.06, .14), t + .01); g.gain.exponentialRampToValueAtTime(.0005, t + d); link(o, g, pan(R(-.6, .6)), S.dry); g.connect(conv); o.start(t); o.stop(t + d + .05); later(glug, R(1500, 7000)); }; later(glug, 2000); }
     };
-    const WET = { rain: .1, thunder: .2, shore: .12, sea: .18, wind: .1, fire: .07, bub: .3 };
-    function play(kind, mins) {
-      if (!SCENES[kind]) kind = 'rain';
-      stop(true); ctx(); now = kind; tok++;
-      const S = scene = { dry: gain(0), wet: gain(WET[kind]), srcs: [] }; S.dry.connect(out); S.wet.connect(conv);
+    const WET = { rain: .1, thunder: .25, shore: .14, sea: .18, brook: .12, wind: .1, fjall: .16, fire: .1, bub: .3 };
+    const active = () => Object.keys(live);
+    function play(kind, mins) {      // slår på ett landskap (flera kan vara på samtidigt)
+      if (!SCENES[kind] || live[kind]) return; ctx();
+      const S = live[kind] = { kind, dry: gain(0), wet: gain(WET[kind]), srcs: [], timers: [], alive: true }; S.dry.connect(out); S.wet.connect(conv);
       S.dry.gain.setValueAtTime(0, ac.currentTime); S.dry.gain.linearRampToValueAtTime(1, ac.currentTime + 2.5);
       out.gain.setTargetAtTime(level(), ac.currentTime, .1);
-      try { SCENES[kind](S); } catch (e) { console.warn('ljudlandskap', e); }
-      stopAt = mins ? Date.now() + mins * 60e3 : 0;
-      const watch = () => { if (stopAt && Date.now() > stopAt) { stop(); refreshBars(); return; } later(watch, 1000); }; later(watch, 1000);
-      lsSet('snd_last', kind); repaint(false);
+      cur = S; try { SCENES[kind](S); } catch (e) { console.warn('ljudlandskap', e); }
+      if (mins != null) stopAt = mins ? Date.now() + mins * 60e3 : 0;
+      clearInterval(watchT); watchT = setInterval(() => { if (stopAt && Date.now() > stopAt) { stop(); refreshBars(); } }, 1000);
+      lsSet('snd_last', active().join(',')); repaint(false);
     }
-    const level = () => vol * (ducked ? .6 : 1);
-    function stop(quick) {
-      timers.forEach(clearTimeout); timers = []; tok++; const S = scene; scene = null; now = null;
-      if (ac && S) { const t = ac.currentTime, d = quick ? .2 : 2; S.dry.gain.cancelScheduledValues(t); S.dry.gain.setTargetAtTime(0, t, d / 4); S.wet.gain.setTargetAtTime(0, t, d / 4);
+    const level = () => vol * (ducked ? .6 : 1) / (1 + .18 * Math.max(0, active().length - 1));
+    function stop(kind, quick) {       // utan namn: alla
+      if (kind === true) { quick = true; kind = null; }
+      const ks = kind ? [kind] : active();
+      for (const k of ks) { const S = live[k]; if (!S) continue; delete live[k]; S.alive = false; S.timers.forEach(clearTimeout); if (cur === S) cur = null;
+        const t = ac.currentTime, d = quick ? .2 : 2; S.dry.gain.cancelScheduledValues(t); S.dry.gain.setTargetAtTime(0, t, d / 4); S.wet.gain.setTargetAtTime(0, t, d / 4);
         setTimeout(() => { S.srcs.forEach(n => { try { n.stop(); } catch (e) {} try { n.disconnect(); } catch (e) {} }); try { S.dry.disconnect(); S.wet.disconnect(); } catch (e) {} }, d * 1000 + 300); }
+      if (!active().length) { clearInterval(watchT); stopAt = 0; } else if (ac) out.gain.setTargetAtTime(level(), ac.currentTime, .3);
       if (!quick) repaint(false);
     }
-    function setVol(v) { vol = v; lsSet('snd_vol', String(v)); if (ac && now) out.gain.setTargetAtTime(level(), ac.currentTime, .2); }
-    function duck(on) { ducked = on; if (ac && now) out.gain.setTargetAtTime(level(), ac.currentTime, .3); }
-    const barHTML = () => `<div class="snd-bar">${Object.entries(KINDS).map(([k, [ic, lab]]) => `<button class="${now === k ? 'on' : ''}" data-act="sndplay" data-k="${k}"><i>${ic}</i>${lab}</button>`).join('')}
-      ${now ? `<button data-act="sndstop"><i>⏹️</i>Tyst</button>` : ''}</div>
+    function setVol(v) { vol = v; lsSet('snd_vol', String(v)); if (ac && active().length) out.gain.setTargetAtTime(level(), ac.currentTime, .2); }
+    function duck(on) { ducked = on; if (ac && active().length) out.gain.setTargetAtTime(level(), ac.currentTime, .3); }
+    const barHTML = () => `<div class="snd-bar">${Object.entries(KINDS).map(([k, [ic, lab]]) => `<button class="${live[k] ? 'on' : ''}" data-act="sndplay" data-k="${k}"><i>${ic}</i>${lab}</button>`).join('')}
+      ${active().length ? `<button data-act="sndstop"><i>⏹️</i>Tyst</button>` : ''}</div>
       <div class="snd-opts"><label>🔈 <input type="range" min="0" max="1" step=".05" value="${vol}" data-snd="vol"></label>
       <span>Stäng av efter: ${[0, 15, 30, 60].map(m => `<button class="${(stopAt ? Math.round((stopAt - Date.now()) / 60e3) : 0) === m || (!stopAt && !m) ? 'on' : ''}" data-act="sndtimer" data-m="${m}">${m ? m + ' min' : '∞'}</button>`).join('')}</span></div>`;
-    function show() { openModal(`<h3>🎧 Ljudlandskap</h3><div class="setnote" style="margin:-6px 0 10px">Lugna ljud som skapas direkt i enheten – bäst i hörlurar. Fortsätter när du spelar eller vilar.</div>${barHTML()}<div class="btns"><button data-act="close">Klar</button></div>`); bindVol(); }
+    function show() { openModal(`<h3>🎧 Ljudlandskap</h3><div class="setnote" style="margin:-6px 0 10px">Välj ett eller flera ljud – till exempel brasa och bäck, eller åska och regn. Tryck igen för att stänga av ett ljud. Bäst i hörlurar.</div>${barHTML()}<div class="btns"><button data-act="close">Klar</button></div>`); bindVol(); }
     function bindVol() { document.querySelectorAll('[data-snd="vol"]').forEach(r => r.addEventListener('input', () => setVol(+r.value))); }
     function act(a, b) {
       if (a === 'sndopen') { show(); return true; }
-      if (a === 'sndplay') { play(b.dataset.k, stopAt ? Math.round((stopAt - Date.now()) / 60e3) : 0); refreshBars(); return true; }
+      if (a === 'sndplay') { const k = b.dataset.k; if (live[k]) stop(k); else play(k); refreshBars(); return true; }
       if (a === 'sndstop') { stop(); refreshBars(); return true; }
       if (a === 'sndtimer') { const m = +b.dataset.m; stopAt = m ? Date.now() + m * 60e3 : 0; refreshBars(); return true; }
       return false;
     }
     function refreshBars() { document.querySelectorAll('.snd-host').forEach(h => { h.innerHTML = barHTML(); }); const m = document.querySelector('#modal .snd-bar'); if (m && !m.closest('.snd-host')) { show(); } bindVol(); }
-    return { play, stop, act, duck, barHTML, bindVol, playing: () => now, icon: k => (KINDS[k] || KINDS.rain)[0], label: k => (KINDS[k] || KINDS.rain)[1], KINDS,
-      _t: { strike: d => strike(null, d), wave: () => wave(null, 1), an: () => an, ac: () => ac } };
+    return { play, stop, act, duck, barHTML, bindVol, playing: () => active()[0] || null, active, icon: k => (KINDS[k] || KINDS.rain)[0], label: k => (KINDS[k] || KINDS.rain)[1], KINDS,
+      _t: { strike: d => strike(live.thunder, d), wave: () => wave(live.shore, 1), an: () => an, ac: () => ac } };
   })();
 
   /* ---------- akvariet: stjärndelfinen som följeslagare ----------
