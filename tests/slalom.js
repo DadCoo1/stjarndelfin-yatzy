@@ -24,6 +24,10 @@ const {chromium}=require('playwright'); const sleep=ms=>new Promise(r=>setTimeou
   await p.evaluate(()=>{ G.venue='st'; G.disc='gs'; G.par=false; G.std=true; G.go++; window.__slAuto=true; render(); }); await sleep(5500);
   await p.screenshot({path:'/tmp/sl-rider.png'});
   await p.click('[data-dr=tg]'); await sleep(600);
-  for(const v of ['back','obk','top','ofr','front','tv']){ await p.click(`[data-dr=v][data-v=${v}]`); await sleep(1300); await p.screenshot({path:`/tmp/sl-dr-${v}.png`}); }
+  // inga stora mörka fält får blixtra in i bilden (ytor alldeles intill kameran): mät andelen mörka bildpunkter i många bildrutor
+  const dark=()=>p.evaluate(async()=>{ const cv=document.querySelector('.sl-cv'), g=cv.getContext('2d'); let worst=0; for(let i=0;i<14;i++){ await new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r))); const d=g.getImageData(0,0,cv.width,cv.height).data; let n=0, t=0; for(let k=0;k<d.length;k+=64){ t++; if(d[k]+d[k+1]+d[k+2]<150) n++; } worst=Math.max(worst,n/t); } return worst; });
+  let worst=await dark();
+  for(const v of ['back','obk','top','ofr','front','tv']){ await p.click(`[data-dr=v][data-v=${v}]`); await sleep(1300); worst=Math.max(worst,await dark()); await p.screenshot({path:`/tmp/sl-dr-${v}.png`}); }
+  ok(worst<.2, 'inga stora mörka fält i bilden i något kameraläge (mörkast: '+Math.round(worst*100)+' % av bilden)');
   ok(!errs.length, 'inga fel '+JSON.stringify(errs.slice(0,3)));
   console.log(fails?fails+' FEL':'alla slalomtester ok'); await b.close(); process.exit(fails?1:0); })();
