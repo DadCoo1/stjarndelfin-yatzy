@@ -21,7 +21,7 @@
   if(!same || !/[?&]bot=1/.test(location.search)){ document.documentElement.innerHTML=''; throw new Error('Inramning blockerad'); }
 })();
 /* ================= Version & utvecklingsläge ================= */
-const APP_VERSION='2026.11.09.5';
+const APP_VERSION='2026.11.10.1';
 const DEV = /\/dev(\/|$)/.test(location.pathname);      // testversionen ligger i mappen /dev/
 const BOT = /[?&]bot=1/.test(location.search) && window.parent!==window;   // osynlig ekokompis i en ram
 const LSP = DEV ? (BOT ? 'dev:bot:' : 'dev:') : (BOT ? 'bot:' : '');    // egen sparad data i testversionen
@@ -2269,6 +2269,12 @@ function showSettings(){
     <div class="setrow"><div class="lbl">🎧 Ljudeffekter även när Spotify spelar</div>${onoff('spsfx',spSfx)}</div>
     <div class="setrow"><div class="lbl">🎲 Ljud när tärningarna kastas (tryck för att lyssna)</div>
       <div class="chips">${Object.entries(DICE_SOUNDS).map(([k,v])=>`<button data-act="setdice" data-k="${k}" class="${diceSound===k?'sel':''}">${v.label}</button>`).join('')}</div></div>
+    <div class="setrow"><div class="lbl">🎨 Utseende</div><div class="chips"><button data-act="styopen">Värld, färg, text och rörelse…</button></div>
+      <div class="setnote">Gör spelet till ditt eget – sju världar, accentfärg, mängd dekor och storlek.</div></div>
+    ${typeof TODAY!=='undefined' ? TODAY.settingsHTML() : ''}
+    <div class="setrow"><div class="lbl">💾 Säkerhetskopia</div>
+      <div class="chips"><button data-act="bkopen">Säkerhetskopia och ny enhet…</button></div>
+      <div class="setnote">${(typeof BK!=='undefined' && BK.last()) ? 'Senaste kopian: '+new Date(BK.last()).toLocaleDateString('sv-SE')+(BK.hasAuto()?' · automatiskt varje dag':'') : '⚠️ Ingen kopia än – allt finns bara på den här enheten.'}</div></div>
     <div class="setrow"><div class="lbl">🔔 Notiser på låsskärmen</div>
       <div class="chips"><button data-act="ntfopen">Välj notiser…</button></div>
       <div class="setnote">Status: ${permTxt}. Meddelanden, spelinbjudningar, din tur och samtal – du väljer vilka.</div></div>
@@ -2333,6 +2339,7 @@ function render(){
   const desk=isDesk(); document.body.classList.toggle('desk', desk);
   view==='lobby' ? startBubbles() : stopBubbles();
   document.body.classList.toggle('ingame', view!=='lobby');
+  if(typeof STYLE!=='undefined') STYLE.gameCtx(view==='game' ? (isKind()?G.kind:'yatzy') : ['sol','race','inv'].includes(view) ? view : null);
   if(view==='lobby'){ app.innerHTML=lobbyHTML(); dock.innerHTML=''; fitDock(); return; }
   if(view==='stats'){ app.innerHTML=statsHTML(); dock.innerHTML=''; fitDock(); return; }
   if(view==='fr'){ dock.innerHTML=''; app.innerHTML=(typeof FR!=='undefined')?FR.html():''; app.style.paddingBottom='40px'; return; }
@@ -2367,8 +2374,10 @@ function fitDock(){
 let lastDesk=null;
 window.addEventListener('resize', ()=>{ const d=isDesk(); if(d!==lastDesk){ lastDesk=d; render(); } else fitDock(); });
 function topbar(){
-  return `<div class="topbar"><button class="iconbtn" data-act="lobby" aria-label="Tillbaka">‹</button>
-    <div class="tb-title">${isKind()?`${gIcon()} <b>${gName()}</b>`:'🎲 <b>Yatzy</b>'}${mode==='online'&&gameId?` · ${esc(gameId)}`:''}${mode==='online'?`<div class="net ns-${net}">${netText()}</div>`:''}</div>
+  const gk = isKind() ? G.kind : 'yatzy', gg = isKind() ? (GINFO[gk].grad||'') : 'linear-gradient(135deg,#22d3ee,#6366f1 60%,#a855f7)';
+  const gic = typeof STYLE!=='undefined' ? STYLE.icon(gk, gIcon()) : gIcon();
+  return `<div class="topbar gtop" style="--gacc:${gg}"><button class="iconbtn" data-act="lobby" aria-label="Tillbaka">‹</button>
+    <div class="tb-title">${gic} <b>${isKind()?gName():'Yatzy'}</b>${mode==='online'&&gameId?` · ${esc(gameId)}`:''}${mode==='online'?`<div class="net ns-${net}">${netText()}</div>`:''}</div>
     <button class="iconbtn sgbtn" data-act="sgopen" aria-label="Pågående spel">🎮<i class="cbadge ${sgCount()?'on':''}" data-sgbadge>${sgCount()||''}</i></button><button class="iconbtn chatic" data-c="toggle" aria-label="Chatt">💬<i class="cbadge ${chatUnread()?'on':''}" data-cbadge>${chatUnread()||''}</i></button><button class="iconbtn ${spPlaying?'sp-on':''}" data-act="sptoggle" aria-label="Musik" style="margin-right:-2px">🎵</button><button class="iconbtn" data-act="settings" aria-label="Inställningar">⚙️</button></div>`;
 }
 /* ---------- lobbyn: spelen i kategorier ---------- */
@@ -2387,19 +2396,20 @@ function lobbyTilesHTML(svSol, invS){
     if(k==='yatzy') return `<button class="tile" style="--tg:linear-gradient(135deg,#22d3ee,#6366f1 60%,#a855f7)" data-act="yatzymenu"><span class="ti">🎲</span><b>Yatzy</b><small>1–4 spelare · online, datorn eller samma mobil</small></button>`;
     if(k==='sol') return `<button class="tile leo" data-act="opensol"><span class="ti">🃏</span><b>Patiens</b><small>Ensam · offline</small>${svSol && !svSol.won && svSol.started?'<span class="badge">↩︎ fortsätt</span>':''}</button>`;
     if(k==='race'){ const rs=(typeof RACE!=='undefined')?RACE.stats():{best:0}; return `<button class="tile" style="--tg:linear-gradient(135deg,#f97316,#e11d48 45%,#4c1d95)" data-act="openrace"><span class="ti">🏎️</span><b>Sommarvägen</b><small>Ensam · roadtrip genom Sverige</small>${rs.best?`<span class="badge">🏆 ${rs.best.toLocaleString('sv-SE')}</span>`:''}</button>`; }
-    if(k==='inv') return `<button class="tile" style="--tg:linear-gradient(135deg,#16a34a,#0f172a 75%)" data-act="openinv"><span class="ti">👾</span><b>Space Invaders</b><small>Ensam · 100+ nivåer</small>${invS.best?`<span class="badge">🏆 ${invS.best}</span>`:''}</button>`;
+    if(k==='inv') return `<button class="tile" style="--tg:linear-gradient(135deg,#16a34a,#0f172a 75%)" data-act="openinv"><span class="ti">🚀</span><b>Space Attack</b><small>Ensam · 100+ nivåer</small>${invS.best?`<span class="badge">🏆 ${invS.best}</span>`:''}</button>`;
     const gi=typeof GINFO!=='undefined' && GINFO[k]; if(!gi) return '';
     const badge = gi.badge ? gi.badge() : '';
     return `<button class="tile" style="--tg:${gi.grad}" data-act="gmenu" data-k="${k}"><span class="ti">${gi.icon}</span><b>${gi.name}</b><small>${esc(gi.desc||TILE_DESC[k]||'')}</small>${badge}</button>`;
   };
-  return LOBBY_CATS.map(([ic,name,keys])=>{ const t=keys.map(tile).join(''); return t ? `<h3 class="cat"><span>${ic}</span>${name}</h3><div class="tiles">${t}</div>` : ''; }).join('');
+  const T = k => typeof STYLE!=='undefined' ? STYLE.decorateTile(tile(k), k) : tile(k);
+  return LOBBY_CATS.map(([ic,name,keys])=>{ const t=keys.map(T).join(''); return t ? `<h3 class="cat"><span>${ic}</span>${name}</h3><div class="tiles">${t}</div>` : ''; }).join('');
 }
 function lobbyHTML(){
   const devbar = DEV ? `<div class="devbar">🧪 <b>Testversion</b> · egen data och egna spelkoder · <a href="../">Öppna releaseversionen ›</a></div>` : '';
   let h = topbarLobby() + devbar + `<div class="lobby"><div class="lob-hero"><div class="logo brand">${DOLPHIN('lg','#a5f3ff','#7c6cff').replace('<svg','<svg class="big"')}
     <h1>Fröknarna Leins</h1><div class="gb">GAME BOARD</div><div class="leoband"></div></div>
     <div class="tag">Rymden · Havet · Leopard · Spel för stjärnor</div>
-    <div class="getwell">Krya på dig! 💙🐬</div></div><div class="lob-menu">`;
+    ${typeof TODAY!=='undefined' ? TODAY.heroHTML() : '<div class="getwell">Krya på dig! 💙🐬</div>'}</div><div class="lob-menu">`;
   if(mode==='online' && G){
     const st = G.started===false ? `${G.names.length} spelare · väntar på start` : G.cur===mySeat ? '<b style="color:var(--gold)">Din tur!</b>' : `${esc(pname(G.cur))}s tur`;
     h += `<div class="bgcard"><div style="font-size:26px">${gIcon()}</div><div class="t"><b>${gName()} ${esc(gameId)} pågår</b><span>${st}</span></div><button data-act="backtogame">Tillbaka</button><button class="lv" data-act="leavegame">Lämna</button></div>`;
@@ -2410,7 +2420,8 @@ function lobbyHTML(){
       if(!sgCount()) h += `<button class="bigbtn" data-act="resumenet">↩︎ Fortsätt spelet ${esc(n.code)} mot ${esc(other)}</button>`;
     }
   }catch(e){}
-  { const n=sgCount(); if(n) h += `<button class="bigbtn" data-act="sgopen" style="background:linear-gradient(135deg,#f472b6,#a855f7 60%,#6366f1)">🎮 Pågående spel <small>${n} st – fortsätt där du var</small></button>`; }
+  if(typeof TODAY!=='undefined') h += TODAY.todayHTML();
+  else { const n=sgCount(); if(n) h += `<button class="bigbtn" data-act="sgopen" style="background:linear-gradient(135deg,#f472b6,#a855f7 60%,#6366f1)">🎮 Pågående spel <small>${n} st – fortsätt där du var</small></button>`; }
   const svSol=S||solLoad(), invS=(typeof INV!=='undefined')?INV.stats():{best:0};
   h += `<h2 class="sec"><span class="leopill"><i>🐆</i>Välj spel</span></h2>${lobbyTilesHTML(svSol, invS)}
     `;
@@ -2541,6 +2552,9 @@ document.addEventListener('click', e=>{
   const b=e.target.closest('[data-act]'); if(!b) return;
   const a=b.dataset.act;
   unlockAudio();
+  if(typeof STYLE!=='undefined' && /^sty/.test(a) && STYLE.act(a,b)) return;
+  if(typeof TODAY!=='undefined' && /^(mood|greet|moodshow|moodsofa|bkopen|dailyopen|dk|snd|aq)/.test(a) && TODAY.act(a,b)) return;
+  if(typeof BK!=='undefined' && /^bk/.test(a)){ BK.act(a,b); return; }
   switch(a){
     case 'roll': doRoll(); break;
     case 'hold': toggleHold(+b.dataset.i); break;
