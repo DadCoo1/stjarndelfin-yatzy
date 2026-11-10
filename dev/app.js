@@ -21,7 +21,7 @@
   if(!same || !/[?&]bot=1/.test(location.search)){ document.documentElement.innerHTML=''; throw new Error('Inramning blockerad'); }
 })();
 /* ================= Version & utvecklingsläge ================= */
-const APP_VERSION='2026.11.10.10-dev';
+const APP_VERSION='2026.11.10.12-dev';
 const DEV = /\/dev(\/|$)/.test(location.pathname);      // testversionen ligger i mappen /dev/
 const BOT = /[?&]bot=1/.test(location.search) && window.parent!==window;   // osynlig ekokompis i en ram
 const LSP = DEV ? (BOT ? 'dev:bot:' : 'dev:') : (BOT ? 'bot:' : '');    // egen sparad data i testversionen
@@ -2272,6 +2272,9 @@ function showSettings(){
     <div class="setrow"><div class="lbl">🎧 Ljudeffekter även när Spotify spelar</div>${onoff('spsfx',spSfx)}</div>
     <div class="setrow"><div class="lbl">🎲 Ljud när tärningarna kastas (tryck för att lyssna)</div>
       <div class="chips">${Object.entries(DICE_SOUNDS).map(([k,v])=>`<button data-act="setdice" data-k="${k}" class="${diceSound===k?'sel':''}">${v.label}</button>`).join('')}</div></div>
+    <div class="setrow"><div class="lbl">👋 Introduktionen</div><div class="chips"><button data-act="obagain">Visa introduktionen igen</button></div></div>
+    <div class="setrow"><div class="lbl">🛠️ Krånglar något?</div><div class="chips"><button data-act="techinfo">Felrapport…</button></div>
+      <div class="setnote">Teknisk information att skicka – utan namn, meddelanden eller nycklar.</div></div>
     <div class="setrow"><div class="lbl">🎨 Utseende</div><div class="chips"><button data-act="styopen">Värld, färg, text och rörelse…</button></div>
       <div class="setnote">Gör spelet till ditt eget – sju världar, accentfärg, mängd dekor och storlek.</div></div>
     ${typeof TODAY!=='undefined' ? TODAY.settingsHTML() : ''}
@@ -2336,8 +2339,43 @@ function kbHintHTML(){
   if(!FINE_PTR || !G || G.over) return '';
   return `<div class="kbhint"><span><kbd>Mellanslag</kbd>kasta</span><span><kbd>1</kbd>–<kbd>5</kbd>spara</span><span><kbd>↑</kbd><kbd>↓</kbd>välj rad</span><span><kbd>Enter</kbd>skriv in</span><span><kbd>E</kbd>emoji</span><span><kbd>M</kbd>musik</span></div>`;
 }
+// Om något går fel när en vy ritas visas ett vänligt felkort i stället för en tom eller trasig skärm.
 function render(){
   if(!APP_READY) return;
+  try{ renderInner(); }
+  catch(e){ try{ window.__flErr && window.__flErr((e&&e.message)||e, 'render '+view+(G&&G.kind?' '+G.kind:'')+' '+String(e&&e.stack||'').split('\n')[1]); }catch(_){} crashCard(e); }
+}
+// en del av startsidan som går fel tar inte ner resten – den hoppas över (och felet sparas)
+function safeHTML(fn, what, fallback){ try{ return fn(); }catch(e){ try{ window.__flErr && window.__flErr((e&&e.message)||e, 'del: '+what); }catch(_){} return fallback||''; } }
+function crashCard(e){
+  const app=document.getElementById('app'); if(!app) return;
+  app.innerHTML=`<div class="crash"><div style="font-size:56px">😵‍💫</div><h2>Hoppsan, något gick snett</h2>
+    <p>Det var inte ditt fel. Försök igen – eller gå tillbaka till startsidan.</p>
+    <p class="crash-err">${esc(String((e&&e.message)||e).slice(0,200))}</p>
+    <div class="btns"><button data-act="crashretry">🔄 Försök igen</button><button class="ghost" data-act="crashhome">🏠 Startsidan</button><button class="ghost" data-act="techinfo">🛠️ Felrapport</button></div></div>`;
+}
+// teknisk information att skicka till den som bygger appen – inget personligt (inga namn, meddelanden eller nycklar)
+function techInfo(){
+  let errs=[]; try{ errs=JSON.parse(lsGet('errlog')||'[]'); }catch(e){}
+  const st=(typeof STYLE!=='undefined')?STYLE.get():{};
+  return [
+    'Fröknarna Leins game board '+APP_VERSION+(DEV?' (test)':''),
+    'Enhet: '+navigator.userAgent,
+    'Skärm: '+screen.width+'×'+screen.height+' @'+(window.devicePixelRatio||1)+' · fönster '+innerWidth+'×'+innerHeight,
+    'Kärnor: '+(navigator.hardwareConcurrency||'?')+' · minne: '+(navigator.deviceMemory||'?')+' GB · hemskärmsapp: '+(!!(window.matchMedia&&matchMedia('(display-mode: standalone)').matches)||!!navigator.standalone),
+    'Värld: '+(st.world||'?')+' · rörelse: '+(st.motion||'?')+' · dekor: '+(st.decor||'?'),
+    'Server: '+(netBase()?(SRV_TOK?'inloggad':'inte inloggad'):'ingen'),
+    '',
+    'Senaste fel ('+errs.length+'):',
+    ...errs.slice(-12).reverse().map(x=>new Date(x.t).toLocaleString('sv-SE')+' – '+x.m+(x.w?' ['+x.w+']':''))
+  ].join('\n');
+}
+function showTechInfo(){
+  openModal(`<h3>🛠️ Felrapport</h3><div class="setnote" style="margin-bottom:8px">Skicka den här texten om något krånglar. Den innehåller inga namn, meddelanden eller nycklar – bara vilken enhet och version du har och vilka fel som har hänt.</div>
+    <textarea readonly id="techTxt" style="width:100%;height:220px;font:12px ui-monospace,monospace;border-radius:12px;padding:10px;box-sizing:border-box;background:rgba(0,0,0,.3);color:inherit;border:1px solid rgba(255,255,255,.2)">${esc(techInfo())}</textarea>
+    <div class="btns"><button class="ghost" data-act="techclear">Rensa felen</button>${navigator.share?'<button class="ghost" data-act="techshare">📤 Dela</button>':''}<button data-act="techcopy">📋 Kopiera</button><button class="ghost" data-act="close">Stäng</button></div>`);
+}
+function renderInner(){
   rememberWhere();
   const app=document.getElementById('app'), dock=document.getElementById('dockRoot');
   const desk=isDesk(); document.body.classList.toggle('desk', desk);
@@ -2405,7 +2443,7 @@ function lobbyTilesHTML(svSol, invS){
     const badge = gi.badge ? gi.badge() : '';
     return `<button class="tile" style="--tg:${gi.grad}" data-act="gmenu" data-k="${k}"><span class="ti">${gi.icon}</span><b>${gi.name}</b><small>${esc(gi.desc||TILE_DESC[k]||'')}</small>${badge}</button>`;
   };
-  const T = k => typeof STYLE!=='undefined' ? STYLE.decorateTile(tile(k), k) : tile(k);
+  const T = k => typeof STYLE!=='undefined' ? safeHTML(()=>STYLE.decorateTile(tile(k), k),'ruta '+k, tile(k)) : tile(k);
   return LOBBY_CATS.map(([ic,name,keys])=>{ const t=keys.map(T).join(''); return t ? `<h3 class="cat"><span>${ic}</span>${name}</h3><div class="tiles">${t}</div>` : ''; }).join('');
 }
 function lobbyHTML(){
@@ -2413,7 +2451,7 @@ function lobbyHTML(){
   let h = topbarLobby() + devbar + `<div class="lobby"><div class="lob-hero"><div class="logo brand">${DOLPHIN('lg','#a5f3ff','#7c6cff').replace('<svg','<svg class="big"')}
     <h1>Fröknarna Leins</h1><div class="gb">GAME BOARD</div><div class="leoband"></div></div>
     <div class="tag">Rymden · Havet · Leopard · Spel för stjärnor</div>
-    ${typeof TODAY!=='undefined' ? TODAY.heroHTML() : ''}</div><div class="lob-menu">`;
+    ${safeHTML(()=>TODAY.heroHTML(),'hälsning')}</div><div class="lob-menu">`;
   if(mode==='online' && G){
     const st = G.started===false ? `${G.names.length} spelare · väntar på start` : G.cur===mySeat ? '<b style="color:var(--gold)">Din tur!</b>' : `${esc(pname(G.cur))}s tur`;
     h += `<div class="bgcard"><div style="font-size:26px">${gIcon()}</div><div class="t"><b>${gName()} ${esc(gameId)} pågår</b><span>${st}</span></div><button data-act="backtogame">Tillbaka</button><button class="lv" data-act="leavegame">Lämna</button></div>`;
@@ -2424,7 +2462,7 @@ function lobbyHTML(){
       if(!sgCount()) h += `<button class="bigbtn" data-act="resumenet">↩︎ Fortsätt spelet ${esc(n.code)} mot ${esc(other)}</button>`;
     }
   }catch(e){}
-  if(typeof TODAY!=='undefined') h += TODAY.todayHTML();
+  if(typeof TODAY!=='undefined') h += safeHTML(()=>TODAY.todayHTML(),'idag');
   else { const n=sgCount(); if(n) h += `<button class="bigbtn" data-act="sgopen" style="background:linear-gradient(135deg,#f472b6,#a855f7 60%,#6366f1)">🎮 Pågående spel <small>${n} st – fortsätt där du var</small></button>`; }
   const svSol=S||solLoad(), invS=(typeof INV!=='undefined')?INV.stats():{best:0};
   h += `<h2 class="sec"><span class="leopill"><i>🐆</i>Välj spel</span></h2>${lobbyTilesHTML(svSol, invS)}
@@ -2557,6 +2595,13 @@ document.addEventListener('click', e=>{
   const a=b.dataset.act;
   unlockAudio();
   if(typeof STYLE!=='undefined' && /^sty/.test(a) && STYLE.act(a,b)) return;
+  if(typeof WELCOME!=='undefined' && /^ob/.test(a) && WELCOME.act(a,b)) return;
+  if(a==='crashretry'){ render(); return; }
+  if(a==='crashhome'){ try{ if(mode==='online') stopNet(); }catch(e){} mode=null; G=null; gameId=null; view='lobby'; try{ lsSet('ry_where',''); }catch(e){} render(); return; }
+  if(a==='techinfo'){ showTechInfo(); return; }
+  if(a==='techcopy'){ const t=techInfo(); (navigator.clipboard?navigator.clipboard.writeText(t):Promise.reject()).then(()=>toast('📋 Kopierat',2000)).catch(()=>{ const el=document.getElementById('techTxt'); if(el){ el.select(); try{ document.execCommand('copy'); toast('📋 Kopierat',2000); }catch(e){} } }); return; }
+  if(a==='techshare'){ try{ navigator.share({title:'Felrapport', text:techInfo()}); }catch(e){} return; }
+  if(a==='techclear'){ lsSet('errlog','[]'); showTechInfo(); return; }
   if(typeof TODAY!=='undefined' && /^(mood|greet|moodshow|moodsofa|bkopen|dailyopen|dk|snd|aq)/.test(a) && TODAY.act(a,b)) return;
   if(typeof BK!=='undefined' && /^bk/.test(a)){ BK.act(a,b); return; }
   switch(a){

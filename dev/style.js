@@ -18,6 +18,11 @@ const STYLE = (() => {
   const ACCENTS = { auto: null, rosa: ['#f9a8d4', '#f472b6'], lila: ['#c4b5fd', '#a855f7'], turkos: ['#5eead4', '#22d3ee'], guld: ['#fde68a', '#f59e0b'], korall: ['#fda4af', '#fb7185'], mint: ['#bbf7d0', '#34d399'] };
   const DEF = { world: 'rymd', acc: 'auto', size: 'normal', motion: 'auto', decor: 'lite', icons: 'ritade', dice: 'klassisk' };
   const DICE = { klassisk: 'Klassisk', parlemor: 'Pärlemor', hav: 'Havsglas', leopard: 'Leopard', neon: 'Neon', natt: 'Midnatt' };
+  // Äldre eller svagare enheter (t.ex. iPad med iPadOS 15) får lugnare rörelser och mindre dekor från början –
+  // spelaren kan alltid ändra själv. Påverkar bara den som inte har valt något.
+  const WEAK = (() => { try { const ua = navigator.userAgent, m = ua.match(/OS (\d+)_\d+(?:_\d+)? like Mac OS X/), ios = m ? +m[1] : 99;
+    return ios < 16 || (navigator.hardwareConcurrency && navigator.hardwareConcurrency <= 2) || (navigator.deviceMemory && navigator.deviceMemory <= 2); } catch (e) { return false; } })();
+  if (WEAK) { DEF.motion = 'lugn'; DEF.decor = 'lite'; }
   const get = () => Object.assign({}, DEF, J('style', {}));
   const set = (k, v) => { const s = get(); s[k] = v; lsSet('style', JSON.stringify(s)); apply(); };
 

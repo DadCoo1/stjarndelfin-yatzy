@@ -90,7 +90,8 @@ const CHAT = (()=>{
     const ks=Object.keys(known); if(!known[card.id] && ks.length>800){ const drop=ks.find(k=>!contacts[k] && !friends[k]); if(drop) delete known[drop]; }
     known[card.id]={...card, bot:known[card.id]?.bot}; if(contacts[card.id]){ contacts[card.id]={...contacts[card.id], name:card.name, emoji:card.emoji}; } saveC(); return true; }
   async function seenCards(cards, where){ if(!ME || !Array.isArray(cards)) return; let added=0; for(const c of cards.slice(0,8)){ if(c && c.id!==ME.id && await remember(c) && !contacts[c.id]){ friends[c.id]={card:normCard(c), where:where||'spel', seen:Date.now()}; added++; } } saveC(); if(added && vis()) refresh(); }
-  function addContact(id, vl){ const c=cardOf(id); if(!c) return; const was=contacts[id]; contacts[id]={...normCard(c), added:was?.added||Date.now(), vl:Math.max(was?.vl||0, vl || (friends[id]?2:1)), vAt:was?.vAt, bot:was?.bot}; delete friends[id]; blocked=blocked.filter(x=>x!==id); const cv=convs['d:'+id]; if(cv) cv.request=false; saveC(); saveConvs(); refresh(); connectTo(id); }
+  function addContact(id, vl){ addContact0(id, vl); try{ if(contacts[id] && dirIds.has(id)) linkDevices(id); }catch(e){} }
+  function addContact0(id, vl){ const c=cardOf(id); if(!c) return; const was=contacts[id]; contacts[id]={...normCard(c), added:was?.added||Date.now(), vl:Math.max(was?.vl||0, vl || (friends[id]?2:1)), vAt:was?.vAt, bot:was?.bot}; delete friends[id]; blocked=blocked.filter(x=>x!==id); const cv=convs['d:'+id]; if(cv) cv.request=false; saveC(); saveConvs(); refresh(); connectTo(id); }
   function block(id){ if(!blocked.includes(id)) blocked.push(id); delete contacts[id]; delete convs['d:'+id]; saveC(); saveConvs(); refresh(); }
   async function safetyNumber(id){ const c=cardOf(id); if(!c) return '–'; const ks=[ME.ik.pub,c.ik].sort();
     const h=new Uint8Array(await crypto.subtle.digest('SHA-512',cat(ub64(ks[0]),ub64(ks[1]),te.encode('FL-Safety-v1'))));
@@ -201,7 +202,7 @@ const CHAT = (()=>{
   function conv(id, init){ if(!convs[id]){ convs[id]={id, type:id.startsWith('g:')?'grp':id.startsWith('n:')?'note':'dm', msgs:[], unread:0, timer:0, theme:null, lastTs:0, ...(init||{})}; } return convs[id]; }
   const peerOfConv = cid => cid.startsWith('d:') ? cid.slice(2) : null;
   const isNote = cid => typeof cid==='string' && cid.startsWith('n:');   // anteckningar till mig själv – lämnar aldrig enheten
-  const recipients = cid => isNote(cid) ? [] : cid.startsWith('g:') ? (GROUPS[cid.slice(2)]?.members||[]).filter(x=>x!==ME.id) : [peerOfConv(cid)];
+  const recipients = cid => isNote(cid) ? [] : cid.startsWith('g:') ? (GROUPS[cid.slice(2)]?.members||[]).filter(x=>x!==ME.id) : devicesOf(peerOfConv(cid)).filter(x=>x!==ME.id && (x===peerOfConv(cid) || cardOf(x)));
   function addMsg(cid, m){ const c=conv(cid); if(c.msgs.some(x=>x.mid===m.mid)) return false; c.msgs.push(m); c.msgs.sort((a,b)=>a.ts-b.ts); if(c.msgs.length>600) c.msgs=c.msgs.slice(-600); c.lastTs=Math.max(c.lastTs,m.ts); saveConvs(); return true; }
   function sysMsg(cid,text){ addMsg(cid,{mid:uid(), sys:true, text, ts:Date.now()}); }
   const TIMERS=[[0,'Av'],[300,'5 minuter'],[3600,'1 timme'],[86400,'24 timmar'],[604800,'7 dagar']];
@@ -222,7 +223,7 @@ const CHAT = (()=>{
     saveConvs(); if(vis()) refreshMsgs(cid); infoLive(cid,mid);
   }
   function aggStatus(m, cid){ const r=recipients(cid); if(!r.length) return 'read'; const vals=r.map(id=>(m.st||{})[id]||'queued'); const rank={queued:0,sent:1,relayed:1,delivered:2,read:3};
-    const min=Math.min(...vals.map(v=>rank[v])); return ['queued','sent','delivered','read'][min]; }
+    const best=cid.startsWith('d:') ? Math.max(...vals.map(v=>rank[v])) : Math.min(...vals.map(v=>rank[v])); return ['queued','sent','delivered','read'][best]; }
   async function makeEnv(o){
     if(o.kind==='g') return {...o.genv, to:o.to};
     const {hdr,ct}=await encryptFor(o.to, o.payload); return {t:'env', mid:o.mid, from:ME.id, to:o.to, k:'d', hdr, ct, ts:o.ts};
@@ -307,7 +308,8 @@ const CHAT = (()=>{
     srvPres=np; let ch=false; for(const [id,v] of Object.entries(np)) if(v && (!lastSeen[id] || lastSeen[id]<v)){ lastSeen[id]=v; ch=true; }
     if(ch) sv('lastseen',lastSeen); if(vis()){ refreshHead(); }
   }
-  const isOnline = id => conns.has(id) || srvPres[id]===0;
+  const rawOnline = id => conns.has(id) || srvPres[id]===0;
+  const isOnline = id => devicesOf(id).some(rawOnline);
 
   /* ---------- användarlistan på servern ----------
      Alla vanliga registrerade användare syns för varandra (inte adminkonton). Appen lägger upp sitt chattkort
@@ -337,13 +339,39 @@ const CHAT = (()=>{
     if(!r || !Array.isArray(r.list)) return; dirErr='';
     DIRP=Array.isArray(r.people) ? r.people.filter(x=>x && typeof x.user==='string').slice(0,500).map(x=>({user:x.user.slice(0,32), ready:!!x.ready})) : []; sv('dirp',DIRP);
     const out=[];
-    for(const x of r.list.slice(0,500)){ if(!x || typeof x.user!=='string' || x.user===r.me || !x.card || x.card.id===ME.id || blocked.includes(x.card.id)) continue;
-      if(await remember(x.card)) out.push({user:String(x.user).slice(0,32), n:+x.n||0, card:normCard(x.card)}); }
+    const mine=[];
+    for(const x of r.list.slice(0,500)){ if(!x || typeof x.user!=='string' || !x.card || x.card.id===ME.id || blocked.includes(x.card.id)) continue;
+      if(!(await remember(x.card))) continue;
+      const e={user:String(x.user).slice(0,32), n:+x.n||0, card:normCard(x.card)};
+      (x.user===r.me ? mine : out).push(e); }
     DIRL=out; dirIds.clear(); out.forEach(x=>dirIds.set(x.card.id,x.user)); sv('dir',DIRL);
+    DIRME=mine; sv('dirme',DIRME);
+    for(const u of Object.keys(PRIM)) if(contacts[PRIM[u]]) linkDevices(PRIM[u]);      // en kompis har fått en ny enhet
     if(vis() && tab==='contacts') refresh();
   }
   // en registrerad användare som hör av sig blir kontakt direkt (ingen förfrågan)
-  const dirAuto = id => { if(!dirIds.has(id) || blocked.includes(id) || contacts[id]) return !!contacts[id]; addContact(id,1); return true; };
+  /* ---------- samma konto på flera enheter ----------
+     Varje enhet har sin egen nyckel. En person (ett användarnamn) kan ha upp till tre enheter.
+     Meddelanden skickas krypterat till var och en av mottagarens enheter, och det jag skriver synkas till mina andra enheter.
+     I chatten är personen en enda kontakt och en enda konversation – den första enheten man lade till ("primär"). */
+  let DIRME=ld('dirme',[]), PRIM=ld('prim',{});
+  const myDev = () => new Set(DIRME.map(x=>x.card.id));
+  const userOf = id => dirIds.get(id) || null;
+  function devicesOf(id){ const u=userOf(id); if(!u) return [id]; const ids=DIRL.filter(x=>x.user===u && !blocked.includes(x.card.id)).map(x=>x.card.id); if(!ids.includes(id)) ids.unshift(id); return ids; }
+  function primaryOf(id){ const u=userOf(id); if(!u) return id; const p=PRIM[u]; return (p && contacts[p]) ? p : id; }
+  const isAlias = id => !!contacts[id] && primaryOf(id)!==id;
+  // lägg till personens övriga enheter som tysta kontakter (syns inte i listan) så att de kan ta emot och skicka
+  function linkDevices(id){
+    const u=userOf(id); if(!u) return false; let ch=false;
+    if(!PRIM[u] || !contacts[PRIM[u]]){ PRIM[u]=id; sv('prim',PRIM); ch=true; }
+    for(const d of devicesOf(id)){ if(d===id || contacts[d] || blocked.includes(d) || !cardOf(d)) continue;
+      contacts[d]={...normCard(cardOf(d)), added:Date.now(), vl:contacts[id]?contacts[id].vl:1, alias:true}; ch=true; }
+    if(ch) saveC(); return ch;
+  }
+  // en registrerad användare som hör av sig blir kontakt direkt (ingen förfrågan) – en ny enhet hos en befintlig kontakt kopplas till personen
+  const dirAuto = id => { if(!dirIds.has(id) || blocked.includes(id) || contacts[id]) return !!contacts[id];
+    const u=userOf(id); if(u && PRIM[u] && contacts[PRIM[u]]){ linkDevices(PRIM[u]); return !!contacts[id]; }
+    addContact(id,1); return true; };
   setInterval(()=>{ if(!document.hidden){ mbPull(); presPull(); dirSync(); } }, 20000);
   document.addEventListener('visibilitychange',()=>{ if(!document.hidden){ mbPull(); presPull(); dirSync(); } });
   // autosvar: telefonen svarar automatiskt på en "ping" – så syns det direkt om kontakten är nåbar
@@ -453,7 +481,7 @@ const CHAT = (()=>{
       sendRaw(c,{t:'rack', mid:m.mid, to:m.to}); connectTo(m.to); return; }
     if(m.t==='rack'){ if(!isH(m.mid) || !isH(m.to)) return; const o=outbox.find(x=>x.mid===m.mid && x.to===m.to); if(o && o.status==='queued'){ o.status='relayed'; if(!o.ctl) markStatus(o.cid||'',o.mid,o.to,'relayed'); saveConvs(); } return; }
     if(m.t==='typing'){ if(!(m.conv==='dm' || (typeof m.conv==='string' && /^g:[0-9a-f]{16}$/.test(m.conv) && GROUPS[m.conv.slice(2)]?.members.includes(c._id)))) return;
-      typing[m.conv==='dm'?'d:'+c._id:m.conv]={who:c._id, until:Date.now()+4000}; if(vis()) refreshHead(); setTimeout(()=>{ if(vis()) refreshHead(); },4100); return; }
+      typing[m.conv==='dm'?'d:'+primaryOf(c._id):m.conv]={who:c._id, until:Date.now()+4000}; if(vis()) refreshHead(); setTimeout(()=>{ if(vis()) refreshHead(); },4100); return; }
   }
   async function receiveEnv(env, c){
     if(!env || typeof env!=='object' || !isH(env.mid) || !isH(env.from) || env.from===ME.id || blocked.includes(env.from) || typeof env.ct!=='string' || env.ct.length>250000) return;
@@ -498,7 +526,7 @@ const CHAT = (()=>{
     switch(p.type){
       case 'msg': {
         if(!isH(p.mid) || p.mid!==env.mid) return;
-        const cid = env.k==='g' ? 'g:'+env.gid : 'd:'+from;
+        const cid = env.k==='g' ? 'g:'+env.gid : 'd:'+primaryOf(from);
         if(env.k==='g' && (!GROUPS[env.gid] || !GROUPS[env.gid].members.includes(from))) return;
         if(env.k==='d' && p.gid!==undefined) return;
         if(!contacts[from] && env.k==='d' && dirIds.has(from)) dirAuto(from);
@@ -521,18 +549,18 @@ const CHAT = (()=>{
         }
         break; }
       case 'receipt': {
-        const cid = p.gid ? 'g:'+p.gid : 'd:'+from;
+        const cid = p.gid ? 'g:'+p.gid : 'd:'+primaryOf(from);
         if(!Array.isArray(p.mids)) return;
         p.mids.slice(0,500).filter(isH).forEach(mid=>{ markStatus(cid, mid, from, p.kind==='read'?'read':'delivered', +p.at||0); outbox=outbox.filter(o=>!(o.mid===mid && o.to===from)); });
         saveConvs(); break; }
-      case 'react': { if(!isH(p.target) || !(p.emoji===null || REACTS.includes(p.emoji))) return; const cid = p.gid ? 'g:'+p.gid : 'd:'+from; const m=convs[cid]?.msgs.find(x=>x.mid===p.target); if(m){ m.reactions=m.reactions||{}; if(p.emoji) m.reactions[from]=p.emoji; else delete m.reactions[from]; saveConvs(); if(vis()) refreshMsgs(cid); } break; }
+      case 'react': { if(!isH(p.target) || !(p.emoji===null || REACTS.includes(p.emoji))) return; const cid = p.gid ? 'g:'+p.gid : 'd:'+primaryOf(from); const m=convs[cid]?.msgs.find(x=>x.mid===p.target); if(m){ m.reactions=m.reactions||{}; if(p.emoji) m.reactions[from]=p.emoji; else delete m.reactions[from]; saveConvs(); if(vis()) refreshMsgs(cid); } break; }
       case 'edit': case 'revoke': {
         if(!isH(p.target)) return; if(p.type==='edit'){ p.text=cleanText(p.text,4000); if(!p.text) return; }
-        const cid = p.gid ? 'g:'+p.gid : 'd:'+from; const m=convs[cid]?.msgs.find(x=>x.mid===p.target);
+        const cid = p.gid ? 'g:'+p.gid : 'd:'+primaryOf(from); const m=convs[cid]?.msgs.find(x=>x.mid===p.target);
         if(!m){ orphans[p.target]={from,p:{type:p.type, text:p.text, at:p.at, gid:p.gid}}; const ks=Object.keys(orphans); if(ks.length>200) delete orphans[ks[0]]; sv('orph',orphans); break; }
         if(m.from!==from || m.out) break;
         applyChange(cid,m,p,false); break; }
-      case 'timer': { if(!TIMERS.some(t=>t[0]===p.secs)) return; const cid = p.gid ? 'g:'+p.gid : 'd:'+from; if(p.gid && !GROUPS[p.gid]?.members.includes(from)) return; const c=conv(cid); c.timer=p.secs; sysMsg(cid, `${nameOf(from)} ändrade försvinnande meddelanden till: ${timerName(c.timer)}`); if(vis()) refresh(); break; }
+      case 'timer': { if(!TIMERS.some(t=>t[0]===p.secs)) return; const cid = p.gid ? 'g:'+p.gid : 'd:'+primaryOf(from); if(p.gid && !GROUPS[p.gid]?.members.includes(from)) return; const c=conv(cid); c.timer=p.secs; sysMsg(cid, `${nameOf(from)} ändrade försvinnande meddelanden till: ${timerName(c.timer)}`); if(vis()) refresh(); break; }
       case 'profile': { if(known[from]){ known[from].name=cleanName(p.name,20)||known[from].name; known[from].emoji=cleanEmoji(p.emoji, known[from].emoji); } if(contacts[from]){ contacts[from].name=known[from].name; contacts[from].emoji=known[from].emoji; } saveC(); if(vis()) refresh(); break; }
       case 'ginfo': {
         const g=p.group; if(!g || typeof g!=='object' || !isH(g.id) || !Array.isArray(g.members) || g.members.length>64 || !g.members.every(isH)) return;
@@ -565,10 +593,21 @@ const CHAT = (()=>{
           (all[d.day]=all[d.day]||{})[from]={tries:d.tries|0, ok:!!d.ok, ms:Math.max(0,+d.ms|0), at:Date.now()}; sv('daily',all); }
         try{ window.dispatchEvent(new CustomEvent('fl-share',{detail:{k:p.k, from}})); }catch(e){}
         break; }
+      case 'sync': {                                         // något jag skrev på en annan av mina enheter
+        if(env.k!=='d' || !myDev().has(from) || !p.m || typeof p.u!=='string' || !isH(p.m.mid)) break;
+        let pid=PRIM[p.u] && contacts[PRIM[p.u]] ? PRIM[p.u] : null;
+        if(!pid){ const x=DIRL.find(y=>y.user===p.u); if(!x) break; addContact(x.card.id,1); pid=primaryOf(x.card.id); }
+        const cid='d:'+pid, c=conv(cid);
+        if(c.msgs.some(m=>m.mid===p.m.mid)) break;
+        const now=Date.now(), ts=Number.isFinite(p.m.ts)?Math.min(p.m.ts,now+60e3):now;
+        const m={mid:p.m.mid, from:ME.id, text:cleanText(p.m.text,4000), ts, exp:TIMERS.some(t=>t[0]===p.m.exp)?p.m.exp:0, invite:normInvite(p.m.invite), out:true, synced:true, st:{}, reactions:{}};
+        if(!m.text && !m.invite) break; if(m.exp) m.expireAt=m.ts+m.exp*1000;
+        recipients(cid).forEach(id=>m.st[id]='sent'); addMsg(cid,m); saveConvs(); if(vis()) refresh();
+        break; }
       case 'nudge': {                                         // "din tur" eller "missat samtal" – bara från kända (kontakt, spelkompis, användarlistan)
         if(env.k!=='d' || !(contacts[from] || friends[from] || dirIds.has(from)) || !['t','c'].includes(p.k)) break;
         const who=nameOf(from), g=cleanName(p.g,40);
-        if(p.k==='c'){ const cid='d:'+from; if(contacts[from]){ conv(cid); sysMsg(cid, `📞 Missat samtal – ${who} försökte ringa medan du var borta`); }
+        if(p.k==='c'){ const cid='d:'+primaryOf(from); if(contacts[from]){ conv(cid); sysMsg(cid, `📞 Missat samtal – ${who} försökte ringa medan du var borta`); }
           if(typeof sysNotify==='function') sysNotify('c', `📞 ${who} försökte ringa dig`, 'Ring tillbaka när du kan', 'call');
           notice({icon:'📞', title:`${who} försökte ringa`, text:'Du var inte nåbar just då', actions: contacts[from]&&typeof CALL!=='undefined' ? [{label:'Ring upp', run:()=>CALL.start(from,false)}] : [], ms:12000}); }
         else { if(typeof sysNotify==='function') sysNotify('t', `🎲 Din tur${g?' i '+g:''}!`, `${who} har gjort sitt drag`, 'turn');
@@ -602,11 +641,12 @@ const CHAT = (()=>{
     if(m.exp) m.expireAt=m.ts+m.exp*1000;
     addMsg(cid,m); rec.forEach(id=>m.st[id]='queued');
     const payload={type:'msg', mid:m.mid, text:m.text, ts:m.ts, exp:m.exp, invite:m.invite, fromName:ME.name, fromEmoji:ME.emoji};
+    if(cid.startsWith('d:')){ const u=userOf(peerOfConv(cid)); if(u) for(const d of myDev()) if(d!==ME.id) queueDirect(d,{type:'sync', u, m:{mid:m.mid, text:m.text, ts:m.ts, exp:m.exp, invite:m.invite}},true); }
     if(cid.startsWith('g:')){
       const gid=cid.slice(2);
       gEncrypt(gid,payload).then(({iter,ct,sig})=>{ const genv={t:'env', mid:m.mid, from:ME.id, k:'g', gid, iter, ct, sig, ts:m.ts};
         rec.forEach(to=>outbox.push({mid:m.mid, cid, to, kind:'g', genv, status:'queued', ts:m.ts})); saveConvs(); rec.forEach(flushTo); });
-    } else { const to=rec[0]; outbox.push({mid:m.mid, cid, to, kind:'d', payload, status:'queued', ts:m.ts}); saveConvs(); flushTo(to); }
+    } else { rec.forEach(to=>outbox.push({mid:m.mid, cid, to, kind:'d', payload, status:'queued', ts:m.ts})); saveConvs(); rec.forEach(flushTo); }   // alla personens enheter
     tone(880,.06,'sine',.05); refresh();
   }
   function ctlAll(cid, payload){ const gid=cid.startsWith('g:')?cid.slice(2):null; recipients(cid).forEach(id=>queueDirect(id,{...payload, gid},true)); }
@@ -763,9 +803,9 @@ const CHAT = (()=>{
     if(BOTMODE) return '';
     if(!MB()) return (typeof netBase==='function' && netBase() && !SRV_TOK) ? `<div class="wa-sec">Alla användare</div><div class="wa-empty">Logga in på servern under ⚙️ så ser du alla som har ett konto.</div>` : '';
     if(dirErr) return `<div class="wa-sec">Alla användare</div><div class="wa-empty">⚠️ ${esc(dirErr)}</div>`;
-    const rest=DIRL.filter(x=>!contacts[x.card.id] && !blocked.includes(x.card.id));
-    const multi=u=>DIRL.filter(x=>x.user===u).length>1;
     const added=new Set(DIRL.filter(x=>contacts[x.card.id]).map(x=>x.user));
+    const rest=[]; { const seenU=new Set(); for(const x of DIRL){ if(added.has(x.user) || seenU.has(x.user) || blocked.includes(x.card.id)) continue; seenU.add(x.user); rest.push(x); } }
+    const multi=u=>false;
     const waiting=DIRP.filter(p=>!p.ready && !added.has(p.user) && !DIRL.some(x=>x.user===p.user));
     const n=rest.length+waiting.length;
     return `<div class="wa-sec">Alla användare${n?` (${n})`:''}</div>`
@@ -774,7 +814,7 @@ const CHAT = (()=>{
       + (n ? '' : `<div class="wa-empty">${DIRL.length?'Alla användare finns redan bland dina kontakter 👍':'Inga andra användare har konto än.'}</div>`);
   }
   function sideHTML(){
-    const list = Object.values(convs).filter(c=>c.type==='note' ? c.msgs.length>0 : c.type==='dm' ? !blocked.includes(peerOfConv(c.id)) : !!GROUPS[c.id.slice(2)]).sort((a,b)=>(b.lastTs||0)-(a.lastTs||0));
+    const list = Object.values(convs).filter(c=>c.type==='note' ? c.msgs.length>0 : c.type==='dm' ? !blocked.includes(peerOfConv(c.id)) && !isAlias(peerOfConv(c.id)) : !!GROUPS[c.id.slice(2)]).sort((a,b)=>(b.lastTs||0)-(a.lastTs||0));
     const fr=Object.entries(friends).filter(([id])=>!contacts[id]);
     let body='';
     if(tab==='chats'){
@@ -782,7 +822,7 @@ const CHAT = (()=>{
           <span class="wa-r2"><span class="wa-pv">${c.request?'<em>Ny kontaktförfrågan</em>':preview(c)}</span>${c.timer?'<i class="wa-tm">⏱</i>':''}${c.unread?`<i class="wa-badge">${c.unread}</i>`:''}</span></span></button>`).join('')
         : `<div class="wa-empty">Inga chattar än.<br>Tryck på <b>＋</b> för att börja chatta med en kontakt.</div>`;
     } else {
-      const cs=Object.values(contacts).sort((a,b)=>nameOf(a.id).localeCompare(nameOf(b.id),'sv'));
+      const cs=Object.values(contacts).filter(c=>!isAlias(c.id)).sort((a,b)=>nameOf(a.id).localeCompare(nameOf(b.id),'sv'));
       body = `<button class="wa-row act" data-c="newgroup"><span class="wa-av ic">👥</span><span class="wa-rt"><b>Ny grupp</b></span></button>
         <button class="wa-row act" data-c="open" data-id="n:self"><span class="wa-av ic" style="background:#0f766e">📝</span><span class="wa-rt"><b>Anteckningar</b><small class="wa-sub">Bara till dig själv – sparas på den här enheten och skickas aldrig</small></span></button>
         <button class="wa-row act" data-c="scanqr"><span class="wa-av ic">📷</span><span class="wa-rt"><b>Skanna QR-kod</b><small class="wa-sub">Lägg till eller verifiera någon öga mot öga</small></span></button>
@@ -1311,7 +1351,7 @@ Skriv:
   }
   function showNewGroup(gid){
     const g=gid?GROUPS[gid]:null, sel=new Set(g?g.members:[]);
-    const cs=Object.values(contacts);
+    const cs=Object.values(contacts).filter(c=>!isAlias(c.id));
     if(!cs.length){ toast('Lägg till kontakter först – spela med någon eller dela din kontaktlänk 👥',4000); return; }
     openModal(`<h3>👥 ${g?'Ändra medlemmar':'Ny grupp'}</h3>${g?'':`<label>Gruppnamn</label><input id="gName" maxlength="40" placeholder="t.ex. Fröknarna 💖">
       <label>Gruppbild</label><div class="wa-emos" id="gEmos">${['👥','💖','🐬','🐆','⛷️','🎮','🌈','🚀','🦄','⭐'].map((e,i)=>`<button data-c="gemo" data-e="${e}" class="${i===0?'sel':''}">${e}</button>`).join('')}</div>`}
@@ -1463,7 +1503,8 @@ Skriv:
       for(const id of Object.keys(contacts)){ if(isNote('d:'+id) || id===ld('botid',null) || blocked.includes(id)) continue; queueDirect(id,{type:'share', k, d},true); n++; } return n; },
     ghosts:df=>{ const all=ld('ghosts',{}), out=[]; for(const [id,g] of Object.entries(all)) if(g[df] && contacts[id]) out.push({id, name:nameOf(id), g:g[df]}); return out; },
     daily:day=>{ const t=(ld('daily',{})[day])||{}; return Object.entries(t).filter(([id])=>contacts[id]).map(([id,r])=>({id, name:nameOf(id), emoji:emoOf(id), ...r})); },
-    onlineCount:()=>Object.keys(contacts).filter(id=>!isNote('d:'+id) && id!==ld('botid',null) && isOnline(id)).length,
+    onlineCount:()=>Object.keys(contacts).filter(id=>!isAlias(id) && !isNote('d:'+id) && id!==ld('botid',null) && isOnline(id)).length,
+    devices:id=>devicesOf(id), myDevices:()=>[...myDev()], primaryOf:id=>primaryOf(id),
     myName:()=>ME ? ME.name : '', nudge:(id,k,g)=>{ if(!ME || !id || id===ME.id || !cardOf(id)) return false; queueDirect(id,{type:'nudge', k, g:String(g||'').slice(0,40)},true); return true; },
     netState:()=>!ME || !owner ? null : (cpeer && cpeer.open && !cpeer.disconnected ? 'open' : 'connecting'),
     // samtal: signalerna går krypterade genom samma dubbla ratchet som meddelandena
@@ -1478,9 +1519,10 @@ Skriv:
         // iPhone startar bara ljud efter ett knapptryck – ekokompisen lånar den här ljudmotorn för ekot
         try{ if(!window.__ekoAC || window.__ekoAC.state==='closed') window.__ekoAC=new (window.AudioContext||window.webkitAudioContext)(); window.__ekoAC.resume(); }catch(e){} },
       owner:()=>owner && !BOTMODE && !!ME,
-      log:(id,text)=>{ sysMsg('d:'+id,text); if(vis()) refresh(); else if(typeof render==='function' && view==='lobby') render(); },
-      unread:id=>{ const c=conv('d:'+id); c.unread=(c.unread||0)+1; saveConvs(); },
-      openChat:id=>openChat('d:'+id),
+      log:(id,text)=>{ sysMsg('d:'+primaryOf(id),text); if(vis()) refresh(); else if(typeof render==='function' && view==='lobby') render(); },
+      pick:id=>{ const ds=devicesOf(id).filter(d=>contacts[d]); return ds.find(rawOnline) || id; },
+      unread:id=>{ const c=conv('d:'+primaryOf(id)); c.unread=(c.unread||0)+1; saveConvs(); },
+      openChat:id=>openChat('d:'+primaryOf(id)),
       ice:()=>{ const o=cpeer && cpeer.options && cpeer.options.config; return (o && Array.isArray(o.iceServers)) ? {iceServers:o.iceServers, ...(o.iceTransportPolicy?{iceTransportPolicy:o.iceTransportPolicy}:{})} : {iceServers:[{urls:'stun:stun.l.google.com:19302'}]}; }
     },
     // bara i testversionen: krokar för automatiska säkerhetstester

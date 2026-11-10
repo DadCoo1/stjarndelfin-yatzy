@@ -9,7 +9,7 @@ const LOG='/tmp/pushmock/got.log', got=()=>{ try{ return fs.readFileSync(LOG,'ut
     if(window.PushManager) PushManager.prototype.subscribe=async function(o){ sub=await mk(o); return sub; }, PushManager.prototype.getSubscription=async function(){ return sub; }; })();`;
   async function user(tok,u){
     const c=await b.newContext({viewport:{width:390,height:844}}); await c.grantPermissions(['notifications'],{origin:'http://127.0.0.1:8811'});
-    await c.addInitScript(`window.__NET_SERVER='127.0.0.1:9000'; try{ if(!localStorage.getItem('dev:srv_tok')){ localStorage.setItem('dev:srv_tok','${tok}'); localStorage.setItem('dev:srv_user','${u}'); } }catch(e){} `+FAKE);
+    await c.addInitScript(`window.__NET_SERVER='127.0.0.1:9000'; try{ localStorage.setItem('dev:onboarded','1'); }catch(e){} try{ if(!localStorage.getItem('dev:srv_tok')){ localStorage.setItem('dev:srv_tok','${tok}'); localStorage.setItem('dev:srv_user','${u}'); } }catch(e){} `+FAKE);
     const p=await c.newPage(); p.on('pageerror',e=>errs.push(u+': '+e.message)); await p.goto('http://127.0.0.1:8811/dev/'); await sleep(4000); return {c,p};
   }
   const A=await user(process.env.TA,process.env.UA), B=await user(process.env.TB,process.env.UB);
