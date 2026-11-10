@@ -108,6 +108,8 @@ const app = express();
 app.disable('x-powered-by');
 app.set('trust proxy', 'loopback');
 app.use((req, res, next) => {
+  // webbläsaren får aldrig gissa innehållstyp, och API-svar ska varken sparas eller bäddas in någon annanstans
+  res.set('X-Content-Type-Options', 'nosniff'); res.set('Referrer-Policy', 'no-referrer'); res.set('Cross-Origin-Resource-Policy', 'cross-origin'); if (!req.path.startsWith('/admin')) res.set('Cache-Control', 'no-store');
   const o = req.headers.origin;
   if (o && ORIGINS.includes(o)) { res.set('Access-Control-Allow-Origin', o); res.set('Vary', 'Origin'); res.set('Access-Control-Allow-Headers', 'Authorization, Content-Type'); res.set('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE'); res.set('Access-Control-Max-Age', '600'); }
   const self = o && (o === 'https://' + DOMAIN || o === 'http://' + req.headers.host);
