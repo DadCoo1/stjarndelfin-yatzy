@@ -445,7 +445,10 @@ const TODAY = (() => {
       const sand = H * .76, top = H * .17, bot = sand - D.sz * .36, mx = D.sz * .85, kL = D.sz * 1.9;
       for (const f of food2) { f.age = (f.age || 0) + dt; if (f.y < sand - 3) { f.y += f.vy * dt; f.x += Math.sin(T * 2 + f.ph) * 6 * dt; } }
       food2 = food2.filter(f => f.age < 16);                                   // mat som ingen äter löses upp
-      const tgt = D.sleep ? null : food2.reduce((b, f) => !b || Math.hypot(f.x - D.x, f.y - D.y) < Math.hypot(b.x - D.x, b.y - D.y) ? f : b, null);
+      const tgt = D.sleep ? null : food2.reduce((b, f) => f.skip ? b : !b || Math.hypot(f.x - D.x, f.y - D.y) < Math.hypot(b.x - D.x, b.y - D.y) ? f : b, null);
+      // mat den inte kommer åt (inklämd i ett hörn) ger den upp efter en stund i stället för att stå och trycka mot kanten
+      if (tgt && Math.hypot(D.x - (D.px || 0), D.y - (D.py || 0)) < 12 * dt) { D.stuck = (D.stuck || 0) + dt; if (D.stuck > 1.3) { tgt.skip = true; D.stuck = 0; D.cool = 0; } } else D.stuck = 0;
+      D.px = D.x; D.py = D.y;
       const cruise = D.sleep ? 12 : D.calm ? 44 : 70;
       let tx, ty;
       if (tgt) { tx = tgt.x; ty = Math.min(tgt.y, bot); }
@@ -458,7 +461,7 @@ const TODAY = (() => {
       D.cool -= dt;
       // vändning: bara när målet verkligen ligger bakom eller väggen närmar sig – och inte igen direkt efter
       if (!D.turn && !D.trick && D.cool <= 0) {
-        const behind = dx * face < -(tgt ? D.sz * .3 : D.sz * .7), wall = face > 0 ? D.x > W - mx - D.sz * .5 : D.x < mx + D.sz * .5;
+        const behind = dx * face < -(tgt ? D.sz * .3 : D.sz * .7), wall = !tgt && (face > 0 ? D.x > W - mx - D.sz * .5 : D.x < mx + D.sz * .5);   // när den hämtar mat får den gå ända fram till kanten
         if (behind || wall) {
           const dir = Math.random() < .6 ? 1 : -1, a1 = D.psi + Math.PI, a2 = D.psi - Math.PI, mid1 = Math.sin(D.psi + Math.PI / 2);
           D.turn = { from: D.psi, to: (mid1 > 0) === (dir > 0) ? a1 : a2, t: 0, dur: (D.sleep ? 3.4 : D.calm ? 2.3 : 1.6) * (tgt ? .8 : 1) };
@@ -500,7 +503,7 @@ const TODAY = (() => {
       D.bend += (bT - D.bend) * Math.min(1, dt * 4); D.lat += (lT - D.lat) * Math.min(1, dt * 4);
       D.flap = D.turn ? .7 * Math.sin(Math.PI * D.turn.t / D.turn.dur) : Math.sin(D.ph * .5) * .25 * Math.min(1, D.v / 60);
       const nose = D.nose || [D.x + Math.cos(D.h) * D.sz * .8, D.y + Math.sin(D.h) * D.sz * .8];
-      food2 = food2.filter(f => { if (Math.hypot(f.x - nose[0], f.y - nose[1]) < D.sz * .3 || Math.hypot(f.x - D.x, f.y - D.y) < D.sz * .22) { eat(); return false; } return true; });
+      food2 = food2.filter(f => { if (Math.hypot(f.x - nose[0], f.y - nose[1]) < D.sz * .4 || Math.hypot(f.x - D.x, f.y - D.y) < D.sz * .32) { eat(); return false; } return true; });
       // ibland blåser delfinen en bubbelring ur andningshålet
       if (!D.sleep && Math.random() < dt / 11 && D.nose) { const bx = D.nose[0] + (D.x - D.nose[0]) * .35, by = D.nose[1] + (D.y - D.nose[1]) * .35 - D.sz * .14; rings.push({ x: bx, y: by, r: D.sz * .05, life: 3.2 }); }
       for (const r of rings) { r.y -= 22 * dt; r.r += D.sz * .045 * dt; r.life -= dt; r.x += Math.sin(T + r.y * .03) * 4 * dt; } rings = rings.filter(r => r.life > 0 && r.y > -20);
