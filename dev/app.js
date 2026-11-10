@@ -21,7 +21,7 @@
   if(!same || !/[?&]bot=1/.test(location.search)){ document.documentElement.innerHTML=''; throw new Error('Inramning blockerad'); }
 })();
 /* ================= Version & utvecklingsläge ================= */
-const APP_VERSION='2026.11.10.12-dev';
+const APP_VERSION='2026.11.10.13-dev';
 const DEV = /\/dev(\/|$)/.test(location.pathname);      // testversionen ligger i mappen /dev/
 const BOT = /[?&]bot=1/.test(location.search) && window.parent!==window;   // osynlig ekokompis i en ram
 const LSP = DEV ? (BOT ? 'dev:bot:' : 'dev:') : (BOT ? 'bot:' : '');    // egen sparad data i testversionen
@@ -1298,6 +1298,7 @@ function statsHTML(){
   if(!statsWho || !subs.includes(statsWho)) statsWho = subs.includes(lsGet('ry_name')) ? lsGet('ry_name') : subs[0];
   let h=`<div class="topbar"><button class="iconbtn" data-act="lobby" aria-label="Tillbaka">‹</button><div class="tb-title">📊 <b>Statistik</b></div><button class="iconbtn" data-act="sptoggle" aria-label="Musik">🎵</button><button class="iconbtn" data-act="settings" aria-label="Inställningar">⚙️</button></div><div class="stats">`;
   if(!subs.length){ const o=typeof otherStatsHTML==='function'?otherStatsHTML():''; return h+(o?`<div class="stat-cols">${o}</div>`:`<div class="note" style="margin-top:20px">Ingen statistik än – spela en match så dyker den upp här! 🐬</div>`)+`<button class="bigbtn alt" data-act="resetstats" style="margin-top:22px;font-size:15px">${armedReset?'Tryck igen för att radera all statistik':'🗑️ Rensa statistik'}</button></div>`; }
+  if(typeof PINS!=='undefined') h+=`<div class="chips" style="margin:4px 0 6px"><button data-act="pinsopen">📌 Mina pins</button></div>`;
   if(subs.length>1) h+=`<div class="chips" style="margin:4px 0 6px">${subs.map(n=>`<button data-act="statswho" data-n="${esc(n)}" class="${n===statsWho?'sel':''}">${esc(n)}</button>`).join('')}</div>`;
   const mine=statsFor(statsWho);
   const duels=mine.filter(x=>x.opps.length);
@@ -2342,7 +2343,7 @@ function kbHintHTML(){
 // Om något går fel när en vy ritas visas ett vänligt felkort i stället för en tom eller trasig skärm.
 function render(){
   if(!APP_READY) return;
-  try{ renderInner(); }
+  try{ renderInner(); if(typeof PINS!=='undefined') PINS.soon(); }
   catch(e){ try{ window.__flErr && window.__flErr((e&&e.message)||e, 'render '+view+(G&&G.kind?' '+G.kind:'')+' '+String(e&&e.stack||'').split('\n')[1]); }catch(_){} crashCard(e); }
 }
 // en del av startsidan som går fel tar inte ner resten – den hoppas över (och felet sparas)
@@ -2604,6 +2605,7 @@ document.addEventListener('click', e=>{
   if(a==='techclear'){ lsSet('errlog','[]'); showTechInfo(); return; }
   if(typeof TODAY!=='undefined' && /^(mood|greet|moodshow|moodsofa|bkopen|dailyopen|dk|snd|aq)/.test(a) && TODAY.act(a,b)) return;
   if(typeof BK!=='undefined' && /^bk/.test(a)){ BK.act(a,b); return; }
+  if(typeof PINS!=='undefined' && /^pin/.test(a) && PINS.act(a,b)) return;
   switch(a){
     case 'roll': doRoll(); break;
     case 'hold': toggleHold(+b.dataset.i); break;
