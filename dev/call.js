@@ -90,6 +90,7 @@ const CALL=(function(){
     if(!A || !A.owner()){ say('Chatten är öppen i ett annat fönster – ring därifrån'); return; }
     if(cur){ say('Du är redan i ett samtal 📞'); open(); return; }
     if(!A.ok(peer)){ say('Du kan bara ringa dina kontakter'); return; }
+    if(A.pick) peer=A.pick(peer);      // personen kan ha flera enheter – ring den som är online
     if(A.isBot && A.isBot(peer)) A.unlock();   // låser upp talsyntesen medan knapptrycket fortfarande gäller (iOS)
     if(typeof RTCPeerConnection==='undefined'){ say('Den här webbläsaren kan inte ringa 😕'); return; }
     const c=cur={id:hex(), peer, dir:'out', video:!!video, cam:!!video, mic:true, facing:'user', state:'media', rcam:false, rmic:true};

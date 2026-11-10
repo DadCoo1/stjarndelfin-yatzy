@@ -1,7 +1,7 @@
 // Idag: hälsning och dagsform, kort, dagens kod, akvariet, ljud, säkerhetskopia (server + återställning) och spökbil.
 const {chromium}=require('playwright'); const sleep=ms=>new Promise(r=>setTimeout(r,ms));
 (async()=>{ const b=await chromium.launch(); let fails=0; const ok=(c,m)=>{ console.log((c?'✓ ':'✗ ')+m); if(!c) fails++; }; const errs=[];
-  const mk=async(tok)=>{ const c=await b.newContext({viewport:{width:390,height:844}, deviceScaleFactor:2}); await c.addInitScript(`window.__NET_SERVER='127.0.0.1:9000'; try{ if(!localStorage.getItem('dev:srv_tok')){ localStorage.setItem('dev:srv_tok','${tok}'); localStorage.setItem('dev:srv_user','ida'); localStorage.setItem('dev:ry_name','Ida'); } }catch(e){}`); const p=await c.newPage(); p.on('pageerror',e=>errs.push(e.message)); await p.goto('http://127.0.0.1:8811/dev/'); await sleep(3500); return {c,p}; };
+  const mk=async(tok)=>{ const c=await b.newContext({viewport:{width:390,height:844}, deviceScaleFactor:2}); await c.addInitScript(`window.__NET_SERVER='127.0.0.1:9000'; try{ localStorage.setItem('dev:onboarded','1'); }catch(e){} try{ if(!localStorage.getItem('dev:srv_tok')){ localStorage.setItem('dev:srv_tok','${tok}'); localStorage.setItem('dev:srv_user','ida'); localStorage.setItem('dev:ry_name','Ida'); } }catch(e){}`); const p=await c.newPage(); p.on('pageerror',e=>errs.push(e.message)); await p.goto('http://127.0.0.1:8811/dev/'); await sleep(3500); return {c,p}; };
   let {c,p}=await mk(process.env.TOK);
   const hero=await p.evaluate(()=>document.querySelector('.today-hero')?.innerText); ok(/Ida/.test(hero) && /Lugn dag/.test(hero), 'hälsning med namn och dagsform: '+hero.replace(/\n/g,' | '));
   await p.screenshot({path:'/tmp/today_1.png'});

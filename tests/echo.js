@@ -3,7 +3,7 @@ const {chromium}=require('playwright'); const sleep=ms=>new Promise(r=>setTimeou
 const TOK=process.env.TOK;
 (async()=>{ const b=await chromium.launch({args:['--use-fake-device-for-media-stream','--use-fake-ui-for-media-stream','--autoplay-policy=no-user-gesture-required']}); const errs=[]; let fails=0; const ok=(c,m)=>{ console.log((c?'✓ ':'✗ ')+m); if(!c) fails++; };
   const c=await b.newContext({viewport:{width:390,height:844}, permissions:['camera','microphone']});
-  await c.addInitScript(`window.__NET_SERVER='127.0.0.1:9000'; try{ if(!localStorage.getItem('dev:srv_tok')){ localStorage.setItem('dev:srv_tok','${TOK}'); localStorage.setItem('dev:srv_user','ekotest'); } }catch(e){}`);
+  await c.addInitScript(`window.__NET_SERVER='127.0.0.1:9000'; try{ localStorage.setItem('dev:onboarded','1'); }catch(e){} try{ if(!localStorage.getItem('dev:srv_tok')){ localStorage.setItem('dev:srv_tok','${TOK}'); localStorage.setItem('dev:srv_user','ekotest'); } }catch(e){}`);
   await c.addInitScript(`window.__said=[]; if(window.speechSynthesis){ const o=speechSynthesis.speak.bind(speechSynthesis); speechSynthesis.speak=u=>{ window.__said.push(u.text); try{o(u);}catch(e){} }; }`);
   const p=await c.newPage(); p.on('pageerror',e=>errs.push(e.message)); await p.goto('http://127.0.0.1:8811/dev/'); await sleep(1200);
   await sleep(2500); await p.evaluate(()=>CHAT.open()); await sleep(400); if(await p.$('#waName')){ await p.fill('#waName','Elsa'); await p.click('[data-c=create]'); await sleep(2500); }

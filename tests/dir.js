@@ -4,7 +4,7 @@ const [TA,TB,TC]=[process.env.TA,process.env.TB,process.env.TC];
 (async()=>{ const b=await chromium.launch({args:['--use-fake-device-for-media-stream','--use-fake-ui-for-media-stream']}); const errs=[]; let fails=0; const ok=(c,m)=>{ console.log((c?'✓ ':'✗ ')+m); if(!c) fails++; };
   async function user(tok,u,name){
     const c=await b.newContext({viewport:{width:390,height:844}, permissions:['camera','microphone']});
-    await c.addInitScript(`window.__NET_SERVER='127.0.0.1:9000'; try{ if(!localStorage.getItem('dev:srv_tok')){ localStorage.setItem('dev:srv_tok','${tok}'); localStorage.setItem('dev:srv_user','${u}'); } }catch(e){}`);
+    await c.addInitScript(`window.__NET_SERVER='127.0.0.1:9000'; try{ localStorage.setItem('dev:onboarded','1'); }catch(e){} try{ if(!localStorage.getItem('dev:srv_tok')){ localStorage.setItem('dev:srv_tok','${tok}'); localStorage.setItem('dev:srv_user','${u}'); } }catch(e){}`);
     const p=await c.newPage(); p.on('pageerror',e=>errs.push(u+': '+e.message)); await p.goto('http://127.0.0.1:8811/dev/'); await sleep(1200);
     await sleep(2500);   // nycklarna skapas automatiskt när man är inloggad
     await p.evaluate(()=>closeModal()); return p;

@@ -2,7 +2,7 @@
 const {chromium}=require('playwright'); const sleep=ms=>new Promise(r=>setTimeout(r,ms));
 (async()=>{ const b=await chromium.launch(); let fails=0; const ok=(c,m)=>{ console.log((c?'✓ ':'✗ ')+m); if(!c) fails++; }; const errs=[];
   const c=await b.newContext({viewport:{width:390,height:844}});
-  await c.addInitScript(`window.__NET_SERVER='';
+  await c.addInitScript(`window.__NET_SERVER=''; try{ localStorage.setItem('dev:onboarded','1'); }catch(e){}
     window.__seen={getwell:0, plainTile:0, firstBg:null, tilesAt:0};
     new MutationObserver(()=>{ if(!window.__seen.firstBg && document.body) window.__seen.firstBg=getComputedStyle(document.documentElement).getPropertyValue('--bg2').trim();
       if(document.querySelector('.getwell')) window.__seen.getwell++;

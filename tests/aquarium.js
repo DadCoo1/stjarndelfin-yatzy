@@ -2,7 +2,7 @@
 const {chromium}=require('playwright'); const sleep=ms=>new Promise(r=>setTimeout(r,ms));
 const devicePixelRatioOr1=t=>t[3];
 (async()=>{ const b=await chromium.launch(); let fails=0; const ok=(c,m)=>{ console.log((c?'✓ ':'✗ ')+m); if(!c) fails++; }; const errs=[];
-  const c=await b.newContext({viewport:{width:390,height:844}}); await c.addInitScript("window.__NET_SERVER=''");
+  const c=await b.newContext({viewport:{width:390,height:844}}); await c.addInitScript("window.__NET_SERVER=''; localStorage.setItem('dev:onboarded','1')");
   const p=await c.newPage(); p.on('pageerror',e=>errs.push(e.message)); await p.goto('http://127.0.0.1:8811/dev/'); await sleep(1500);
   await p.click('[data-act=aqopen]'); await sleep(500);
   const sample=async(ms)=>{ const pts=[]; const t0=Date.now(); while(Date.now()-t0<ms){ pts.push(await p.evaluate(()=>{ const c=document.getElementById('aqC').getBoundingClientRect(); return null; })); await sleep(100); } return pts; };

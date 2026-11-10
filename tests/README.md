@@ -14,3 +14,7 @@ Starta en webbserver i repots rot (`python3 -m http.server 8811`) och för onlin
 - `node tests/style.js` – utseende: världar, accentfärg, dekor, rörelse, textstorlek, ikonstil, och att varje spelruta behåller sin färg och får egen ikon
 - `node tests/aquarium.js` – akvariet: delfinen simmar i mjuka bågar, fastnar inte på botten, hämtar mat och stiger igen
 - `node tests/boot.js` – start utan blink: färgerna sätts innan något ritas, gamla hälsningen och vanliga spelrutor syns aldrig
+- `node tests/compat.js [mapp]` – kompatibilitet med iPadOS 15/Safari 15: syntax, reguljära uttryck, funktioner och CSS (körs utan webbläsare; kräver acorn)
+- `node tests/stability.js` – fel fångas och sparas, trasig del tar inte ner startsidan, vänligt felkort, felrapport utan personuppgifter, lugnare utseende på äldre enheter
+- `node tests/welcome.js` – guidad start: visas för nya, inte för befintliga eller mitt i en inbjudan; namn, värld och delfinnamn sparas
+- `UA=… TA=… UB=… TB=… node tests/multidev.js` – samma konto på två enheter: en person i kontakterna, meddelanden till båda enheterna, svar i samma konversation, synk av egna meddelanden, samtal till enheten som är online

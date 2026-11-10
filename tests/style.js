@@ -1,7 +1,7 @@
 // Utseende: världar, accentfärg, dekor, rörelse, textstorlek, ikonstil – och att varje spelruta behåller sin egen färg.
 const {chromium}=require('playwright'); const sleep=ms=>new Promise(r=>setTimeout(r,ms));
 (async()=>{ const b=await chromium.launch(); let fails=0; const ok=(c,m)=>{ console.log((c?'✓ ':'✗ ')+m); if(!c) fails++; }; const errs=[];
-  const c=await b.newContext({viewport:{width:390,height:844}}); await c.addInitScript("window.__NET_SERVER=''");
+  const c=await b.newContext({viewport:{width:390,height:844}}); await c.addInitScript("window.__NET_SERVER=''; localStorage.setItem('dev:onboarded','1')");
   const p=await c.newPage(); p.on('pageerror',e=>errs.push(e.message)); await p.goto('http://127.0.0.1:8811/dev/'); await sleep(2000);
   const t=await p.evaluate(()=>[...document.querySelectorAll('.tile[data-g]')].map(x=>({g:x.dataset.g, bg:getComputedStyle(x).backgroundImage, svg:!!x.querySelector('.ti-svg svg')})));
   ok(t.length>=20, 'alla spelrutor fick identitet ('+t.length+')');

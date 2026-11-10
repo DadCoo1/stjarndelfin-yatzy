@@ -1,0 +1,22 @@
+// Guidad start: visas för nya, inte för den som redan har spelat eller öppnar en inbjudan; namn, värld och delfinens namn sparas.
+const {chromium}=require('playwright'); const sleep=ms=>new Promise(r=>setTimeout(r,ms));
+(async()=>{ const b=await chromium.launch(); let fails=0; const ok=(c,m)=>{ console.log((c?'✓ ':'✗ ')+m); if(!c) fails++; }; const errs=[];
+  const c=await b.newContext({viewport:{width:390,height:844},deviceScaleFactor:2}); await c.addInitScript("window.__NET_SERVER=''");
+  const p=await c.newPage(); p.on('pageerror',e=>errs.push(e.message)); await p.goto('http://127.0.0.1:8811/dev/'); await sleep(1500);
+  ok(!!await p.$('#obWrap'), 'ny användare får introduktionen'); await p.screenshot({path:'/tmp/ob1.png'});
+  await p.fill('#obName','Ida'); await p.click('.ob-next'); await sleep(300);
+  await p.click('[data-act=obworld][data-v=hav]'); await sleep(200); await p.screenshot({path:'/tmp/ob2.png'}); await p.click('.ob-next'); await sleep(300);
+  await p.fill('#obAq','Bubbel'); await p.click('.ob-next'); await sleep(300); await p.screenshot({path:'/tmp/ob4.png'}); await p.click('.ob-next'); await sleep(300);
+  await p.screenshot({path:'/tmp/ob5.png'}); await p.click('.ob-next'); await sleep(800);
+  const st=await p.evaluate(()=>({name:lsGet('ry_name'), world:STYLE.get().world, aq:TODAY.AQ._get().name, done:lsGet('onboarded'), open:!!document.getElementById('obWrap'), hero:document.querySelector('.today-hero')?.innerText||''}));
+  ok(st.name==='Ida' && st.world==='hav' && st.aq==='Bubbel' && st.done==='1' && !st.open, 'namn, värld och delfinens namn sparas '+JSON.stringify({name:st.name,world:st.world,aq:st.aq}));
+  ok(/Ida/.test(st.hero), 'startsidan hälsar med namnet');
+  await p.reload(); await sleep(1500); ok(!await p.$('#obWrap'), 'visas bara en gång');
+  await p.evaluate(()=>{ showSettings(); }); await sleep(200); await p.click('[data-act=obagain]'); await sleep(400); ok(!!await p.$('#obWrap'), 'kan visas igen från inställningarna');
+  await p.click('[data-act=obskip]'); await sleep(500); ok(!await p.$('#obWrap'), 'Hoppa över stänger');
+  await c.close();
+  const c2=await b.newContext({viewport:{width:390,height:844}}); await c2.addInitScript("window.__NET_SERVER=''; localStorage.setItem('dev:ry_name','Gammal')");
+  const p2=await c2.newPage(); await p2.goto('http://127.0.0.1:8811/dev/'); await sleep(1500); ok(!await p2.$('#obWrap'), 'den som redan har spelat får ingen introduktion'); await c2.close();
+  const c3=await b.newContext({viewport:{width:390,height:844}}); await c3.addInitScript("window.__NET_SERVER=''");
+  const p3=await c3.newPage(); await p3.goto('http://127.0.0.1:8811/dev/#invite=abc'); await sleep(1500); ok(!await p3.$('#obWrap'), 'ingen introduktion mitt i en inbjudan');
+  console.log('errs',errs); console.log(fails?fails+' FEL':'alla introduktionstester ok'); await b.close(); process.exit(fails?1:0); })();
