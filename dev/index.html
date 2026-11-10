@@ -25,9 +25,9 @@ html,body{margin:0;min-height:100%;color:var(--txt);font-family:'Fredoka',system
 html{background:var(--deep)}
 body{
   background:
-    radial-gradient(110% 70% at 85% -10%,rgba(124,92,230,.55) 0%,transparent 55%),
-    radial-gradient(120% 60% at 0% 110%,rgba(14,120,180,.75) 0%,transparent 60%),
-    linear-gradient(180deg,#030a1f 0%,#071a45 50%,#0a3a6b 100%);
+    radial-gradient(110% 70% at 85% -10%,var(--glow1,rgba(124,92,230,.55)) 0%,transparent 55%),
+    radial-gradient(120% 60% at 0% 110%,var(--glow2,rgba(14,120,180,.75)) 0%,transparent 60%),
+    linear-gradient(180deg,var(--bg1,#030a1f) 0%,var(--bg2,#071a45) 50%,var(--bg3,#0a3a6b) 100%);
   background-attachment:fixed;min-height:100vh;
   -webkit-user-select:none;user-select:none;
 }
@@ -674,6 +674,51 @@ body.sofa .lob-hero .logo, body.sofa .leoband, body.sofa .bubbles, body.sofa .po
 .aq-help{position:absolute;left:0;right:0;bottom:calc(env(safe-area-inset-bottom,0px) + 150px);text-align:center;font-size:12px;opacity:.8;pointer-events:none;padding:0 16px;text-shadow:0 1px 3px rgba(0,0,0,.6)}
 .snd-host{position:absolute;left:10px;right:10px;bottom:calc(env(safe-area-inset-bottom,0px) + 10px);padding:10px 8px;border-radius:20px;background:rgba(8,20,40,.55);-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px)}
 .snd-host .snd-opts{color:#fff}
+
+/* ---------- formspråk: spelrutor, ikoner, världar, rörelse ---------- */
+.tile::after{display:none}
+.tile::before{content:'';position:absolute;top:0;right:0;bottom:0;left:0;background-image:var(--motif,none);background-size:46px;opacity:.13;pointer-events:none;mix-blend-mode:soft-light}
+.tile{background:linear-gradient(180deg,rgba(255,255,255,.16),rgba(255,255,255,0) 42%),var(--tg)}
+.tile>*{position:relative;z-index:1}
+.tile b,.tile small{text-shadow:0 1px 3px rgba(0,0,0,.38)}
+.ti-svg{display:inline-flex;width:52px;height:52px;margin-bottom:6px;filter:drop-shadow(0 4px 8px rgba(0,0,0,.3))}
+.ti-svg .gico{width:100%;height:100%}
+.tile .ti-svg{background:rgba(255,255,255,.18);border-radius:16px;padding:4px;box-shadow:inset 0 0 0 1.5px rgba(255,255,255,.35)}
+.tb-title .ti-svg{width:26px;height:26px;margin:0 4px 0 0;vertical-align:-7px;filter:none}
+.tb-title .ti{font-size:inherit}
+.gtop{position:relative;padding-bottom:8px}
+.gtop::after{content:'';position:absolute;left:10%;right:10%;bottom:0;height:3px;border-radius:3px;background:var(--gacc);opacity:.85}
+.tile.mini{min-height:0;width:64px;height:64px;padding:6px;border-radius:18px;align-items:center;justify-content:center}
+.tile.mini .ti-svg{margin:0;width:46px;height:46px}
+.sty-prev{display:flex;gap:10px;justify-content:center;margin:2px 0 14px}
+.sty-ws{display:grid;grid-template-columns:repeat(auto-fill,minmax(96px,1fr));gap:8px;margin-top:6px}
+.sty-w{display:flex;flex-direction:column;align-items:flex-start;gap:2px;padding:10px;border-radius:16px;min-height:66px;text-align:left;color:var(--t);
+  background:radial-gradient(90% 70% at 90% 0%,var(--g),transparent 60%),linear-gradient(180deg,var(--a),var(--b) 60%,var(--c));box-shadow:inset 0 0 0 1px rgba(255,255,255,.18)}
+.sty-w i{font-style:normal;font-size:20px}.sty-w b{font-size:12.5px}
+.sty-w.on{box-shadow:0 0 0 3px var(--acc),0 6px 18px rgba(0,0,0,.35)}
+.sty-as{display:flex;gap:10px;flex-wrap:wrap;margin-top:6px}
+.sty-a{width:38px;height:38px;border-radius:50%;background:var(--c);box-shadow:inset 0 0 0 2px rgba(255,255,255,.35);display:grid;place-items:center}
+.sty-a span{font-size:10px;font-weight:700;color:#1e1b4b;background:rgba(255,255,255,.75);border-radius:6px;padding:0 3px}
+.sty-a.on{box-shadow:0 0 0 3px var(--txt),0 0 0 6px var(--acc)}
+/* världarnas egna detaljer */
+.sundisc{position:absolute;right:-60px;top:6%;width:220px;height:220px;border-radius:50%;background:radial-gradient(circle,#fff7ed 0%,#fdba74 35%,rgba(244,114,182,.0) 70%);opacity:.75}
+.leosky{position:absolute;top:0;right:0;bottom:0;left:0;background:var(--leo);background-size:140px;opacity:.06}
+.fly{position:absolute;width:4px;height:4px;border-radius:50%;background:#fde047;box-shadow:0 0 10px 3px rgba(253,224,71,.6);animation:fly ease-in-out infinite alternate}
+@keyframes fly{0%{transform:translate(0,0);opacity:.2}50%{opacity:1}100%{transform:translate(30px,-24px);opacity:.3}}
+body.w-light{color:var(--txt)}
+body.w-light #app .tile, body.w-light #app .bigbtn{color:#fff}
+body.w-light .topbar .iconbtn, body.w-light .popc{background:rgba(255,255,255,.6)}
+body.w-light #modal .box, body.w-light #modal>div{color:var(--txt)}
+body.w-light .tcard{background:linear-gradient(160deg,rgba(255,255,255,.75),rgba(255,255,255,.45));box-shadow:inset 0 0 0 1px rgba(124,58,237,.18),0 6px 18px rgba(30,27,75,.12)}
+body.w-light .today-hero .greet{background:rgba(255,255,255,.6)}
+body.w-light .mood-chip{background:rgba(255,255,255,.6)}
+body.w-light h3.cat{color:var(--acc)}
+/* dekor och rörelse */
+body.dec-ingen #sky, body.dec-ingen #bubbles{display:none}
+body.dec-lite #bubbles{opacity:.55}
+body.mo-lugn *, body.mo-lugn *::before, body.mo-lugn *::after{animation-duration:calc(1s * 3)!important;transition-duration:.35s!important}
+body.mo-av *, body.mo-av *::before, body.mo-av *::after{animation:none!important;transition:none!important}
+body.mo-av #bubbles{display:none}
 </style>
 </head>
 <body>
@@ -708,6 +753,7 @@ body.sofa .lob-hero .logo, body.sofa .leoband, body.sofa .bubbles, body.sofa .po
 <script src="call.js"></script>
 <script src="backup.js"></script>
 <script src="today.js"></script>
+<script src="style.js"></script>
 <script src="fr.js"></script>
 </body>
 </html>
