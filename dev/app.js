@@ -21,7 +21,7 @@
   if(!same || !/[?&]bot=1/.test(location.search)){ document.documentElement.innerHTML=''; throw new Error('Inramning blockerad'); }
 })();
 /* ================= Version & utvecklingsläge ================= */
-const APP_VERSION='2026.11.10.2-dev';
+const APP_VERSION='2026.11.10.4-dev';
 const DEV = /\/dev(\/|$)/.test(location.pathname);      // testversionen ligger i mappen /dev/
 const BOT = /[?&]bot=1/.test(location.search) && window.parent!==window;   // osynlig ekokompis i en ram
 const LSP = DEV ? (BOT ? 'dev:bot:' : 'dev:') : (BOT ? 'bot:' : '');    // egen sparad data i testversionen
@@ -2269,6 +2269,8 @@ function showSettings(){
     <div class="setrow"><div class="lbl">🎧 Ljudeffekter även när Spotify spelar</div>${onoff('spsfx',spSfx)}</div>
     <div class="setrow"><div class="lbl">🎲 Ljud när tärningarna kastas (tryck för att lyssna)</div>
       <div class="chips">${Object.entries(DICE_SOUNDS).map(([k,v])=>`<button data-act="setdice" data-k="${k}" class="${diceSound===k?'sel':''}">${v.label}</button>`).join('')}</div></div>
+    <div class="setrow"><div class="lbl">🎨 Utseende</div><div class="chips"><button data-act="styopen">Värld, färg, text och rörelse…</button></div>
+      <div class="setnote">Gör spelet till ditt eget – sju världar, accentfärg, mängd dekor och storlek.</div></div>
     ${typeof TODAY!=='undefined' ? TODAY.settingsHTML() : ''}
     <div class="setrow"><div class="lbl">💾 Säkerhetskopia</div>
       <div class="chips"><button data-act="bkopen">Säkerhetskopia och ny enhet…</button></div>
@@ -2371,8 +2373,10 @@ function fitDock(){
 let lastDesk=null;
 window.addEventListener('resize', ()=>{ const d=isDesk(); if(d!==lastDesk){ lastDesk=d; render(); } else fitDock(); });
 function topbar(){
-  return `<div class="topbar"><button class="iconbtn" data-act="lobby" aria-label="Tillbaka">‹</button>
-    <div class="tb-title">${isKind()?`${gIcon()} <b>${gName()}</b>`:'🎲 <b>Yatzy</b>'}${mode==='online'&&gameId?` · ${esc(gameId)}`:''}${mode==='online'?`<div class="net ns-${net}">${netText()}</div>`:''}</div>
+  const gk = isKind() ? G.kind : 'yatzy', gg = isKind() ? (GINFO[gk].grad||'') : 'linear-gradient(135deg,#22d3ee,#6366f1 60%,#a855f7)';
+  const gic = typeof STYLE!=='undefined' ? STYLE.icon(gk, gIcon()) : gIcon();
+  return `<div class="topbar gtop" style="--gacc:${gg}"><button class="iconbtn" data-act="lobby" aria-label="Tillbaka">‹</button>
+    <div class="tb-title">${gic} <b>${isKind()?gName():'Yatzy'}</b>${mode==='online'&&gameId?` · ${esc(gameId)}`:''}${mode==='online'?`<div class="net ns-${net}">${netText()}</div>`:''}</div>
     <button class="iconbtn sgbtn" data-act="sgopen" aria-label="Pågående spel">🎮<i class="cbadge ${sgCount()?'on':''}" data-sgbadge>${sgCount()||''}</i></button><button class="iconbtn chatic" data-c="toggle" aria-label="Chatt">💬<i class="cbadge ${chatUnread()?'on':''}" data-cbadge>${chatUnread()||''}</i></button><button class="iconbtn ${spPlaying?'sp-on':''}" data-act="sptoggle" aria-label="Musik" style="margin-right:-2px">🎵</button><button class="iconbtn" data-act="settings" aria-label="Inställningar">⚙️</button></div>`;
 }
 /* ---------- lobbyn: spelen i kategorier ---------- */
@@ -2396,7 +2400,8 @@ function lobbyTilesHTML(svSol, invS){
     const badge = gi.badge ? gi.badge() : '';
     return `<button class="tile" style="--tg:${gi.grad}" data-act="gmenu" data-k="${k}"><span class="ti">${gi.icon}</span><b>${gi.name}</b><small>${esc(gi.desc||TILE_DESC[k]||'')}</small>${badge}</button>`;
   };
-  return LOBBY_CATS.map(([ic,name,keys])=>{ const t=keys.map(tile).join(''); return t ? `<h3 class="cat"><span>${ic}</span>${name}</h3><div class="tiles">${t}</div>` : ''; }).join('');
+  const T = k => typeof STYLE!=='undefined' ? STYLE.decorateTile(tile(k), k) : tile(k);
+  return LOBBY_CATS.map(([ic,name,keys])=>{ const t=keys.map(T).join(''); return t ? `<h3 class="cat"><span>${ic}</span>${name}</h3><div class="tiles">${t}</div>` : ''; }).join('');
 }
 function lobbyHTML(){
   const devbar = DEV ? `<div class="devbar">🧪 <b>Testversion</b> · egen data och egna spelkoder · <a href="../">Öppna releaseversionen ›</a></div>` : '';
@@ -2546,6 +2551,7 @@ document.addEventListener('click', e=>{
   const b=e.target.closest('[data-act]'); if(!b) return;
   const a=b.dataset.act;
   unlockAudio();
+  if(typeof STYLE!=='undefined' && /^sty/.test(a) && STYLE.act(a,b)) return;
   if(typeof TODAY!=='undefined' && /^(mood|greet|moodshow|moodsofa|bkopen|dailyopen|dk|snd|aq)/.test(a) && TODAY.act(a,b)) return;
   if(typeof BK!=='undefined' && /^bk/.test(a)){ BK.act(a,b); return; }
   switch(a){

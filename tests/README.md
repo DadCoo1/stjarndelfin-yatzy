@@ -11,3 +11,4 @@ Starta en webbserver i repots rot (`python3 -m http.server 8811`) och för onlin
 - `UA=… TA=… UB=… TB=… node tests/push.js` – notiser: registrering med falsk push-tjänst (https-mock på 9443, servern med `NODE_EXTRA_CA_CERTS`), push för meddelande och "din tur", bara kategorin skickas
 - `TOK=… node tests/today.js` – Idag: hälsning och dagsform (även dold), lugnt läge, dagens kod, akvariet, ljudlandskap, säkerhetskopia till servern och återställning på ny enhet
 - `node tests/ghost.js` – spökbil i Sommarvägen: första åket sparas, andra åket kör mot det
+- `node tests/style.js` – utseende: världar, accentfärg, dekor, rörelse, textstorlek, ikonstil, och att varje spelruta behåller sin färg och får egen ikon

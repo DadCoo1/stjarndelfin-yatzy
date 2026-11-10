@@ -1,0 +1,19 @@
+// Utseende: världar, accentfärg, dekor, rörelse, textstorlek, ikonstil – och att varje spelruta behåller sin egen färg.
+const {chromium}=require('playwright'); const sleep=ms=>new Promise(r=>setTimeout(r,ms));
+(async()=>{ const b=await chromium.launch(); let fails=0; const ok=(c,m)=>{ console.log((c?'✓ ':'✗ ')+m); if(!c) fails++; }; const errs=[];
+  const c=await b.newContext({viewport:{width:390,height:844}}); await c.addInitScript("window.__NET_SERVER=''");
+  const p=await c.newPage(); p.on('pageerror',e=>errs.push(e.message)); await p.goto('http://127.0.0.1:8811/dev/'); await sleep(2000);
+  const t=await p.evaluate(()=>[...document.querySelectorAll('.tile[data-g]')].map(x=>({g:x.dataset.g, bg:getComputedStyle(x).backgroundImage, svg:!!x.querySelector('.ti-svg svg')})));
+  ok(t.length>=20, 'alla spelrutor fick identitet ('+t.length+')');
+  ok(t.every(x=>x.svg), 'alla spelrutor har ritad ikon');
+  ok(t.filter(x=>/gradient/.test(x.bg)).length>=t.length-1, 'spelens egna färger finns kvar');
+  ok(new Set(t.map(x=>x.bg)).size>=15, 'spelen ser olika ut ('+new Set(t.map(x=>x.bg)).size+' olika)');
+  await p.evaluate(()=>STYLE.show()); await p.click('[data-act=styset][data-k=world][data-v=hav]'); await sleep(300);
+  ok(await p.evaluate(()=>document.body.classList.contains('w-hav') && getComputedStyle(document.documentElement).getPropertyValue('--bg2').trim()==='#053b4d'), 'världen Djuphavet tillämpas');
+  await p.click('[data-act=styset][data-k=acc][data-v=guld]'); await sleep(200); ok(await p.evaluate(()=>getComputedStyle(document.documentElement).getPropertyValue('--acc').trim()==='#f59e0b'), 'accentfärg guld');
+  await p.click('[data-act=styset][data-k=decor][data-v=ingen]'); await sleep(200); ok(await p.evaluate(()=>getComputedStyle(document.getElementById('sky')).display==='none'), 'ingen dekor döljer himlen');
+  await p.click('[data-act=styset][data-k=motion][data-v=av]'); await sleep(200); ok(await p.evaluate(()=>document.body.classList.contains('mo-av')), 'rörelse av');
+  await p.click('[data-act=styset][data-k=size][data-v=xstor]'); await sleep(200); ok(await p.evaluate(()=>document.body.style.zoom==='1.22'), 'extra stor text');
+  await p.click('[data-act=styset][data-k=icons][data-v=emoji]'); await sleep(200); ok(await p.evaluate(()=>!document.querySelector('.tile[data-g] .ti-svg')), 'emojiikoner när man vill det');
+  await p.reload(); await sleep(2000); ok(await p.evaluate(()=>document.body.classList.contains('w-hav') && STYLE.get().acc==='guld'), 'valen sparas');
+  console.log('errs',errs); console.log(fails?fails+' FEL':'alla utseendetester ok'); await b.close(); process.exit(fails?1:0); })();
