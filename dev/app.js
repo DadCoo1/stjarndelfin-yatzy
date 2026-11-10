@@ -21,7 +21,7 @@
   if(!same || !/[?&]bot=1/.test(location.search)){ document.documentElement.innerHTML=''; throw new Error('Inramning blockerad'); }
 })();
 /* ================= Version & utvecklingsläge ================= */
-const APP_VERSION='2026.11.10.7-dev';
+const APP_VERSION='2026.11.10.8-dev';
 const DEV = /\/dev(\/|$)/.test(location.pathname);      // testversionen ligger i mappen /dev/
 const BOT = /[?&]bot=1/.test(location.search) && window.parent!==window;   // osynlig ekokompis i en ram
 const LSP = DEV ? (BOT ? 'dev:bot:' : 'dev:') : (BOT ? 'bot:' : '');    // egen sparad data i testversionen
@@ -42,7 +42,7 @@ const DOLPHIN = (id='d', c1='#7df9ff', c2='#4f7cff') => `
   <circle cx="161" cy="46" r="1" fill="#fff"/>
 </svg>`;
 
-(function buildSky(){
+function buildSky(){
   const s = document.getElementById('sky');
   let h = '<div class="planet"></div><div class="ring"></div><div class="moon"></div>';
   for (let i=0;i<110;i++){
@@ -58,7 +58,7 @@ const DOLPHIN = (id='d', c1='#7df9ff', c2='#4f7cff') => `
         <div class="swimmer" style="top:76%;width:80px;animation-duration:34s;animation-delay:-14s">${DOLPHIN('s2','#f9a8d4','#a78bfa')}</div>
         <svg class="waves" viewBox="0 0 400 120" preserveAspectRatio="none"><path d="M0 40 Q50 20 100 40 T200 40 T300 40 T400 40 V120 H0Z" fill="rgba(62,230,255,.18)"/><path d="M0 70 Q50 50 100 70 T200 70 T300 70 T400 70 V120 H0Z" fill="rgba(99,102,241,.22)"/></svg>`;
   s.innerHTML = h;
-})();
+}
 
 /* ================= Regler ================= */
 const CATS = [
@@ -2696,7 +2696,7 @@ spBuild();
 const willResume=canAutoResume();
 const whereSaved=(()=>{ try{ const r=JSON.parse(lsGet('ry_where')); return r && r.w!=='lobby' && Date.now()-r.t<12*3600e3; }catch(e){ return false; } })();
 const pendingOpen = willResume || whereSaved;
-if(!pendingOpen) render();
+// Lobbyn ritas först när alla filer (utseende, Idag, spelen) har laddats – annars blinkar ett äldre utseende förbi.
 // spelfilerna (games.js m.fl.) laddas efter den här filen – återuppta när allt finns
 document.addEventListener('DOMContentLoaded',()=>{
   if(!pendingOpen) return;
@@ -2709,7 +2709,7 @@ document.addEventListener('DOMContentLoaded',()=>{
 spHandleRedirect();
 }
 // spelen i egna filer (kit.js, strat.js …) laddas efter app.js – rita lobbyn igen när allt finns
-document.addEventListener('DOMContentLoaded',()=>{ if(view==='lobby') render(); });
+document.addEventListener('DOMContentLoaded',()=>{ if(typeof STYLE==='undefined') buildSky(); if(view==='lobby') render(); });
 window.addEventListener('storage',e=>{ if(e.key==='ry_spauth'){ spUser=null; spLists=null; if(spOpen) spInit(); spRefreshChrome(); } });
 document.addEventListener('visibilitychange',()=>{ if(document.visibilityState==='visible' && spAuth() && spOpen && !spUser) spInit(); });
 (function(){ const h=(location.hash||'').replace('#','').toUpperCase(); if(/^[A-Z0-9]{4}$/.test(h)) showJoin(h); })();

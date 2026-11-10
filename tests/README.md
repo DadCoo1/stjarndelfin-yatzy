@@ -13,3 +13,4 @@ Starta en webbserver i repots rot (`python3 -m http.server 8811`) och för onlin
 - `node tests/ghost.js` – spökbil i Sommarvägen: första åket sparas, andra åket kör mot det
 - `node tests/style.js` – utseende: världar, accentfärg, dekor, rörelse, textstorlek, ikonstil, och att varje spelruta behåller sin färg och får egen ikon
 - `node tests/aquarium.js` – akvariet: delfinen simmar i mjuka bågar, fastnar inte på botten, hämtar mat och stiger igen
+- `node tests/boot.js` – start utan blink: färgerna sätts innan något ritas, gamla hälsningen och vanliga spelrutor syns aldrig
