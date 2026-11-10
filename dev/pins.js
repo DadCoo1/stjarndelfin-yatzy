@@ -176,7 +176,7 @@ const PINS = (() => {
     const ev = evaluate(D), g = got(), fresh = [], first = !lsGet('pins_init');
     DEFS.forEach(d => { for (let t = 1; t <= ev[d.id].tier; t++) if (!g[key(d.id, t)]) { g[key(d.id, t)] = Date.now(); fresh.push([d.id, t]); } });
     if (fresh.length) P('pins', g);
-    if (first) { lsSet('pins_init', '1'); if (fresh.length && !quiet) setTimeout(() => { try { toast(`📌 Du har redan samlat ${fresh.length} pins! Titta under Idag.`, 4200); } catch (e) {} }, 1500); }
+    if (first) { lsSet('pins_init', '1'); if (fresh.length && !quiet) setTimeout(() => { try { toast(`📌 Du har redan samlat ${fresh.length} ${fresh.length === 1 ? 'pin' : 'pins'}! Titta under Idag.`, 4200); } catch (e) {} }, 1500); }
     else if (!quiet) { const best = {}; fresh.forEach(([id, t]) => { if (!best[id] || best[id] < t) best[id] = t; }); Object.entries(best).forEach(([id, t]) => queue.push([id, t])); pump(); }
     if (fresh.length) { try { TODAY.repaint(false); } catch (e) {} }
     if (fresh.length || lsGet('pins_shared') !== today) share();
@@ -268,7 +268,7 @@ const PINS = (() => {
     const ev = evaluate(); let best = null;
     DEFS.forEach(d => { const t = ev[d.id].tier, nx = d.t[t]; if (!nx) return; const pr = ev[d.id].v / nx; if (pr > 0 && (!best || pr > best.pr)) best = { d, pr }; });
     const last = Object.entries(g).sort((a, b) => b[1] - a[1])[0][0].split(':')[0];
-    return { n: pts, ic: BY[last] ? BY[last].ic : '📌', line: best ? `Nästa: ${best.d.name} (${Math.round(best.pr * 100)} %)` : `${pts} av ${MAXPTS}` };
+    return { n: pts, ic: BY[last] ? BY[last].ic : '📌', word: pts === 1 ? 'pin' : 'pins', line: best ? `Nästa: ${best.d.name} (${Math.round(best.pr * 100)} %)` : `${pts} av ${MAXPTS}` };
   }
 
   // kolla efter avslutade spel och när appen kommer tillbaka

@@ -8,7 +8,7 @@
 <title>Stjärndelfin Yatzy</title>
 <meta name="theme-color" content="#071a45">
 <meta name="description" content="Svensk Yatzy i rymden och havet">
-<script src="boot.js?v=2026.11.10.14-dev"></script>
+<script src="boot.js?v=2026.11.10.15-dev"></script>
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="icon-192.png">
 <link rel="apple-touch-icon" href="icon-180.png">
@@ -837,6 +837,12 @@ body.locked>*:not(#app):not(#modal):not(#toasts):not(#sky):not(script){display:n
 .lockcard h1 small{font-size:15px;letter-spacing:.3em;text-transform:uppercase;opacity:.8}
 .lockdol svg{width:140px;height:auto}
 .lockcard .btns{justify-content:center;margin:14px 0}
+/* ---- delfinen: stjärten slår upp och ner ---- */
+svg.dolph{overflow:visible}
+svg.dolph .dtl{animation:dtl 1.25s ease-in-out infinite}
+@keyframes dtl{0%,100%{transform:rotate(-4deg)}50%{transform:rotate(7deg)}}
+body.mo-av svg.dolph .dtl{animation:none}
+@media (prefers-reduced-motion:reduce){svg.dolph .dtl{animation:none}}
 </style>
 </head>
 <body>
@@ -850,30 +856,31 @@ body.locked>*:not(#app):not(#modal):not(#toasts):not(#sky):not(script){display:n
 <div id="party"></div>
 <div id="modal"></div>
 
-<script src="app.js?v=2026.11.10.14-dev"></script>
-<script src="games.js?v=2026.11.10.14-dev"></script>
-<script src="kina.js?v=2026.11.10.14-dev"></script>
-<script src="ordfajt.js?v=2026.11.10.14-dev"></script>
-<script src="pong.js?v=2026.11.10.14-dev"></script>
-<script src="kit.js?v=2026.11.10.14-dev"></script>
-<script src="strat.js?v=2026.11.10.14-dev"></script>
-<script src="family.js?v=2026.11.10.14-dev"></script>
-<script src="cards.js?v=2026.11.10.14-dev"></script>
-<script src="puzzle.js?v=2026.11.10.14-dev"></script>
-<script src="drone.js?v=2026.11.10.14-dev"></script>
-<script src="replay.js?v=2026.11.10.14-dev"></script>
-<script src="weather.js?v=2026.11.10.14-dev"></script>
-<script src="slalom.js?v=2026.11.10.14-dev"></script>
-<script src="biathlon.js?v=2026.11.10.14-dev"></script>
-<script src="invaders.js?v=2026.11.10.14-dev"></script>
-<script src="race.js?v=2026.11.10.14-dev"></script>
-<script src="chat.js?v=2026.11.10.14-dev"></script>
-<script src="call.js?v=2026.11.10.14-dev"></script>
-<script src="backup.js?v=2026.11.10.14-dev"></script>
-<script src="today.js?v=2026.11.10.14-dev"></script>
-<script src="style.js?v=2026.11.10.14-dev"></script>
-<script src="welcome.js?v=2026.11.10.14-dev"></script>
-<script src="pins.js?v=2026.11.10.14-dev"></script>
-<script src="fr.js?v=2026.11.10.14-dev"></script>
+<script src="dolphin.js?v=2026.11.10.15-dev"></script>
+<script src="app.js?v=2026.11.10.15-dev"></script>
+<script src="games.js?v=2026.11.10.15-dev"></script>
+<script src="kina.js?v=2026.11.10.15-dev"></script>
+<script src="ordfajt.js?v=2026.11.10.15-dev"></script>
+<script src="pong.js?v=2026.11.10.15-dev"></script>
+<script src="kit.js?v=2026.11.10.15-dev"></script>
+<script src="strat.js?v=2026.11.10.15-dev"></script>
+<script src="family.js?v=2026.11.10.15-dev"></script>
+<script src="cards.js?v=2026.11.10.15-dev"></script>
+<script src="puzzle.js?v=2026.11.10.15-dev"></script>
+<script src="drone.js?v=2026.11.10.15-dev"></script>
+<script src="replay.js?v=2026.11.10.15-dev"></script>
+<script src="weather.js?v=2026.11.10.15-dev"></script>
+<script src="slalom.js?v=2026.11.10.15-dev"></script>
+<script src="biathlon.js?v=2026.11.10.15-dev"></script>
+<script src="invaders.js?v=2026.11.10.15-dev"></script>
+<script src="race.js?v=2026.11.10.15-dev"></script>
+<script src="chat.js?v=2026.11.10.15-dev"></script>
+<script src="call.js?v=2026.11.10.15-dev"></script>
+<script src="backup.js?v=2026.11.10.15-dev"></script>
+<script src="today.js?v=2026.11.10.15-dev"></script>
+<script src="style.js?v=2026.11.10.15-dev"></script>
+<script src="welcome.js?v=2026.11.10.15-dev"></script>
+<script src="pins.js?v=2026.11.10.15-dev"></script>
+<script src="fr.js?v=2026.11.10.15-dev"></script>
 </body>
 </html>

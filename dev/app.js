@@ -21,7 +21,7 @@
   if(!same || !/[?&]bot=1/.test(location.search)){ document.documentElement.innerHTML=''; throw new Error('Inramning blockerad'); }
 })();
 /* ================= Version & utvecklingsläge ================= */
-const APP_VERSION='2026.11.10.14-dev';
+const APP_VERSION='2026.11.10.15-dev';
 const DEV = /\/dev(\/|$)/.test(location.pathname);      // testversionen ligger i mappen /dev/
 const BOT = /[?&]bot=1/.test(location.search) && window.parent!==window;   // osynlig ekokompis i en ram
 const LSP = DEV ? (BOT ? 'dev:bot:' : 'dev:') : (BOT ? 'bot:' : '');    // egen sparad data i testversionen
@@ -30,20 +30,7 @@ const LSP = DEV ? (BOT ? 'dev:bot:' : 'dev:') : (BOT ? 'bot:' : '');    // egen 
 let APP_READY=false; document.addEventListener('DOMContentLoaded',()=>{ APP_READY=true; },{once:true});
 if(DEV) document.title='DEV · '+document.title;
 /* ================= Grafik ================= */
-const DOLPHIN = (id='d', c1='#7df9ff', c2='#4f7cff') => `
-<svg viewBox="0 0 200 100" xmlns="http://www.w3.org/2000/svg">
-  <defs><linearGradient id="${id}" x1="0" y1="0" x2="0" y2="1">
-    <stop offset="0" stop-color="${c1}"/><stop offset="1" stop-color="${c2}"/></linearGradient></defs>
-  <g fill="url(#${id})">
-    <path d="M40 60 C70 40 110 30 150 38 C165 41 172 46 178 50 L195 54 C196 57 190 59 178 58 C165 65 140 71 110 71 C85 71 60 67 40 64 Z"/>
-    <path d="M95 38 C100 22 108 14 120 9 C115 19 114 28 121 35 Z"/>
-    <path d="M128 66 C124 78 116 86 104 91 C109 81 111 73 113 68 Z"/>
-    <path d="M44 60 C30 52 18 41 5 36 C13 46 19 55 23 61 C17 67 11 77 7 88 C21 79 33 69 46 64 Z"/>
-  </g>
-  <path d="M120 64 C140 64 160 61 176 57" stroke="rgba(255,255,255,.45)" stroke-width="3" fill="none" stroke-linecap="round"/>
-  <circle cx="160" cy="47" r="3" fill="#0b2050"/>
-  <circle cx="161" cy="46" r="1" fill="#fff"/>
-</svg>`;
+// DOLPHIN() finns i dolphin.js (en gemensam 3D-modell för startsidan, ikonen och akvariet)
 
 function buildSky(){
   const s = document.getElementById('sky');

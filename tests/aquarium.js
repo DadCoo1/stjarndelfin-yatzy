@@ -13,7 +13,11 @@ const devicePixelRatioOr1=t=>t[3];
   const nearBottom=ys.filter(y=>y>sand-0.36*track[0].sz-5).length/ys.length;
   ok(nearBottom<0.15, 'simmar fritt, inte vid botten ('+Math.round(nearBottom*100)+' % av tiden nära botten)');
   ok(Math.max(...xs)-Math.min(...xs)>120, 'simmar runt i akvariet (rör sig '+Math.round(Math.max(...xs)-Math.min(...xs))+' px i sidled)');
-  const jumps=track.slice(1).map((d,i)=>Math.abs(Math.atan2(Math.sin(d.h-track[i].h),Math.cos(d.h-track[i].h)))); ok(Math.max(...jumps)<0.35, 'svänger mjukt (största riktningsändring per 0,1 s: '+Math.max(...jumps).toFixed(2)+' rad)');
+  const dA=(a,b)=>Math.abs(Math.atan2(Math.sin(a-b),Math.cos(a-b)));
+  const jp=track.slice(1).map((d,i)=>dA(d.psi,track[i].psi)), jt=track.slice(1).map((d,i)=>dA(d.th,track[i].th));
+  ok(Math.max(...jp)<0.45, 'vänder mjukt i djupled (största vridning per 0,1 s: '+Math.max(...jp).toFixed(2)+' rad)');
+  ok(Math.max(...jt)<0.12, 'lutar i mjuka bågar (största lutningsändring per 0,1 s: '+Math.max(...jt).toFixed(2)+' rad)');
+  const flips=track.slice(1).filter((d,i)=>Math.sign(Math.cos(d.psi))!==Math.sign(Math.cos(track[i].psi))).length; ok(flips<=6, 'vänder inte fram och tillbaka hela tiden ('+flips+' vändningar på 12 s)');
   // mat på botten: släpp mat längst ner i hörnet
   const before=await p.evaluate(()=>TODAY.AQ._get().food||0);
   await p.mouse.click(60, 600); await sleep(9000);
@@ -24,4 +28,5 @@ const devicePixelRatioOr1=t=>t[3];
   const tf=await p.evaluate(()=>{ const t=document.getElementById('aqC').getContext('2d').getTransform(); return [t.a,t.b,t.c,t.d,t.e,t.f]; });
   ok(tf[0]===devicePixelRatioOr1(tf) && tf[1]===0 && tf[2]===0 && tf[4]===0 && tf[5]===0, 'ritningen läcker inte (canvas-transform '+tf.map(x=>+x.toFixed(2))+')');
   await p.screenshot({path:'/tmp/aq_swim.png'});
+  await p.evaluate(()=>TODAY.AQ._trick()); await sleep(500); ok(!!(await pos()).trick, 'volt när man trycker'); await sleep(2000); ok(!(await pos()).trick, 'volten tar slut');
   console.log('errs',errs); console.log(fails?fails+' FEL':'alla akvarietester ok'); await b.close(); process.exit(fails?1:0); })();
