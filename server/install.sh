@@ -173,11 +173,14 @@ say "Spelservern"
 id spelserver >/dev/null 2>&1 || useradd --system --home /opt/spelserver --shell /usr/sbin/nologin spelserver
 mkdir -p /opt/spelserver
 mkdir -p /opt/spelserver/admin
-for f in app.js package.json spel-user admin/index.html admin/admin.js admin/qr.js; do curl -fsSL "$REPO_RAW/$f" -o "/opt/spelserver/$f"; done
+# SRC = lokal ögonblicksbild (används av spel-update), annars hämtas filerna från GitHub
+get(){ if [ -n "${SRC:-}" ]; then cp "$SRC/$1" "$2"; else curl -fsSL "$REPO_RAW/$1" -o "$2"; fi; }
+for f in app.js package.json spel-user spel-update VERSION CHANGELOG.md admin/index.html admin/admin.js admin/qr.js; do get "$f" "/opt/spelserver/$f"; done
 (cd /opt/spelserver && npm install --omit=dev --no-audit --no-fund --loglevel=error)
 chown -R root:root /opt/spelserver
 chmod -R a+rX /opt/spelserver
 install -m 755 /opt/spelserver/spel-user /usr/local/sbin/spel-user
+install -m 755 /opt/spelserver/spel-update /usr/local/sbin/spel-update
 chown root:spelserver /etc/spelserver.env; chmod 640 /etc/spelserver.env
 cat > /etc/systemd/system/spelserver.service <<EOF
 [Unit]
@@ -201,6 +204,50 @@ PrivateTmp=true
 WantedBy=multi-user.target
 EOF
 systemctl daemon-reload; systemctl enable --now spelserver; systemctl restart spelserver
+
+say "Uppdateringar via admin-sidan"
+# Timern kollar repot varje timme. Godkänner en admin en ny version skriver appen en begäran
+# (bara ett versionsnummer) som path-enheten reagerar på. Uppdateraren körs som root, appen aldrig.
+cat > /etc/systemd/system/spel-update.service <<'UNIT'
+[Unit]
+Description=Spelserver – installera godkänd uppdatering
+After=network-online.target
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/spel-update apply
+UNIT
+cat > /etc/systemd/system/spel-update-check.service <<'UNIT'
+[Unit]
+Description=Spelserver – kolla efter ny version
+After=network-online.target
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/spel-update check
+UNIT
+cat > /etc/systemd/system/spel-update-check.timer <<'UNIT'
+[Unit]
+Description=Kolla efter ny serverversion varje timme
+[Timer]
+OnBootSec=5min
+OnUnitActiveSec=1h
+RandomizedDelaySec=10min
+[Install]
+WantedBy=timers.target
+UNIT
+cat > /etc/systemd/system/spel-update.path <<'UNIT'
+[Unit]
+Description=Vänta på godkänd uppdatering eller "kolla nu" från admin-sidan
+[Path]
+PathExists=/var/lib/spelserver/update-request.json
+PathExists=/var/lib/spelserver/update-check
+Unit=spel-update.service
+[Install]
+WantedBy=multi-user.target
+UNIT
+systemctl daemon-reload
+systemctl enable --now spel-update-check.timer >/dev/null 2>&1 || true
+# path-enheten startas inte under en uppdatering som själv körs från den (undviker att den triggar sig själv)
+[ -n "${SRC:-}" ] || systemctl enable --now spel-update.path >/dev/null 2>&1 || true
 
 say "Caddy (HTTPS)"
 cat > /etc/caddy/Caddyfile <<EOF
@@ -332,6 +379,8 @@ chmod 640 /etc/turnserver.conf; chown root:turnserver /etc/turnserver.conf
 [ -f /etc/default/coturn ] && sed -i 's/^#\?TURNSERVER_ENABLED=.*/TURNSERVER_ENABLED=1/' /etc/default/coturn
 /usr/local/sbin/spel-certsync || true
 systemctl enable coturn; systemctl restart coturn
+
+[ -n "${SRC:-}" ] || /usr/local/sbin/spel-update check >/dev/null 2>&1 || true
 
 say "Kontroll"
 sleep 2

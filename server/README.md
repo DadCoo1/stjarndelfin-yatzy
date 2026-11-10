@@ -69,3 +69,15 @@ Portar som öppnas: 22, 80, 443 (TCP), 3478 (UDP och TCP), 5349 (TCP) och 49160�
 - **IP-adresser mellan telefoner:** med "Dölj min IP-adress" i appens inställningar går all trafik via servern, så andra aldrig ser ens IP-adress.
 
 **Det som inte går att dölja för servern:** att ett konto är inloggat och online, och att två telefoner kopplar upp mot varandra (kopplingsservern måste veta vart den ska skicka uppkopplingen). Det sparas aldrig och finns bara i minnet medan anslutningen pågår.
+
+
+## Uppdateringar via admin-sidan
+
+Efter den första installationen behöver du inte köra några kommandon för att uppdatera servern.
+
+- `spel-update-check.timer` kollar en gång i timmen om `server/VERSION` i repot är nyare än den installerade versionen och skriver status till `/var/lib/spelserver/update.json`.
+- Admin-sidan (fliken **🔄 Uppdatering**) visar vad som ändras (från `server/CHANGELOG.md`). Trycker en admin **Uppdatera** skriver appen en begäran med *bara versionsnumret*.
+- `spel-update.path` startar då `spel-update apply` som **root**: hämtar exakt en commit från GitHub, kontrollerar att den har den godkända versionen, sparar nuvarande kod och inställningar, kör `install.sh` från de lokala filerna och kontrollerar att spelservern, Caddy, coturn, fail2ban, SSH-inställningarna och HTTPS fungerar. Annars återställs föregående version automatiskt.
+- Spelservern själv kör aldrig installationen och har inga extra rättigheter.
+
+Den som kan skriva i GitHub-repot kan föreslå uppdateringar, men inget installeras utan att en admin har godkänt just den versionen.

@@ -1,0 +1,116 @@
+#!/usr/bin/env bash
+# spel-update – serverns uppdaterare. Körs som root av systemd, aldrig av spelservern själv.
+#   spel-update check   kolla om repot har en nyare serverversion (timer, en gång i timmen)
+#   spel-update apply   installera den version som en admin har godkänt i admin-sidan
+#
+# Säkerhet:
+#   - Bara en version som admin uttryckligen har godkänt installeras, och bara om exakt den versionen finns i repot.
+#   - Allt hämtas som en enda ögonblicksbild (en commit) från GitHub och installeras från lokala filer.
+#   - Före installationen sparas kod och inställningar; om tjänsterna inte fungerar efteråt återställs allt.
+#   - Begäran från admin-sidan läses bara som data (ett versionsnummer) – den körs aldrig.
+set -uo pipefail
+REPO="DadCoo1/stjarndelfin-yatzy"
+STATE=/var/lib/spelserver
+STATUS="$STATE/update.json"
+REQ="$STATE/update-request.json"
+WORK=/var/lib/spel-update
+LOG="$WORK/last.log"
+mkdir -p "$WORK"; chmod 700 "$WORK"
+DOMAIN="$(grep -s '^DOMAIN=' /etc/spelserver.env | cut -d= -f2)"
+installed(){ cat /opt/spelserver/VERSION 2>/dev/null || echo "okänd"; }
+okver(){ [[ "$1" =~ ^[0-9]{4}\.[0-9]{2}\.[0-9]{2}\.[0-9]{1,3}$ ]]; }
+jesc(){ python3 -c 'import json,sys; print(json.dumps(sys.stdin.read()))'; }
+status(){ # state, available, changes-file, message
+  local avail="${2:-}" ch="[]" msg="${4:-}" logtail
+  [ -n "${3:-}" ] && [ -s "$3" ] && ch="$(python3 -c 'import json,sys; print(json.dumps([l.strip()[2:] for l in open(sys.argv[1]) if l.startswith("- ")][:40]))' "$3")"
+  logtail="$(tail -n 25 "$LOG" 2>/dev/null | jesc)"
+  cat > "$STATUS.tmp" <<EOF
+{"state":"$1","installed":"$(installed)","available":"$avail","changes":$ch,"message":$(printf '%s' "$msg" | jesc),"log":$logtail,"at":$(date +%s)000}
+EOF
+  chown spelserver:spelserver "$STATUS.tmp"; chmod 640 "$STATUS.tmp"; mv "$STATUS.tmp" "$STATUS"
+}
+fetch_snapshot(){ # hämtar senaste commit av main till $WORK/snap – skriver sha i $WORK/sha
+  local sha
+  sha="$(curl -fsS -H 'Accept: application/vnd.github.sha' "https://api.github.com/repos/$REPO/commits/main")" || return 1
+  [[ "$sha" =~ ^[0-9a-f]{40}$ ]] || return 1
+  rm -rf "$WORK/snap" "$WORK/snap.tgz"; mkdir -p "$WORK/snap"
+  curl -fsSL "https://codeload.github.com/$REPO/tar.gz/$sha" -o "$WORK/snap.tgz" || return 1
+  tar -xzf "$WORK/snap.tgz" -C "$WORK/snap" --strip-components=1 --wildcards '*/server/*' || return 1
+  echo "$sha" > "$WORK/sha"
+}
+newer(){ [ "$1" != "$2" ] && [ "$(printf '%s\n%s\n' "$1" "$2" | sort -V | tail -1)" = "$1" ]; }
+
+check(){
+  if ! fetch_snapshot; then status "error" "" "" "Kunde inte nå GitHub"; return; fi
+  local v; v="$(tr -d ' \n' < "$WORK/snap/server/VERSION" 2>/dev/null)"
+  okver "$v" || { status "error" "" "" "Ogiltig version i repot"; return; }
+  # ändringar sedan installerad version: raderna under rubriker nyare än den installerade
+  python3 - "$WORK/snap/server/CHANGELOG.md" "$(installed)" > "$WORK/changes" <<'PY'
+import sys,re
+path,inst=sys.argv[1],sys.argv[2]
+def key(v): return [int(x) for x in v.split('.')] if re.match(r'^\d{4}\.\d{2}\.\d{2}\.\d+$',v) else [0]
+take=False
+for line in open(path, encoding='utf-8'):
+    m=re.match(r'^##\s+(\S+)',line)
+    if m: take = key(m.group(1)) > key(inst); continue
+    if take and line.startswith('- '): print(line.rstrip())
+PY
+  if newer "$v" "$(installed)"; then status "available" "$v" "$WORK/changes" "Ny serverversion finns"; else status "current" "$v" "" "Servern är uppdaterad"; fi
+}
+
+snapshot_current(){
+  rm -rf "$WORK/prev"; mkdir -p "$WORK/prev/etc"
+  cp -a /opt/spelserver "$WORK/prev/opt" 2>/dev/null
+  for f in /etc/caddy/Caddyfile /etc/turnserver.conf /etc/fail2ban/jail.d/spelserver.local /etc/fail2ban/filter.d/spelserver.conf /etc/fail2ban/filter.d/spelserver-probe.conf \
+           /etc/ssh/sshd_config.d/10-spelserver.conf /etc/sysctl.d/90-spelserver.conf /etc/systemd/system/spelserver.service; do
+    [ -f "$f" ] && { mkdir -p "$WORK/prev/etc$(dirname "$f")"; cp -a "$f" "$WORK/prev/etc$f"; }
+  done
+  cp -a /etc/ufw/user.rules "$WORK/prev/ufw.rules" 2>/dev/null || true
+}
+restore_previous(){
+  [ -d "$WORK/prev/opt" ] && { rm -rf /opt/spelserver; cp -a "$WORK/prev/opt" /opt/spelserver; }
+  (cd "$WORK/prev/etc" && find . -type f | while read -r f; do cp -a "$f" "/${f#./}"; done)
+  [ -f /etc/ssh/sshd_config.d/10-spelserver.conf ] && ! [ -f "$WORK/prev/etc/etc/ssh/sshd_config.d/10-spelserver.conf" ] && rm -f /etc/ssh/sshd_config.d/10-spelserver.conf
+  systemctl daemon-reload
+  sshd -t 2>/dev/null && (systemctl reload ssh 2>/dev/null || systemctl reload sshd 2>/dev/null || true)
+  for s in spelserver caddy coturn fail2ban; do systemctl restart "$s" 2>/dev/null || true; done
+}
+healthy(){
+  local i; for i in $(seq 1 30); do
+    if curl -fsS http://127.0.0.1:9000/health >/dev/null 2>&1 && systemctl is-active -q caddy spelserver coturn fail2ban && sshd -t 2>/dev/null; then
+      [ -z "$DOMAIN" ] || curl -fsS --max-time 8 "https://$DOMAIN/health" >/dev/null 2>&1 || { sleep 2; continue; }
+      return 0; fi
+    sleep 2; done
+  return 1
+}
+
+apply(){
+  rm -f "$STATE/update-check"                      # "kolla nu" från admin-sidan – check körs efteråt
+  [ -f "$REQ" ] || return 0
+  local want; want="$(python3 -c 'import json,sys; d=json.load(open(sys.argv[1])); v=d.get("version",""); print(v if isinstance(v,str) else "")' "$REQ" 2>/dev/null)"
+  rm -f "$REQ"
+  okver "$want" || { status "error" "" "" "Ogiltig begäran"; return; }
+  : > "$LOG"
+  status "applying" "$want" "" "Hämtar version $want…"
+  if ! fetch_snapshot; then status "error" "$want" "" "Kunde inte nå GitHub"; return; fi
+  local got; got="$(tr -d ' \n' < "$WORK/snap/server/VERSION" 2>/dev/null)"
+  if [ "$got" != "$want" ]; then status "error" "$got" "" "Repot har version $got, inte den godkända $want – kolla igen och godkänn på nytt"; return; fi
+  [ -n "$DOMAIN" ] || { status "error" "$want" "" "Hittar inte DOMAIN i /etc/spelserver.env"; return; }
+  snapshot_current
+  status "applying" "$want" "" "Installerar version $want…"
+  if SRC="$WORK/snap/server" bash "$WORK/snap/server/install.sh" "$DOMAIN" >>"$LOG" 2>&1 && echo "$want" > /opt/spelserver/VERSION && healthy; then
+    echo "$want ($(cat "$WORK/sha"))" > "$WORK/installed"
+    status "ok" "$want" "" "Version $want är installerad och allt fungerar"
+  else
+    echo "--- något gick fel, återställer föregående version ---" >>"$LOG"
+    restore_previous >>"$LOG" 2>&1
+    if healthy; then status "rolledback" "$want" "" "Uppdateringen misslyckades – föregående version är återställd och fungerar"
+    else status "failed" "$want" "" "Uppdateringen misslyckades och återställningen kunde inte verifieras – logga in och kolla: sudo journalctl -u spelserver -n 50"; fi
+  fi
+}
+
+case "${1:-}" in
+  check) check ;;
+  apply) apply; check ;;
+  *) echo "användning: spel-update check|apply"; exit 2 ;;
+esac

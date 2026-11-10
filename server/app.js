@@ -479,6 +479,24 @@ app.post('/admin/api/invites/revoke', adm, json, (req, res) => {
   save('invites.json', inv); audit(req.admin, `drog tillbaka inbjudan till ${name}`); res.json({ removed: n });
 });
 app.get('/admin/api/audit', adm, (req, res) => res.json({ audit: STATS.audit.slice(0, 200) }));
+// serveruppdatering: läser status från uppdateraren (root) och lämnar en begäran som den reagerar på – appen installerar aldrig själv
+const UPD_STATUS = path.join(DATA, 'update.json'), UPD_REQ = path.join(DATA, 'update-request.json'), UPD_CHECK = path.join(DATA, 'update-check');
+const myVersion = () => { try { return fs.readFileSync(path.join(__dirname, 'VERSION'), 'utf8').trim(); } catch (e) { return 'okänd'; } };
+app.get('/admin/api/update', adm, (req, res) => {
+  let st = null; try { st = JSON.parse(fs.readFileSync(UPD_STATUS, 'utf8')); } catch (e) {}
+  res.json({ running: myVersion(), status: st, pending: fs.existsSync(UPD_REQ), checking: fs.existsSync(UPD_CHECK), updater: !!st || fs.existsSync('/usr/local/sbin/spel-update') });
+});
+app.post('/admin/api/update', adm, json, (req, res) => {
+  const b = req.body || {};
+  if (b.check) { fs.writeFileSync(UPD_CHECK, String(now())); audit(req.admin, 'kollade efter serveruppdatering'); return res.json({ ok: true }); }
+  const v = String(b.version || '');
+  if (!/^\d{4}\.\d{2}\.\d{2}\.\d{1,3}$/.test(v)) return res.status(400).json({ error: 'fel version' });
+  let st = null; try { st = JSON.parse(fs.readFileSync(UPD_STATUS, 'utf8')); } catch (e) {}
+  if (!st || st.available !== v) return res.status(409).json({ error: 'den versionen är inte den som finns att hämta – kolla igen' });
+  fs.writeFileSync(UPD_REQ, JSON.stringify({ version: v, by: req.admin, at: now() }));
+  audit(req.admin, 'godkände serveruppdatering till ' + v);
+  res.json({ ok: true });
+});
 
 app.get('/health', (req, res) => res.json({ ok: true }));
 
