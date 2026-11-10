@@ -21,10 +21,13 @@
   if(!same || !/[?&]bot=1/.test(location.search)){ document.documentElement.innerHTML=''; throw new Error('Inramning blockerad'); }
 })();
 /* ================= Version & utvecklingsläge ================= */
-const APP_VERSION='2026.11.10.3';
+const APP_VERSION='2026.11.10.4';
 const DEV = /\/dev(\/|$)/.test(location.pathname);      // testversionen ligger i mappen /dev/
 const BOT = /[?&]bot=1/.test(location.search) && window.parent!==window;   // osynlig ekokompis i en ram
 const LSP = DEV ? (BOT ? 'dev:bot:' : 'dev:') : (BOT ? 'bot:' : '');    // egen sparad data i testversionen
+// Ingenting ritas förrän alla filer har laddats (utseende, Idag, spelen). Annars kan ett svar från servern
+// eller en händelse under laddningen rita en halvfärdig startsida som sedan målas över.
+let APP_READY=false; document.addEventListener('DOMContentLoaded',()=>{ APP_READY=true; },{once:true});
 if(DEV) document.title='DEV · '+document.title;
 /* ================= Grafik ================= */
 const DOLPHIN = (id='d', c1='#7df9ff', c2='#4f7cff') => `
@@ -2334,6 +2337,7 @@ function kbHintHTML(){
   return `<div class="kbhint"><span><kbd>Mellanslag</kbd>kasta</span><span><kbd>1</kbd>–<kbd>5</kbd>spara</span><span><kbd>↑</kbd><kbd>↓</kbd>välj rad</span><span><kbd>Enter</kbd>skriv in</span><span><kbd>E</kbd>emoji</span><span><kbd>M</kbd>musik</span></div>`;
 }
 function render(){
+  if(!APP_READY) return;
   rememberWhere();
   const app=document.getElementById('app'), dock=document.getElementById('dockRoot');
   const desk=isDesk(); document.body.classList.toggle('desk', desk);
@@ -2409,7 +2413,7 @@ function lobbyHTML(){
   let h = topbarLobby() + devbar + `<div class="lobby"><div class="lob-hero"><div class="logo brand">${DOLPHIN('lg','#a5f3ff','#7c6cff').replace('<svg','<svg class="big"')}
     <h1>Fröknarna Leins</h1><div class="gb">GAME BOARD</div><div class="leoband"></div></div>
     <div class="tag">Rymden · Havet · Leopard · Spel för stjärnor</div>
-    ${typeof TODAY!=='undefined' ? TODAY.heroHTML() : '<div class="getwell">Krya på dig! 💙🐬</div>'}</div><div class="lob-menu">`;
+    ${typeof TODAY!=='undefined' ? TODAY.heroHTML() : ''}</div><div class="lob-menu">`;
   if(mode==='online' && G){
     const st = G.started===false ? `${G.names.length} spelare · väntar på start` : G.cur===mySeat ? '<b style="color:var(--gold)">Din tur!</b>' : `${esc(pname(G.cur))}s tur`;
     h += `<div class="bgcard"><div style="font-size:26px">${gIcon()}</div><div class="t"><b>${gName()} ${esc(gameId)} pågår</b><span>${st}</span></div><button data-act="backtogame">Tillbaka</button><button class="lv" data-act="leavegame">Lämna</button></div>`;
