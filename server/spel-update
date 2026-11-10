@@ -89,13 +89,13 @@ apply(){
   [ -f "$REQ" ] || return 0
   local want; want="$(python3 -c 'import json,sys; d=json.load(open(sys.argv[1])); v=d.get("version",""); print(v if isinstance(v,str) else "")' "$REQ" 2>/dev/null)"
   rm -f "$REQ"
-  okver "$want" || { status "error" "" "" "Ogiltig begäran"; return; }
+  okver "$want" || { status "error" "" "" "Ogiltig begäran"; return 1; }
   : > "$LOG"
   status "applying" "$want" "" "Hämtar version $want…"
-  if ! fetch_snapshot; then status "error" "$want" "" "Kunde inte nå GitHub"; return; fi
+  if ! fetch_snapshot; then status "error" "$want" "" "Kunde inte nå GitHub"; return 1; fi
   local got; got="$(tr -d ' \n' < "$WORK/snap/server/VERSION" 2>/dev/null)"
-  if [ "$got" != "$want" ]; then status "error" "$got" "" "Repot har version $got, inte den godkända $want – kolla igen och godkänn på nytt"; return; fi
-  [ -n "$DOMAIN" ] || { status "error" "$want" "" "Hittar inte DOMAIN i /etc/spelserver.env"; return; }
+  if [ "$got" != "$want" ]; then status "error" "$got" "" "Repot har version $got, inte den godkända $want – kolla igen och godkänn på nytt"; return 1; fi
+  [ -n "$DOMAIN" ] || { status "error" "$want" "" "Hittar inte DOMAIN i /etc/spelserver.env"; return 1; }
   snapshot_current
   status "applying" "$want" "" "Installerar version $want…"
   if SRC="$WORK/snap/server" bash "$WORK/snap/server/install.sh" "$DOMAIN" >>"$LOG" 2>&1 && echo "$want" > /opt/spelserver/VERSION && healthy; then
@@ -106,11 +106,12 @@ apply(){
     restore_previous >>"$LOG" 2>&1
     if healthy; then status "rolledback" "$want" "" "Uppdateringen misslyckades – föregående version är återställd och fungerar"
     else status "failed" "$want" "" "Uppdateringen misslyckades och återställningen kunde inte verifieras – logga in och kolla: sudo journalctl -u spelserver -n 50"; fi
+    return 1
   fi
 }
 
 case "${1:-}" in
   check) check ;;
-  apply) apply; check ;;
+  apply) apply && check ;;
   *) echo "användning: spel-update check|apply"; exit 2 ;;
 esac

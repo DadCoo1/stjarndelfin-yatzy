@@ -20,7 +20,20 @@ const code=(s,d=0)=>execFileSync('python3',['/tmp/srvtest/totp2.py',s,String(d)]
   await p.click('[data-tab=invites]'); await sleep(600); await p.fill('#in','mormor'); await p.click('#ig'); await sleep(900);
   const link=await p.textContent('#lnk'); ok(/#invite=/.test(link), 'inbjudningslänk skapad: '+link.slice(0,50)+'…');
   await p.screenshot({path:'/tmp/adm_invites.png', fullPage:true});
+  // serveruppdatering: status från uppdateraren, godkänn rätt version, fel version nekas
+  fs.writeFileSync('/tmp/srvtest/data/update.json', JSON.stringify({state:'available', installed:'2026.11.09.9', available:'2026.11.10.1', changes:['Testrad om något nytt'], message:'Ny serverversion finns', log:'', at:Date.now()}));
+  try{ fs.unlinkSync('/tmp/srvtest/data/update-request.json'); }catch(e){}
+  await p.click('[data-tab=update]'); await sleep(700); const up=await p.textContent('#main');
+  ok(/Ny version finns/.test(up) && /Testrad om något nytt/.test(up) && await p.$('#updGo'), 'uppdateringsfliken visar ny version och ändringar');
+  await p.screenshot({path:'/tmp/adm_update.png', fullPage:true});
+  await p.click('#updGo'); await sleep(800);
+  const rq=JSON.parse(fs.readFileSync('/tmp/srvtest/data/update-request.json','utf8')); ok(rq.version==='2026.11.10.1' && rq.by==='pappa', 'godkännande skriver bara versionsnumret');
+  const tokA=await p.evaluate(()=>sessionStorage.getItem('adm'));
+  const bad=await fetch('http://127.0.0.1:9000/admin/api/update',{method:'POST',headers:{'Authorization':'Bearer '+tokA,'Content-Type':'application/json'},body:JSON.stringify({version:'2026.11.10.7'})});
+  ok(bad.status===409, 'en annan version än den som finns kan inte godkännas ('+bad.status+')');
+  const t2=fs.readFileSync('/tmp/srvtest/tok_kompis','utf8').trim();
+  const nope=await fetch('http://127.0.0.1:9000/admin/api/update',{headers:{Authorization:'Bearer '+t2}}); ok(nope.status===401||nope.status===403, 'vanlig användare når inte uppdateringen');
   await p.click('[data-tab=audit]'); await sleep(600); const au=await p.textContent('#main');
-  ok(/bjöd in mormor/.test(au) && /stängde av kompis/.test(au) && /misslyckad admininloggning/.test(au), 'händelseloggen visar vad som hänt');
+  ok(/godkände serveruppdatering/.test(au) && /bjöd in mormor/.test(au) && /stängde av kompis/.test(au) && /misslyckad admininloggning/.test(au), 'händelseloggen visar vad som hänt');
   await p.screenshot({path:'/tmp/adm_audit.png'});
   console.log('errs',errs); console.log(fails?fails+' FEL':'alla admintester ok'); await b.close(); process.exit(fails?1:0); })();
