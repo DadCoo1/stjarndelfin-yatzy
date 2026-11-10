@@ -31,38 +31,48 @@ const MOUNTAIN = (() => {
   const hash = (i, j) => { let h = (i * 374761393 + j * 668265263) | 0; h = (h ^ (h >>> 13)) * 1274126177 | 0; return ((h ^ (h >>> 16)) >>> 0) / 4294967296; };
   function noise(x, z) { const i = Math.floor(x), j = Math.floor(z), u = sm(x - i), v = sm(z - j); return lerp(lerp(hash(i, j), hash(i + 1, j), u), lerp(hash(i, j + 1), hash(i + 1, j + 1), u), v) - .5; }
 
+  // kupering: backen går i långa vågor (nedför) och har små rullar och sidolut (på tvären) – samma formler används av spelet på pisten
+  const undul = z => 1.0 * Math.sin(z * .03 + .8) + .4 * Math.sin(z * .075 + 2.1);
+  const roll = (x, z) => 1.0 * Math.sin(z * .052 + x * .031) * Math.sin(x * .07 + 1.3) + .6 * Math.sin(z * .021 - x * .05 + 2);
   /* ---------- fjällen ---------- */
+  /* Källor för backarna (ingen höjddatabas eller satellitbild har kunnat läsas in här – profilerna bygger på publicerade fakta):
+     Åre, Störtloppsbacken: storslalomstart 812 m, slalomstart 586 m, mål 396 m, lutning högst 55 %, lägst 9 %, i snitt 32 % (≈ 1 300 m lång);
+       partierna uppifrån: Stövelbranten, Brinks Brant, Russisprung, Galbacken, Jipen, Målbranten.
+     Björnrike, Storslalombacken: löper längs Björnliften (ankarlift från Björnidet), svart överst och röd längre ned, slutar i dalen vid Idet och sjön;
+       Björnidet är värmestugan med speakertorn; Gråhogna ligger mittemot. Höjder och längder i Björnrike är uppskattade. */
   const DEF = {
     bjornrike: {
-      fjall: 'Blästerfjället', ort: 'Björnrike', omr: 'Vemdalen', top: 946, lake: 555, tree: [800, 860], sun: [-.45, .5, .74], spread: 2300, far: 5200,
-      // profilen längs Storslalombacken: fjälltoppen bakom starten, brant svart parti, röd mellandel med ett krön, flackare ned mot Björnidet och tjärnen
-      base: [[-2600, 700], [-1300, 850], [-450, 946], [-150, 918], [0, 884], [130, 852], [340, 766], [520, 706], [596, 690.5], [606, 689.6], [622, 683.5], [760, 640], [900, 603], [1000, 585], [1150, 568], [1320, 558], [1420, 552], [1560, 552], [1700, 560], [2300, 585], [3200, 640], [4600, 760], [6200, 830], [8000, 790]],
-      peaks: [[1900, -350, 110, 700], [-2500, -900, 190, 900], [-3200, 2600, 150, 1200], [2800, 4200, 170, 1300], [-900, 6200, 120, 1500]],
-      valley: [1300, 1750, 300],
+      fjall: 'Blästerfjället', ort: 'Björnrike', omr: 'Vemdalen', top: 946, lake: 563, tree: [800, 860], sun: [-.45, .5, .74], spread: 2300, far: 5200,
+      base: [[-2600, 690], [-1400, 850], [-700, 946], [-250, 905], [0, 851.4], [60, 842.4], [330, 739.8], [430, 717.8], [600, 670.2], [720, 646.2], [960, 588.6], [1080, 573], [1150, 568.3], [1190, 565], [1230, 560.5], [1420, 560.5], [1470, 566], [1600, 576], [2000, 640], [2600, 800], [3100, 884], [3800, 820], [5200, 700], [7000, 760]],
+      peaks: [[1900, -350, 110, 700], [-2500, -900, 190, 900], [-3200, 2600, 150, 1200], [2600, 4200, 150, 1300], [-900, 6200, 120, 1500]],
+      valley: [1215, 1440, 240],
       xlim: [-3900, 3900], zlim: [-3000, 7800],
       pistes: {
-        storslalom: { name: 'Storslalombacken', nr: 7, zFin: 1000, mid: [[-100, 0], [150, -6], [420, 12], [700, 24], [1000, 8], [1400, 0]], half: [[0, 23], [300, 29], [620, 26], [900, 31], [1100, 36]], lift: -1,
-          race: { gs: 206, sl: 106, gsp: 128, slp: 70 }, fin: 'MÅL · BJÖRNRIKE', banner: ['BJÖRNRIKE', 'VEMDALEN', 'HEJA! 🐬', 'STORSLALOMBACKEN'] }
+        storslalom: { name: 'Storslalombacken', zFin: 1080, mid: [[-100, 0], [330, 12], [600, -14], [940, 6], [1300, 0]], half: [[0, 24], [330, 30], [600, 27], [940, 32], [1080, 40], [1200, 46]],
+          tilt: [[0, .02], [330, -.05], [470, .01], [640, .05], [820, -.03], [1000, 0]], lift: -1, liftKind: 'tbar', idet: 1,
+          race: { gs: 205, sl: 106, gsp: 128, slp: 70 }, fin: 'MÅL · BJÖRNIDET', banner: ['BJÖRNRIKE', 'VEMDALEN', 'HEJA! 🐬', 'STORSLALOM'] }
       },
-      decor: [[[[-430, 310], [-80, 300], [300, 250], [700, 270], [1150, 150]], 20], [[[-200, -380], [200, -330], [600, -420], [1050, -300], [1300, -120]], 22], [[[0, -62], [1050, -52]], 5], [[[-420, 60], [-200, 500], [300, 760], [900, 640], [1250, 300]], 16]],
-      houses: [[-140, 1220, 3], [90, 1250, 2], [240, 1180, 3], [-300, 1150, 2], [380, 1300, 2], [-420, 1330, 3], [520, 1210, 2], [-60, 1330, 4], [640, 1420, 2], [-560, 1500, 2], [300, 1700, 3], [-250, 1820, 2], [820, 1650, 2], [-760, 1280, 2]]
+      decor: [[[[0, 180], [400, 240], [800, 205], [1190, 95]], 20], [[[-250, -46], [1195, -42]], 5], [[[1480, -250], [2200, -380], [3000, -420]], 22], [[[1480, 150], [2300, 260], [3050, 300]], 20], [[[1470, -70], [2950, -90]], 5], [[[1500, 520], [2300, 640], [2900, 700]], 16], [[[-300, -380], [300, -420], [900, -330], [1180, -200]], 18]],
+      houses: [[-190, 1480, 3], [130, 1505, 3], [270, 1560, 2], [-330, 1545, 2], [430, 1620, 3], [-470, 1650, 2], [70, 1640, 2], [630, 1700, 2], [-610, 1760, 2], [310, 1780, 3], [-160, 1820, 2], [810, 1850, 2], [-830, 1600, 2], [530, 1900, 2], [-420, 1180, 2], [470, 1150, 2], [-560, 1090, 2]]
     },
     are: {
       fjall: 'Åreskutan', ort: 'Åre', omr: 'Åre', top: 1420, lake: 372, tree: [800, 900], sun: [.35, .52, .78], spread: 2700, far: 6800,
-      // profilen längs Störtloppet: toppen (1 420), toppstationen (1 274), VM-platån (820), brant, mellanparti, flack över tunneln, målbranten, byn och Åresjön, Renfjället på andra sidan
-      base: [[-6000, 620], [-4300, 880], [-3100, 1210], [-2350, 1420], [-1700, 1274], [-900, 1040], [-220, 852], [0, 820], [150, 799], [450, 679], [700, 624], [1000, 540], [1150, 514], [1162, 512.6], [1180, 506], [1430, 418], [1500, 398], [1560, 392], [1620, 390], [1900, 380], [2010, 364], [3250, 364], [3420, 384], [4600, 520], [6100, 800], [7500, 986], [9200, 780]],
-      peaks: [[1500, -2150, 170, 620], [-2300, -700, 250, 680], [-1500, 520, 215, 460], [1950, -150, 150, 620], [-100, -2350, 50, 240], [3000, 6500, 120, 1500], [-3200, 7200, 100, 1600]],
+      base: [[-6000, 620], [-4300, 880], [-3300, 1210], [-2550, 1420], [-1900, 1274], [-1000, 1040], [-250, 862], [0, 812], [80, 796], [260, 709.6], [360, 694.6], [560, 598], [600, 594.4], [640, 578], [900, 498.8], [1040, 486.2], [1260, 401.5], [1300, 396], [1380, 391], [1650, 380], [1760, 364], [3000, 364], [3170, 384], [4350, 520], [5850, 800], [7250, 986], [9000, 780]],
+      peaks: [[1500, -2350, 170, 620], [-2300, -900, 250, 680], [-1500, 400, 215, 460], [1950, -350, 150, 620], [-100, -2550, 50, 240], [3000, 6300, 120, 1500], [-3200, 7000, 100, 1600]],
       xlim: [-4200, 4200], zlim: [-3900, 8700],
       pistes: {
-        stortloppet: { name: 'Störtloppet', nr: 56, zFin: 1500, mid: [[-100, 0], [300, 14], [700, -18], [1000, -6], [1500, 0], [1900, 0]], half: [[0, 26], [450, 30], [1000, 26], [1300, 32], [1500, 38]], lift: 1,
-          race: { gs: 208, sl: 108, gsp: 130, slp: 72 }, fin: 'MÅL · ÅRE', banner: ['ÅRE', 'STÖRTLOPPET', 'HEJA! 🐬', 'VM-ARENAN'] },
-        gastrappet: { name: 'Gästrappet', nr: 57, zFin: 1500, mid: [[-100, 170], [250, 190], [600, 204], [1000, 178], [1350, 122], [1500, 96], [1900, 90]], half: [[0, 22], [500, 25], [1000, 24], [1350, 28], [1500, 34]], lift: -1,
-          delta: [[-100, 0], [150, -5], [450, 24], [700, 12], [1000, 16], [1200, 3], [1450, 7], [1560, 0]],
+        stortloppet: { name: 'Störtloppet', zFin: 1300, mid: [[-100, 0], [260, 30], [560, -5], [640, -22], [900, -52], [1040, -38], [1300, -20], [1700, -20]], half: [[0, 26], [360, 30], [640, 27], [900, 25], [1040, 30], [1300, 40]],
+          tilt: [[0, 0], [260, .05], [560, -.03], [640, -.06], [900, .06], [1040, .03], [1260, 0]], lift: 1,
+          race: { gs: 208, sl: 108, gsp: 130, slp: 72 }, fin: 'MÅL · ÅRE', banner: ['ÅRE', 'STÖRTLOPPET', 'HEJA! 🐬', 'VM-ARENAN'],
+          parts: [[80, 'Stövelbranten'], [360, 'Brinks Brant'], [585, 'Russisprung'], [650, 'Galbacken'], [905, 'Jipen'], [1045, 'Målbranten']] },
+        gastrappet: { name: 'Gästrappet', zFin: 1300, mid: [[-100, 160], [260, 185], [560, 190], [900, 150], [1150, 100], [1300, 82], [1700, 72]], half: [[0, 22], [500, 25], [900, 24], [1150, 28], [1300, 36]],
+          tilt: [[0, .02], [560, -.04], [900, .03], [1260, 0]], lift: -1,
+          delta: [[-100, 0], [80, 4], [260, 18], [360, 1], [560, 29], [640, 21], [900, 6], [1040, -24], [1260, 2], [1300, 0], [1400, 0]],
           race: { gs: 206, sl: 106, gsp: 128, slp: 70 }, fin: 'MÅL · ÅRE', banner: ['ÅRE', 'GÄSTRAPPET', 'HEJA! 🐬', 'VM-ARENAN'] }
       },
-      decor: [[[[-100, -190], [400, -210], [900, -170], [1450, -110]], 22], [[[-100, 88], [1480, 60]], 5], [[[-900, 900], [-300, 700], [400, 560], [1000, 480], [1500, 330]], 18], [[[-200, -520], [500, -470], [1100, -420], [1550, -330]], 20], [[[-1700, -250], [-900, -80], [-200, 0]], 30], [[[-1650, 500], [-900, 1050], [-200, 900]], 22]],
-      houses: [[-420, 1640, 4], [-250, 1700, 5], [-80, 1660, 3], [120, 1720, 4], [330, 1680, 3], [520, 1750, 4], [-600, 1760, 3], [-760, 1680, 3], [700, 1700, 3], [-120, 1800, 5], [240, 1830, 4], [-380, 1850, 3], [880, 1790, 3], [-950, 1800, 3], [460, 1880, 3], [1100, 1740, 2], [-1200, 1730, 2], [40, 1900, 4], [-560, 1920, 3], [1350, 1800, 2], [-1500, 1850, 2], [640, 1930, 2]],
-      cable: [[-330, 1730], [-250, -1700]], church: [-520, 1790]
+      decor: [[[[-100, -190], [400, -215], [900, -180], [1270, -110]], 22], [[[-100, 96], [1285, 44]], 5], [[[-900, 900], [-300, 700], [400, 560], [900, 470], [1310, 320]], 18], [[[-200, -520], [500, -470], [1000, -420], [1350, -330]], 20], [[[-1900, -250], [-1000, -80], [-250, 0]], 30], [[[-1850, 500], [-1000, 1050], [-250, 900]], 22]],
+      houses: [[-420, 1440, 4], [-250, 1500, 5], [-80, 1460, 3], [120, 1520, 4], [330, 1480, 3], [520, 1550, 4], [-600, 1560, 3], [-760, 1480, 3], [700, 1500, 3], [-120, 1600, 5], [240, 1630, 4], [-380, 1650, 3], [880, 1590, 3], [-950, 1600, 3], [460, 1680, 3], [1100, 1540, 2], [-1200, 1530, 2], [40, 1700, 4], [-560, 1720, 3], [1350, 1600, 2], [-1500, 1650, 2], [640, 1730, 2]],
+      cable: [[-330, 1530], [-250, -1900]], church: [-520, 1590]
     }
   };
   // tävlingsbackar som går att välja i spelet
@@ -76,7 +86,7 @@ const MOUNTAIN = (() => {
   function fjall(id) {
     if (cache[id]) return cache[id];
     const D = DEF[id], base = curve(D.base), ps = {};
-    for (const k in D.pistes) { const p = D.pistes[k]; ps[k] = { ...p, midF: curve(p.mid), halfF: curve(p.half), deltaF: p.delta ? curve(p.delta) : null }; }
+    for (const k in D.pistes) { const p = D.pistes[k]; ps[k] = { ...p, midF: curve(p.mid), halfF: curve(p.half), deltaF: p.delta ? curve(p.delta) : null, tiltF: p.tilt ? curve(p.tilt) : () => 0 }; }
     const decor = D.decor.map(([pts, w]) => ({ f: curve(pts.map(p => [p[0], p[1]])), z0: pts[0][0], z1: pts[pts.length - 1][0], w }));
     // höjd över havet i punkten (x, z)
     function raw(x, z) {
@@ -86,7 +96,7 @@ const MOUNTAIN = (() => {
       if (D.valley && z > D.valley[0] - 300 && z < D.valley[1] + 300) h += Math.pow((x - 60) / D.valley[2], 2) * 4 * sm((z - D.valley[0] + 300) / 300) * sm((D.valley[1] + 300 - z) / 300);
       // varje tävlingsbacke har sin egen profil nära sin mittlinje, och terrängen är slät där
       let near = 1e9;
-      for (const k in ps) { const p = ps[k], dxp = Math.abs(x - p.midF(z)); if (dxp < near) near = dxp; if (p.deltaF && dxp < 150) h += p.deltaF(z) * sm(1 - dxp / 150); }
+      for (const k in ps) { const p = ps[k], dxp = Math.abs(x - p.midF(z)); if (dxp < near) near = dxp; if (dxp < 150 && z > -80 && z < p.zFin + 60) h += ((p.deltaF ? p.deltaF(z) : 0) + undul(z) * sm((p.zFin - 40 - z) / 120)) * sm(1 - dxp / 150); }
       const k = sm((near - 40) / 160);
       if (k > 0) h += (noise(x / 420, z / 420) * 26 + noise(x / 95 + 7, z / 95 + 3) * 6) * k;
       return h;
@@ -110,7 +120,7 @@ const MOUNTAIN = (() => {
   function get(vid) {
     const V = VENUES[vid] || VENUES.bj, F = fjall(V.fjall), p = F.ps[V.pist];
     const elev = z => F.H(p.midF(z), z);
-    return { vid: VENUES[vid] ? vid : 'bj', V, F, D: F.D, p, H: F.H, forest: F.forest, isLake: F.isLake, mid: p.midF, half: p.halfF, elev, zFin: p.zFin,
+    return { vid: VENUES[vid] ? vid : 'bj', V, F, D: F.D, p, H: F.H, tilt: p.tiltF, roll, forest: F.forest, isLake: F.isLake, mid: p.midF, half: p.halfF, elev, zFin: p.zFin,
       // var starten ligger för en given fallhöjd ned till mållinjen
       zOfDrop(drop) { const e = elev(p.zFin) + drop; let z = p.zFin; while (z > -60 && elev(z) < e) z -= 1; return z; } };
   }
@@ -192,7 +202,7 @@ const MOUNTAIN = (() => {
   function preview(cv, vid, t) {
     const m = get(vid), F = m.F, D = F.D, W = cv.width, Hh = cv.height, g = cv.getContext('2d');
     const sky = g.createLinearGradient(0, 0, 0, Hh); sky.addColorStop(0, '#4f86d4'); sky.addColorStop(.6, '#b9d2f0'); sky.addColorStop(1, '#fde7d3'); g.fillStyle = sky; g.fillRect(0, 0, W, Hh);
-    const a = Math.sin(t * .22) * .7, R = F.id === 'are' ? 8200 : 5600, cz = F.id === 'are' ? -200 : 300, ty = lerp(D.lake, D.top, .3);
+    const a = Math.sin(t * .22) * .7, R = F.id === 'are' ? 8200 : 5600, cz = F.id === 'are' ? -300 : 500, ty = lerp(D.lake, D.top, .3);
     const proj = camera(Math.sin(a) * R, ty + R * .3, cz + Math.cos(a) * R, 0, ty, cz, W * 1.7, W, Hh);
     draw(g, F, proj, W, Hh, 0, false);
     // tävlingsbacken
