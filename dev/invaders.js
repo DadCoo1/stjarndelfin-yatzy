@@ -1,5 +1,5 @@
 /* =====================================================================
-   invaders.js – Space Invaders, ensamspel med oändligt många nivåer
+   invaders.js – Space Attack, ensamspel med oändligt många nivåer
    (svårighetsgrad ökar mjukt upp till nivå 100 och fortsätter sedan)
    ===================================================================== */
 'use strict';
@@ -9,15 +9,16 @@ const INV = (()=>{
   const save=()=>{ try{ return JSON.parse(lsGet('ry_inv'))||{best:0,maxLevel:1,kills:0,games:0} }catch(e){ return {best:0,maxLevel:1,kills:0,games:0} } };
   const store=o=>lsSet('ry_inv',JSON.stringify(o));
   /* ---------- pixelsprites (11×8, två bildrutor) ---------- */
+  // Egna figurer för Space Attack: snäckan, sjöstjärnan, ögonmaneten, raketen och ringskeppet
   const SPR={
-    a:[['00100000100','00010001000','00111111100','01101110110','11111111111','10111111101','10100000101','00011011000'],
-       ['00100000100','10010001001','10111111101','11101110111','11111111111','01111111110','00100000100','01000000010']],
-    b:[['00001110000','01111111110','11111111111','11100100111','11111111111','00111011100','01100000110','00110001100'],
-       ['00001110000','01111111110','11111111111','11100100111','11111111111','00011011000','00110101100','11000000011']],
-    c:[['00011111000','00111111100','01101110110','01111111110','00111111100','00010101000','00101010100','01010001010'],
-       ['00011111000','00111111100','01101110110','01111111110','00111111100','00100100100','01000000010','00100000100']],
-    p:[['00000100000','00001110000','00001110000','01111111110','11111111111','11111111111','11011111011','10000000001']],
-    u:[['00001111110000','00111111111100','01111111111110','11011011011011','11111111111111','00111001110000','00010000001000']]
+    a:[['00000111000','00011111100','00111001110','01110110111','01101111011','01111111111','00111111110','01100000011'],
+       ['00000111000','00011111100','00111001110','01110110111','01101111011','01111111111','00111111110','00110001100']],
+    b:[['00000100000','00001110000','11111111111','01111011110','00111111100','00110001100','01100000110','11000000011'],
+       ['00000100000','10001110001','01111111110','00111011100','00111111100','00110001100','00110001100','00100000100']],
+    c:[['00011111000','00111111100','01110001110','01100100110','01110001110','00111111100','00101010100','01010101010'],
+       ['00011111000','00111111100','01110001110','01100100110','01110001110','00111111100','01010101010','00101010100']],
+    p:[['00000100000','00001110000','00011011000','00011111000','00111111100','01111111110','11011111011','10001010001']],
+    u:[['00000111100000','00011111111000','01111111111110','11101101101111','01111111111110','00011000011000','00110000001100']]
   };
   const CACHE={};
   function sprite(key,frame,color){
@@ -70,7 +71,7 @@ const INV = (()=>{
     st.shields=[]; const ns=L.shields; for(let k=0;k<ns;k++){ const cx=(W/(ns+1))*(k+1); for(let y=0;y<4;y++) for(let x=0;x<8;x++){ if((y===3&&(x===2||x===3||x===4||x===5))||(y===0&&(x===0||x===7))) continue; st.shields.push({x:cx-24+x*6, y:H-120+y*6, hp:3}); } }
   }
   function newGame(lv){
-    const sv=save(); sv.games++; store(sv); if(typeof srvStat==='function') srvStat('game',{game:'inv', title:'Space Invaders', mode:'solo'});
+    const sv=save(); sv.games++; store(sv); if(typeof srvStat==='function') srvStat('game',{game:'inv', title:'Space Attack', mode:'solo'});
     st={score:0, lives:3, p:{x:W/2, y:H-46, cd:0, inv:2}, pow:{double:0,rapid:0,shield:0}, parts:[], stars:makeStars(), kills:0, startLevel:lv, live:true};
     newLevel(lv); overlay=null; paused=false; showOverlay(); hud(); start();
   }
@@ -279,7 +280,7 @@ const INV = (()=>{
   return { html, mount, stop, open(){ closeModal(); view='inv'; render(); }, stats(){ return save(); } };
 })();
 function openInv(){ INV.open(); }
-function invStatsHTML(){ const s=INV.stats(); if(!s.games) return ''; return `<section><h2 class="sec">👾 Space Invaders</h2><div class="kpis" style="grid-template-columns:repeat(3,1fr)"><div class="kpi"><b>${s.best}</b><span>rekord</span></div><div class="kpi"><b>${s.maxLevel}</b><span>högsta nivå</span></div><div class="kpi"><b>${s.kills}</b><span>besegrade</span></div></div></section>`; }
+function invStatsHTML(){ const s=INV.stats(); if(!s.games) return ''; return `<section><h2 class="sec">🚀 Space Attack</h2><div class="kpis" style="grid-template-columns:repeat(3,1fr)"><div class="kpi"><b>${s.best}</b><span>rekord</span></div><div class="kpi"><b>${s.maxLevel}</b><span>högsta nivå</span></div><div class="kpi"><b>${s.kills}</b><span>besegrade</span></div></div></section>`; }
 (function(){ const st=document.createElement('style'); st.textContent=`
 .inv{display:flex;flex-direction:column;align-items:center}
 .inv-top{display:flex;align-items:center;gap:8px;width:100%;max-width:640px;margin-bottom:8px}

@@ -15,5 +15,8 @@ const {chromium}=require('playwright'); const sleep=ms=>new Promise(r=>setTimeou
   await p.click('[data-act=styset][data-k=motion][data-v=av]'); await sleep(200); ok(await p.evaluate(()=>document.body.classList.contains('mo-av')), 'rörelse av');
   await p.click('[data-act=styset][data-k=size][data-v=xstor]'); await sleep(200); ok(await p.evaluate(()=>document.body.style.zoom==='1.22'), 'extra stor text');
   await p.click('[data-act=styset][data-k=icons][data-v=emoji]'); await sleep(200); ok(await p.evaluate(()=>!document.querySelector('.tile[data-g] .ti-svg')), 'emojiikoner när man vill det');
-  await p.reload(); await sleep(2000); ok(await p.evaluate(()=>document.body.classList.contains('w-hav') && STYLE.get().acc==='guld'), 'valen sparas');
+  await p.click('[data-act=styset][data-k=dice][data-v=neon]'); await sleep(200); ok(await p.evaluate(()=>document.body.classList.contains('dice-neon')), 'egna tärningar (neon)');
+  await p.click('[data-act=stydeck][data-v=leopard]'); await sleep(200); ok(await p.evaluate(()=>/svg/.test(getComputedStyle(document.documentElement).getPropertyValue('--cardback')) && lsGet('ry_soltheme')==='leopard'), 'samma kortlek i alla kortspel (leopard)');
+  await p.reload(); await sleep(2000); ok(await p.evaluate(()=>document.body.classList.contains('w-hav') && STYLE.get().acc==='guld' && document.body.classList.contains('dice-neon')), 'valen sparas');
+  ok(await p.evaluate(()=>!/Invaders/.test(document.body.innerText) && /Space Attack/.test(document.body.innerText)), 'arkadspelet heter Space Attack');
   console.log('errs',errs); console.log(fails?fails+' FEL':'alla utseendetester ok'); await b.close(); process.exit(fails?1:0); })();

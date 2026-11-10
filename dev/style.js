@@ -16,7 +16,8 @@ const STYLE = (() => {
     ren:      { name: 'Ren & enkel', ic: '◻️', bg: ['#0b0f1a', '#111827', '#111827'], glow: ['rgba(148,163,184,.12)', 'rgba(148,163,184,.08)'], acc: '#93c5fd', acc2: '#c4b5fd', txt: '#f1f5f9', dim: '#94a3b8', glass: 'rgba(148,163,184,.10)', line: 'rgba(148,163,184,.22)', planet: 0, stars: 0, sea: 0, plain: 1 }
   };
   const ACCENTS = { auto: null, rosa: ['#f9a8d4', '#f472b6'], lila: ['#c4b5fd', '#a855f7'], turkos: ['#5eead4', '#22d3ee'], guld: ['#fde68a', '#f59e0b'], korall: ['#fda4af', '#fb7185'], mint: ['#bbf7d0', '#34d399'] };
-  const DEF = { world: 'rymd', acc: 'auto', size: 'normal', motion: 'auto', decor: 'lite', icons: 'ritade' };
+  const DEF = { world: 'rymd', acc: 'auto', size: 'normal', motion: 'auto', decor: 'lite', icons: 'ritade', dice: 'klassisk' };
+  const DICE = { klassisk: 'Klassisk', parlemor: 'Pärlemor', hav: 'Havsglas', leopard: 'Leopard', neon: 'Neon', natt: 'Midnatt' };
   const get = () => Object.assign({}, DEF, J('style', {}));
   const set = (k, v) => { const s = get(); s[k] = v; lsSet('style', JSON.stringify(s)); apply(); };
 
@@ -35,6 +36,8 @@ const STYLE = (() => {
     b.classList.toggle('mo-lugn', mo === 'lugn'); b.classList.toggle('mo-av', mo === 'av');
     b.classList.toggle('dec-ingen', s.decor === 'ingen' || !!w.plain); b.classList.toggle('dec-lite', s.decor === 'lite');
     b.classList.toggle('ic-emoji', s.icons === 'emoji');
+    Object.keys(DICE).forEach(k => b.classList.toggle('dice-' + k, s.dice === k));
+    try { if (typeof backSVG === 'function') r.setProperty('--cardback', backSVG(typeof solTheme !== 'undefined' ? solTheme : 'ocean')); } catch (e) {}
     const z = s.size === 'stor' ? 1.1 : s.size === 'xstor' ? 1.22 : 1; b.style.zoom = z === 1 ? '' : z;
     const mc = document.querySelector('meta[name=theme-color]'); if (mc) mc.setAttribute('content', w.bg[0]);
     const k = s.world + s.decor + mo; if (k !== skyKey) { skyKey = k; sky(w, s, mo); }
@@ -117,6 +120,16 @@ const STYLE = (() => {
     return out.replace(/^<button /, `<button data-g="${k}" `);
   }
 
+  /* ---------- inne i ett spel: spelets färg och mönster följer med ---------- */
+  const GRAD = { yatzy: 'linear-gradient(135deg,#22d3ee,#6366f1 60%,#a855f7)', sol: 'linear-gradient(135deg,#e3b064,#9a6a2f)', race: 'linear-gradient(135deg,#f97316,#e11d48 45%,#4c1d95)', inv: 'linear-gradient(135deg,#16a34a,#0f172a 75%)' };
+  const gradOf = k => GRAD[k] || (typeof GINFO !== 'undefined' && GINFO[k] && GINFO[k].grad) || 'linear-gradient(135deg,var(--acc),var(--acc2))';
+  let ctxK = null;
+  function gameCtx(k) {
+    if (k === ctxK) return; ctxK = k; const b = document.body;
+    if (!k) { delete b.dataset.game; b.style.removeProperty('--gacc'); b.style.removeProperty('--gmotif'); return; }
+    b.dataset.game = k; b.style.setProperty('--gacc', gradOf(k)); b.style.setProperty('--gmotif', motif(k));
+  }
+
   /* ---------- inställningsfönstret med förhandsvisning ---------- */
   function show() {
     const s = get(), seg = (k, opts) => `<div class="seg">${opts.map(([v, l]) => `<button data-act="styset" data-k="${k}" data-v="${v}" class="${s[k] === v ? 'sel' : ''}">${l}</button>`).join('')}</div>`;
@@ -131,14 +144,17 @@ const STYLE = (() => {
       <div class="setrow"><div class="lbl">Rörelse</div>${seg('motion', [['auto', 'Auto'], ['full', 'Full'], ['lugn', 'Lugn'], ['av', 'Av']])}</div>
       <div class="setrow"><div class="lbl">Textstorlek</div>${seg('size', [['normal', 'Normal'], ['stor', 'Stor'], ['xstor', 'Extra stor']])}</div>
       <div class="setrow"><div class="lbl">Spelikoner</div>${seg('icons', [['ritade', 'Ritade'], ['emoji', 'Emoji']])}</div>
+      <div class="setrow"><div class="lbl">🎲 Dina tärningar</div><div class="sty-dice">${Object.entries(DICE).map(([k, l]) => `<button class="dice-${k} ${s.dice === k ? 'on' : ''}" data-act="styset" data-k="dice" data-v="${k}"><span class="die idle"><span class="face">${[0, 2, 4, 6, 8].map(i => '<i class="on" style="grid-area:' + (1 + Math.floor(i / 3)) + '/' + (1 + i % 3) + '"></i>').join('')}</span></span><small>${l}</small></button>`).join('')}</div><div class="setnote">Yatzy och Fia.</div></div>
+      ${typeof SOL_THEMES !== 'undefined' && typeof backSVG === 'function' ? `<div class="setrow"><div class="lbl">🃏 Din kortlek</div><div class="sty-deck">${Object.entries(SOL_THEMES).map(([k, t]) => `<button class="${(typeof solTheme !== 'undefined' && solTheme === k) ? 'on' : ''}" data-act="stydeck" data-v="${k}"><span class="mini-back" style="background-image:${backSVG(k)}"></span><small>${t.label}</small></button>`).join('')}</div><div class="setnote">Baksidan i alla kortspel – Patiens, Vändtia, Finns i sjön och Hjärter.</div></div>` : ''}
       <div class="btns"><button class="ghost" data-act="styrnd">🎲 Överraska mig</button><button class="ghost" data-act="settings">Tillbaka</button><button data-act="close">Klar</button></div>`);
   }
   function act(a, b) {
     if (a === 'styopen') { show(); return true; }
     if (a === 'styset') { set(b.dataset.k, b.dataset.v); if (typeof render === 'function') render(); show(); buzz(6); return true; }
+    if (a === 'stydeck') { try { solTheme = b.dataset.v; lsSet('ry_soltheme', solTheme); if (typeof solRetheme === 'function' && typeof S !== 'undefined' && S) solRetheme(); } catch (e) {} apply(); show(); buzz(6); return true; }
     if (a === 'styrnd') { const ws = Object.keys(WORLDS), as = Object.keys(ACCENTS); const s = get(); s.world = ws[Math.floor(Math.random() * ws.length)]; s.acc = as[Math.floor(Math.random() * as.length)]; lsSet('style', JSON.stringify(s)); apply(); if (typeof render === 'function') render(); show(); return true; }
     return false;
   }
   apply(); setTimeout(() => { try { if (typeof render === 'function') render(); } catch (e) {} }, 0);
-  return { apply, get, set, show, act, icon, motif, decorateTile, ICONS, WORLDS };
+  return { apply, get, set, show, act, icon, motif, decorateTile, gameCtx, gradOf, ICONS, WORLDS };
 })();
