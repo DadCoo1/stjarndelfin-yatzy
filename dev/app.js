@@ -21,7 +21,7 @@
   if(!same || !/[?&]bot=1/.test(location.search)){ document.documentElement.innerHTML=''; throw new Error('Inramning blockerad'); }
 })();
 /* ================= Version & utvecklingsläge ================= */
-const APP_VERSION='2026.11.10.4-dev';
+const APP_VERSION='2026.11.10.6-dev';
 const DEV = /\/dev(\/|$)/.test(location.pathname);      // testversionen ligger i mappen /dev/
 const BOT = /[?&]bot=1/.test(location.search) && window.parent!==window;   // osynlig ekokompis i en ram
 const LSP = DEV ? (BOT ? 'dev:bot:' : 'dev:') : (BOT ? 'bot:' : '');    // egen sparad data i testversionen
@@ -2339,6 +2339,7 @@ function render(){
   const desk=isDesk(); document.body.classList.toggle('desk', desk);
   view==='lobby' ? startBubbles() : stopBubbles();
   document.body.classList.toggle('ingame', view!=='lobby');
+  if(typeof STYLE!=='undefined') STYLE.gameCtx(view==='game' ? (isKind()?G.kind:'yatzy') : ['sol','race','inv'].includes(view) ? view : null);
   if(view==='lobby'){ app.innerHTML=lobbyHTML(); dock.innerHTML=''; fitDock(); return; }
   if(view==='stats'){ app.innerHTML=statsHTML(); dock.innerHTML=''; fitDock(); return; }
   if(view==='fr'){ dock.innerHTML=''; app.innerHTML=(typeof FR!=='undefined')?FR.html():''; app.style.paddingBottom='40px'; return; }
@@ -2395,7 +2396,7 @@ function lobbyTilesHTML(svSol, invS){
     if(k==='yatzy') return `<button class="tile" style="--tg:linear-gradient(135deg,#22d3ee,#6366f1 60%,#a855f7)" data-act="yatzymenu"><span class="ti">🎲</span><b>Yatzy</b><small>1–4 spelare · online, datorn eller samma mobil</small></button>`;
     if(k==='sol') return `<button class="tile leo" data-act="opensol"><span class="ti">🃏</span><b>Patiens</b><small>Ensam · offline</small>${svSol && !svSol.won && svSol.started?'<span class="badge">↩︎ fortsätt</span>':''}</button>`;
     if(k==='race'){ const rs=(typeof RACE!=='undefined')?RACE.stats():{best:0}; return `<button class="tile" style="--tg:linear-gradient(135deg,#f97316,#e11d48 45%,#4c1d95)" data-act="openrace"><span class="ti">🏎️</span><b>Sommarvägen</b><small>Ensam · roadtrip genom Sverige</small>${rs.best?`<span class="badge">🏆 ${rs.best.toLocaleString('sv-SE')}</span>`:''}</button>`; }
-    if(k==='inv') return `<button class="tile" style="--tg:linear-gradient(135deg,#16a34a,#0f172a 75%)" data-act="openinv"><span class="ti">👾</span><b>Space Invaders</b><small>Ensam · 100+ nivåer</small>${invS.best?`<span class="badge">🏆 ${invS.best}</span>`:''}</button>`;
+    if(k==='inv') return `<button class="tile" style="--tg:linear-gradient(135deg,#16a34a,#0f172a 75%)" data-act="openinv"><span class="ti">🚀</span><b>Space Attack</b><small>Ensam · 100+ nivåer</small>${invS.best?`<span class="badge">🏆 ${invS.best}</span>`:''}</button>`;
     const gi=typeof GINFO!=='undefined' && GINFO[k]; if(!gi) return '';
     const badge = gi.badge ? gi.badge() : '';
     return `<button class="tile" style="--tg:${gi.grad}" data-act="gmenu" data-k="${k}"><span class="ti">${gi.icon}</span><b>${gi.name}</b><small>${esc(gi.desc||TILE_DESC[k]||'')}</small>${badge}</button>`;

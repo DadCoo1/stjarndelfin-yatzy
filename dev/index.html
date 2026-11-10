@@ -719,6 +719,40 @@ body.dec-lite #bubbles{opacity:.55}
 body.mo-lugn *, body.mo-lugn *::before, body.mo-lugn *::after{animation-duration:calc(1s * 3)!important;transition-duration:.35s!important}
 body.mo-av *, body.mo-av *::before, body.mo-av *::after{animation:none!important;transition:none!important}
 body.mo-av #bubbles{display:none}
+
+/* ---------- spelplanerna: gemensam ram, spelets egen färg och personliga tärningar/kortlek ---------- */
+body.ingame[data-game]::before{content:'';position:fixed;top:0;right:0;bottom:0;left:0;background-image:var(--gmotif);background-size:72px;opacity:.035;pointer-events:none;z-index:0}
+body.dec-ingen.ingame[data-game]::before{display:none}
+body[data-game] .gp.on{background:linear-gradient(rgba(16,24,56,.72),rgba(16,24,56,.72)) padding-box,var(--gacc) border-box;border:2px solid transparent;box-shadow:0 6px 22px rgba(0,0,0,.3)}
+body.w-light[data-game] .gp.on{background:linear-gradient(rgba(255,255,255,.85),rgba(255,255,255,.85)) padding-box,var(--gacc) border-box}
+body[data-game] .gp.win{box-shadow:0 0 0 2px #ffd36e,0 0 24px rgba(255,211,110,.45)}
+body[data-game] .gover{position:relative;padding:22px 16px 16px;background:linear-gradient(rgba(12,18,44,.82),rgba(12,18,44,.82)) padding-box,var(--gacc) border-box;border:2px solid transparent;box-shadow:0 14px 40px rgba(0,0,0,.4)}
+body.w-light[data-game] .gover{background:linear-gradient(rgba(255,255,255,.9),rgba(255,255,255,.9)) padding-box,var(--gacc) border-box}
+body.w-light[data-game] .gover p{color:var(--dim)}
+.gover .gbadge{position:absolute;top:-22px;left:50%;transform:translateX(-50%);width:46px;height:46px;border-radius:14px;background:var(--gacc);display:grid;place-items:center;box-shadow:0 6px 16px rgba(0,0,0,.35),inset 0 0 0 2px rgba(255,255,255,.45)}
+.gover .gbadge .ti-svg{width:36px;height:36px;margin:0;filter:none}.gover .gbadge .ti{font-size:24px;margin:0}
+.gover.won .gi{animation:gpop .6s cubic-bezier(.2,1.6,.4,1)}
+@keyframes gpop{0%{transform:scale(.3);opacity:0}100%{transform:scale(1);opacity:1}}
+.gover .gbtns{display:flex;gap:8px;justify-content:center;margin-top:12px}
+/* tärningar */
+body.dice-parlemor .die:not(.held){background:radial-gradient(circle at 28% 22%,#fff 0,#fdf2f8 30%,#ede9fe 62%,#c7d2fe 100%);box-shadow:0 6px 0 #8b7fc9,0 10px 18px rgba(0,0,0,.4),inset 0 2px 0 #fff}
+body.dice-parlemor .die .face i.on{background:radial-gradient(circle at 35% 35%,#c084fc,#5b21b6 70%)}
+body.dice-hav .die:not(.held){background:linear-gradient(160deg,#ecfeff 0%,#99f6e4 45%,#14b8a6 100%);box-shadow:0 6px 0 #0f766e,0 10px 18px rgba(0,0,0,.4),inset 0 2px 0 rgba(255,255,255,.9)}
+body.dice-hav .die .face i.on{background:radial-gradient(circle at 35% 35%,#0e7490,#083344 70%)}
+body.dice-leopard .die:not(.held){border:4px solid transparent;background:linear-gradient(160deg,#fffaf0,#fde7c2) padding-box,var(--leo) border-box;background-size:auto,44px;box-shadow:0 6px 0 #7a4a1c,0 10px 18px rgba(0,0,0,.45)}
+body.dice-leopard .die .face i.on{background:radial-gradient(circle at 35% 35%,#7c4a1e,#2a170a 70%)}
+body.dice-neon .die:not(.held){background:linear-gradient(160deg,#111a3a,#0b1020);box-shadow:0 6px 0 #312e81,0 0 0 2px #22d3ee,0 0 22px rgba(34,211,238,.45)}
+body.dice-neon .die .face i.on{background:radial-gradient(circle at 40% 40%,#fff,#f472b6 55%);box-shadow:0 0 10px #f472b6}
+body.dice-natt .die:not(.held){background:linear-gradient(160deg,#334155,#0f172a);box-shadow:0 6px 0 #020617,0 10px 18px rgba(0,0,0,.5),inset 0 2px 0 rgba(255,255,255,.25)}
+body.dice-natt .die .face i.on{background:radial-gradient(circle at 35% 35%,#fef9c3,#facc15 70%);box-shadow:0 0 8px rgba(250,204,21,.6)}
+.sty-dice,.sty-deck{display:flex;gap:10px;flex-wrap:wrap;margin-top:8px}
+.sty-dice button,.sty-deck button{display:flex;flex-direction:column;align-items:center;gap:6px;padding:8px;border-radius:14px;background:rgba(255,255,255,.05)}
+.sty-dice button.on,.sty-deck button.on{box-shadow:0 0 0 2px var(--acc)}
+.sty-dice .die{width:42px;border-radius:11px;pointer-events:none}
+.sty-dice small,.sty-deck small{font-size:11px;opacity:.85}
+/* samma kortlek i alla kortspel */
+.pc.back{background-image:var(--cardback,repeating-linear-gradient(45deg,#4f46e5 0 6px,#6366f1 6px 12px))!important;background-size:100% 100%!important}
+.pc.back::after{display:none}
 </style>
 </head>
 <body>
