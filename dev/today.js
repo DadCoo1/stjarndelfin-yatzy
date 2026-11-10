@@ -84,7 +84,7 @@ const TODAY = (() => {
     const d = DAILY.status(), aq = AQ.status(), snd = SND.playing();
     const calm = [
       c('aqopen', '🐬', esc(aq.name), aq.line, 'calm'),
-      c('sndopen', snd ? SND.icon(snd) : '🌧️', snd ? SND.label(snd) + ' spelar' : 'Ljudlandskap', snd ? 'Tryck för att ändra' : 'Regn, hav, eld, bubblor', 'calm' + (snd ? ' live' : ''))
+      c('sndopen', snd ? SND.icon(snd) : '🌧️', snd ? SND.label(snd) + ' spelar' : 'Ljudlandskap', snd ? 'Tryck för att ändra' : 'Regn, åska, vågor, vind, brasa…', 'calm' + (snd ? ' live' : ''))
     ];
     const social = [];
     if (sg) social.push(c('sgopen', '🎲', `${sg} pågående`, 'Fortsätt där du var', 'hot'));
@@ -165,41 +165,180 @@ const TODAY = (() => {
 
   /* ---------- ljudlandskap (skapas i telefonen, inga ljudfiler) ---------- */
   const SND = (() => {
-    const KINDS = { rain: ['🌧️', 'Regn'], sea: ['🌊', 'Hav'], fire: ['🔥', 'Brasa'], bub: ['🫧', 'Bubblor'] };
-    let ac = null, out = null, now = null, nodes = [], tick = 0, stopAt = 0, vol = +(lsGet('snd_vol') || .6), ducked = false;
-    const ctx = () => { if (!ac) { ac = new (window.AudioContext || window.webkitAudioContext)(); out = ac.createGain(); out.connect(ac.destination); } ac.resume && ac.resume(); return ac; };
-    function noise(kind, sec) {
-      const n = Math.floor(ac.sampleRate * sec), b = ac.createBuffer(2, n, ac.sampleRate);
-      for (let ch = 0; ch < 2; ch++) { const d = b.getChannelData(ch); let last = 0; for (let i = 0; i < n; i++) { const w = Math.random() * 2 - 1; if (kind === 'brown') { last = (last + .02 * w) / 1.02; d[i] = last * 3.5; } else d[i] = w; } }
-      return b;
+    /* Ljudlandskapen byggs i enheten, i lager som i naturen (inga inspelningar – inget laddas ned):
+       • rosa och brunt brus i långa stereoslingor som skarvas osynligt
+       • tusentals små ljudkorn som räknas ut i förväg: regndroppar, gnistor i brasan, bubblor som stiger i ton
+       • händelser som kommer oregelbundet: vågor som byggs upp, bryter och drar sig tillbaka med fräsande skum,
+         åskknallar på olika avstånd med långt muller, vindbyar som tjuter, vedträn som smäller
+       • ett rum (efterklang) och långsam, slumpad rörelse så att inget låter som en kort slinga */
+    const KINDS = { rain: ['🌧️', 'Regn'], thunder: ['⛈️', 'Åska'], shore: ['🏖️', 'Vågor'], sea: ['🌊', 'Hav'], wind: ['🌬️', 'Vind'], fire: ['🔥', 'Brasa'], bub: ['🫧', 'Bubblor'] };
+    let ac = null, out = null, conv = null, an = null, now = null, scene = null, timers = [], stopAt = 0, vol = +(lsGet('snd_vol') || .6), ducked = false, tok = 0;
+    const BUF = {}, R = (a, b) => a + Math.random() * (b - a);
+    function ctx() {
+      if (!ac) {
+        ac = new (window.AudioContext || window.webkitAudioContext)();
+        const comp = ac.createDynamicsCompressor(); comp.threshold.value = -16; comp.knee.value = 12; comp.ratio.value = 4; comp.attack.value = .012; comp.release.value = .35;
+        out = ac.createGain(); out.gain.value = 0; out.connect(comp); comp.connect(ac.destination);
+        an = ac.createAnalyser(); an.fftSize = 2048; comp.connect(an);
+        conv = ac.createConvolver(); conv.buffer = impulse(3.4); conv.connect(out);
+      }
+      ac.resume && ac.resume(); return ac;
     }
-    function loopSrc(buf) { const s = ac.createBufferSource(); s.buffer = buf; s.loop = true; s.start(); nodes.push(s); return s; }
-    function filt(type, f, q) { const x = ac.createBiquadFilter(); x.type = type; x.frequency.value = f; if (q) x.Q.value = q; nodes.push(x); return x; }
-    function gain(v) { const g = ac.createGain(); g.gain.value = v; nodes.push(g); return g; }
-    function blip(f0, f1, dur, v, type) { const t = ac.currentTime, o = ac.createOscillator(), g = ac.createGain(); o.type = type || 'sine'; o.frequency.setValueAtTime(f0, t); o.frequency.exponentialRampToValueAtTime(f1, t + dur); g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(v, t + .005); g.gain.exponentialRampToValueAtTime(.0001, t + dur); o.connect(g).connect(out); o.start(t); o.stop(t + dur + .02); }
-    function crackle(v) { const t = ac.currentTime, s = ac.createBufferSource(), f = ac.createBiquadFilter(), g = ac.createGain(); s.buffer = CR || (CR = noise('white', .05)); f.type = 'bandpass'; f.frequency.value = 1500 + Math.random() * 3500; f.Q.value = 2; g.gain.setValueAtTime(v, t); g.gain.exponentialRampToValueAtTime(.0001, t + .03 + Math.random() * .05); s.connect(f).connect(g).connect(out); s.start(t); s.stop(t + .1); }
-    let CR = null;
+    // efterklang: brus som klingar av och blir mörkare
+    function impulse(sec) { const n = Math.floor(ac.sampleRate * sec), b = ac.createBuffer(2, n, ac.sampleRate);
+      for (let ch = 0; ch < 2; ch++) { const d = b.getChannelData(ch); let lp = 0; for (let i = 0; i < n; i++) { const t = i / n, k = .5 - .42 * t; lp += ((Math.random() * 2 - 1) - lp) * k; d[i] = lp * Math.pow(1 - t, 2.6) * (i < 400 ? i / 400 : 1); } }
+      return b; }
+    // brus i stereo som går runt utan hörbar skarv
+    function noise(color, sec) {
+      const key = color + sec; if (BUF[key]) return BUF[key];
+      const sr = ac.sampleRate, n = Math.floor(sr * sec), fade = Math.floor(sr * .6), b = ac.createBuffer(2, n, sr), tmp = new Float32Array(n + fade);
+      for (let ch = 0; ch < 2; ch++) {
+        let b0 = 0, b1 = 0, b2 = 0, last = 0;
+        for (let i = 0; i < n + fade; i++) { const w = Math.random() * 2 - 1;
+          if (color === 'pink') { b0 = .99765 * b0 + w * .0990460; b1 = .96300 * b1 + w * .2965164; b2 = .57000 * b2 + w * 1.0526913; tmp[i] = (b0 + b1 + b2 + w * .1848) * .22; }
+          else if (color === 'brown') { last = (last + .02 * w) / 1.02; tmp[i] = last * 3.5; } else tmp[i] = w * .6; }
+        const d = b.getChannelData(ch); for (let i = 0; i < n; i++) d[i] = tmp[i];
+        for (let i = 0; i < fade; i++) { const t = i / fade; d[i] = tmp[i] * Math.sqrt(t) + tmp[n + i] * Math.sqrt(1 - t); }
+      }
+      return BUF[key] = b;
+    }
+    // en slinga av små ljudkorn; add(sample, pos, pan) lägger ett korn runt skarven så att slingan blir sömlös
+    function grains(key, sec, make) {
+      if (BUF[key]) return BUF[key];
+      const sr = ac.sampleRate, n = Math.floor(sr * sec), b = ac.createBuffer(2, n, sr), L = b.getChannelData(0), Rr = b.getChannelData(1);
+      make((pos, len, pan, fn) => { const gl = Math.cos((pan + 1) * Math.PI / 4), gr = Math.sin((pan + 1) * Math.PI / 4); let p = Math.floor(pos * sr) % n; for (let k = 0; k < len; k++) { const v = fn(k); L[p] += v * gl; Rr[p] += v * gr; if (++p >= n) p = 0; } }, sr, sec);
+      return BUF[key] = b;
+    }
+    const rainBuf = () => grains('rain', 9, (add, sr, sec) => {
+      for (let i = 0; i < sec * 520; i++) { const a = Math.pow(Math.random(), 3) * .34 + .012, f = R(1800, 7500), tau = sr * R(.0006, .003), len = Math.floor(tau * 6), w = 2 * Math.PI * f / sr, ph = Math.random() * 6;
+        add(Math.random() * sec, len, R(-1, 1), k => (Math.sin(ph + w * k) * .55 + (Math.random() * 2 - 1) * .6) * Math.exp(-k / tau) * a); }
+      // större droppar som slår mot något: lägre, med en kort ton
+      for (let i = 0; i < sec * 14; i++) { const a = R(.08, .3), f = R(500, 1500), tau = sr * R(.004, .012), len = Math.floor(tau * 6), w = 2 * Math.PI * f / sr;
+        add(Math.random() * sec, len, R(-.9, .9), k => (Math.sin(w * k * (1 - k / len * .25)) * .8 + (k < 40 ? (Math.random() * 2 - 1) : 0)) * Math.exp(-k / tau) * a); } });
+    const crackBuf = () => grains('crack', 11, (add, sr, sec) => {
+      for (let i = 0; i < sec * 22; i++) { const t = Math.random() * sec, m = Math.random() < .25 ? 1 + Math.floor(Math.random() * 4) : 1, a0 = Math.pow(Math.random(), 4) * .9 + .03, pan = R(-.7, .7);
+        for (let j = 0; j < m; j++) { const tau = sr * R(.00015, .0012), len = Math.floor(tau * 7) + 8, a = a0 * (j ? R(.3, .8) : 1); let lp = 0, kk = R(.35, .95);
+          add(t + j * R(.006, .05), len, pan, k => { lp += ((Math.random() * 2 - 1) - lp) * kk; return lp * Math.exp(-k / tau) * a; }); } } });
+    const bubBuf = () => grains('bub', 13, (add, sr, sec) => {
+      const one = (t, f0, a, pan) => { const dur = Math.min(.16, 40 / f0 + .02), len = Math.floor(sr * dur), rise = R(1.15, 1.55), tau = len / 4; let ph = 0;
+        add(t, len, pan, k => { ph += 2 * Math.PI * f0 * (1 + (rise - 1) * k / len) / sr; return Math.sin(ph) * Math.min(1, k / (sr * .003)) * Math.exp(-k / tau) * a; }); };
+      for (let i = 0; i < sec * 1.3; i++) { let t = Math.random() * sec, f = R(350, 1100); const m = 2 + Math.floor(Math.random() * 9), pan = R(-.8, .8);
+        for (let j = 0; j < m; j++) { one(t, f, R(.06, .2) * (700 / (f + 300)), pan + R(-.15, .15)); t += R(.03, .11); f *= R(1.02, 1.22); } }
+      for (let i = 0; i < sec * 3; i++) one(Math.random() * sec, R(900, 2600), R(.01, .05), R(-1, 1)); });
+    const fizzBuf = () => grains('fizz', 7, (add, sr, sec) => { for (let i = 0; i < sec * 1500; i++) { const a = Math.pow(Math.random(), 2) * .2, len = 6 + Math.floor(Math.random() * 20); add(Math.random() * sec, len, R(-1, 1), k => (Math.random() * 2 - 1) * (1 - k / len) * a); } });
+
+    /* ---------- byggstenar ---------- */
+    const later = (fn, ms) => { const my = tok, id = setTimeout(() => { if (my === tok && now) fn(); }, ms); timers.push(id); };
+    function src(buf, loop, S) { const s = ac.createBufferSource(); s.buffer = buf; s.loop = loop !== false; s.start(0, Math.random() * buf.duration); (S || scene).srcs.push(s); return s; }
+    function filt(type, f, q) { const x = ac.createBiquadFilter(); x.type = type; x.frequency.value = f; if (q) x.Q.value = q; return x; }
+    function gain(v) { const g = ac.createGain(); g.gain.value = v; return g; }
+    function pan(v) { if (!ac.createStereoPanner) return gain(1); const p = ac.createStereoPanner(); p.pan.value = v; return p; }
+    const link = (...n) => { for (let i = 0; i < n.length - 1; i++) n[i].connect(n[i + 1]); return n[n.length - 1]; };
+    // långsam slumpad rörelse hos ett värde (styrka, klang)
+    function wander(param, lo, hi, t0, t1) { const go = () => { const d = R(t0, t1); param.setTargetAtTime(R(lo, hi), ac.currentTime, d / 3); later(go, d * 1000); }; go(); }
+
+    /* ---------- landskapen ---------- */
+    function rainLayers(S, k) {
+      const mix = gain(k); mix.connect(S.dry); mix.connect(S.wet);
+      link(src(noise('pink', 10)), filt('highpass', 900), filt('lowpass', 8500), gain(.5), mix);       // det jämna suset
+      link(src(rainBuf()), filt('highpass', 1300), gain(.9), mix);                                      // tusentals droppar
+      link(src(noise('brown', 8)), filt('lowpass', 190), gain(.22), mix);                               // dovt mot tak och mark
+      wander(mix.gain, k * .8, k * 1.15, 3, 7);
+      const drip = () => { const t = ac.currentTime, o = ac.createOscillator(), g = gain(0), f = R(700, 1700); o.frequency.setValueAtTime(f, t); o.frequency.exponentialRampToValueAtTime(f * .55, t + .06);
+        g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(R(.015, .05) * k, t + .003); g.gain.exponentialRampToValueAtTime(.0001, t + R(.05, .12)); link(o, g, pan(R(-.8, .8)), mix); o.start(t); o.stop(t + .2); later(drip, R(180, 1300)); };
+      later(drip, 600);
+    }
+    function strike(S, near) {
+      S = S || scene; if (!S) return; const t = ac.currentTime + .05, dist = near != null ? near : Math.pow(Math.random(), .7), dur = R(5, 8) + dist * 4, pk = .95 - dist * .6;
+      // mullret: brunt brus som rullar i flera omgångar och blir allt dovare
+      const f = filt('lowpass', 1000 - dist * 780), g = gain(0), s = src(noise('brown', 8), true, S), sub = filt('lowpass', 85), gs = gain(0);
+      f.frequency.setValueAtTime(1000 - dist * 780, t); f.frequency.exponentialRampToValueAtTime(70, t + dur);
+      g.gain.setValueAtTime(0, t); gs.gain.setValueAtTime(0, t);
+      let tt = t + (dist < .5 ? .02 : .5), lvl = pk; const rolls = 3 + Math.floor(Math.random() * 5);
+      for (let i = 0; i < rolls; i++) { g.gain.linearRampToValueAtTime(lvl * R(.75, 1), tt + R(.04, .25)); gs.gain.linearRampToValueAtTime(lvl * 1.3, tt + .2); tt += R(.35, 1.1); g.gain.linearRampToValueAtTime(lvl * R(.25, .5), tt); lvl *= R(.55, .85); }
+      g.gain.linearRampToValueAtTime(0, t + dur); gs.gain.linearRampToValueAtTime(0, t + dur);
+      link(s, f, g); g.connect(S.dry); const wg = gain(1.4); g.connect(wg); wg.connect(conv); link(s, sub, gs, S.dry);
+      // knallen (bara när åskan är nära): några snabba, skarpa smällar
+      if (dist < .55) { const c = src(noise('white', 2), true, S), bp = filt('bandpass', R(1200, 2800), .6), cg = gain(0), a = (1 - dist / .55) * .8; let ct = t;
+        cg.gain.setValueAtTime(0, t); for (let i = 0; i < 2 + Math.floor(Math.random() * 3); i++) { cg.gain.linearRampToValueAtTime(a * R(.5, 1), ct + .004); ct += R(.05, .14); cg.gain.exponentialRampToValueAtTime(.004, ct); }
+        cg.gain.linearRampToValueAtTime(0, ct + .3); link(c, bp, cg); cg.connect(S.dry); cg.connect(conv); later(() => { try { c.stop(); } catch (e) {} }, 3000); }
+      later(() => { try { s.stop(); } catch (e) {} }, dur * 1000 + 500);
+    }
+    function wave(S, big) {
+      S = S || scene; if (!S) return; const t = ac.currentTime + .05, B = R(2.4, 4.4), W = R(4.5, 7.5), P = (big || R(.45, 1)) * .55, p0 = R(-.6, .6), pn = pan(p0); pn.connect(S.dry); pn.connect(S.wet);
+      if (pn.pan) pn.pan.linearRampToValueAtTime(clampP(p0 + R(-.7, .7)), t + B + W);
+      // vågen reser sig (dovt, allt ljusare), bryter och rinner ut
+      const s = src(noise('pink', 10), true, S), f = filt('lowpass', 220), g = gain(0);
+      f.frequency.setValueAtTime(220, t); f.frequency.exponentialRampToValueAtTime(R(2600, 5200), t + B); f.frequency.exponentialRampToValueAtTime(500, t + B + W);
+      g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(P * .22, t + B * .6); g.gain.linearRampToValueAtTime(P, t + B); g.gain.exponentialRampToValueAtTime(P * .28, t + B + 1.3); g.gain.linearRampToValueAtTime(0, t + B + W);
+      link(s, f, g, pn);
+      // dunsen när den slår i
+      const th = src(noise('brown', 8), true, S), tf = filt('lowpass', 130), tg = gain(0); tg.gain.setValueAtTime(0, t + B - .15); tg.gain.linearRampToValueAtTime(P * 1.2, t + B + .05); tg.gain.exponentialRampToValueAtTime(.001, t + B + 1.2); link(th, tf, tg, pn);
+      // skummet: ljust fräs som dröjer kvar och drar sig tillbaka över sanden
+      const fz = src(fizzBuf(), true, S), w2 = src(noise('white', 2), true, S), hf = filt('highpass', 3200), fg = gain(0);
+      fg.gain.setValueAtTime(0, t + B - .4); fg.gain.linearRampToValueAtTime(P * .5, t + B + .5); fg.gain.exponentialRampToValueAtTime(P * .12, t + B + W * .55); fg.gain.linearRampToValueAtTime(0, t + B + W);
+      hf.frequency.setValueAtTime(2600, t + B); hf.frequency.linearRampToValueAtTime(6000, t + B + W);
+      fz.connect(hf); link(w2, gain(.18), hf); link(hf, fg, pn);
+      later(() => { for (const x of [s, th, fz, w2]) try { x.stop(); } catch (e) {} try { pn.disconnect(); } catch (e) {} }, (B + W) * 1000 + 600);
+    }
+    const clampP = v => Math.max(-1, Math.min(1, v));
+    const SCENES = {
+      rain(S) { rainLayers(S, .5); },
+      thunder(S) { rainLayers(S, .36);
+        const w = gain(.12); link(src(noise('pink', 10)), filt('bandpass', 380, .8), w, S.dry); wander(w.gain, .04, .2, 3, 6);
+        const loop = () => { strike(S); later(loop, R(13000, 36000)); }; later(loop, R(3500, 7000)); },
+      shore(S) { link(src(noise('pink', 10)), filt('lowpass', 1100), gain(.1), S.dry); link(src(noise('brown', 8)), filt('lowpass', 260), gain(.16), S.dry);     // bränningar längre bort
+        const loop = () => { wave(S); later(loop, R(6000, 10500)); }; later(loop, 300); later(() => wave(S, .4), 3500); },
+      sea(S) { const a = gain(.3), fa = filt('lowpass', 520), b = gain(.06), fb = filt('lowpass', 1500);
+        link(src(noise('brown', 8)), fa, a, S.dry); link(src(noise('pink', 10)), fb, b, S.dry); b.connect(S.wet);
+        wander(a.gain, .16, .48, 4, 8); wander(fa.frequency, 300, 900, 4, 8); wander(b.gain, .02, .12, 5, 9); wander(fb.frequency, 700, 2400, 5, 9);
+        const swell = () => { const t = ac.currentTime, g = gain(0), f = filt('bandpass', R(350, 700), .7), s = src(noise('pink', 10), true, S), d = R(5, 8); g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(R(.08, .2), t + d * .45); g.gain.linearRampToValueAtTime(0, t + d);
+          link(s, f, g, pan(R(-.5, .5)), S.dry); later(() => { try { s.stop(); } catch (e) {} }, d * 1000 + 300); later(swell, R(5000, 9000)); }; later(swell, 1500); },
+      wind(S) {
+        const mk = (q, f0, f1, g0, g1, pv) => { const f = filt('bandpass', f0, q), g = gain(g0), p = pan(pv); link(src(noise('pink', 10)), f, g, p, S.dry); p.connect(S.wet); return { f, g, f0, f1, g0, g1 }; };
+        const Ls = [mk(1.1, 190, 760, .18, .8, -.25), mk(2.4, 420, 1500, .03, .34, .35), mk(16, 700, 1650, 0, .1, .1)];
+        link(src(noise('brown', 8)), filt('lowpass', 110), gain(.24), S.dry);
+        // vindbyar: styrka och ton följs åt, tjutet hörs bara i de hårda byarna
+        const gust = () => { const s = Math.pow(Math.random(), 1.6), d = R(1.4, 4.2), t = ac.currentTime;
+          Ls.forEach((l, i) => { const k = i === 2 ? Math.max(0, s - .55) / .45 : s * R(.8, 1.1); l.f.frequency.setTargetAtTime(l.f0 + (l.f1 - l.f0) * Math.min(1, s * R(.8, 1.15)), t, d / 3); l.g.gain.setTargetAtTime(l.g0 + (l.g1 - l.g0) * Math.min(1, k), t, d / 3); });
+          later(gust, d * R(700, 1300)); }; gust(); },
+      fire(S) {
+        // lågornas dova brus fladdrar oregelbundet
+        const roar = gain(.24), body = gain(.07), fl = gain(.5);
+        link(src(noise('brown', 8)), filt('lowpass', 360), roar, S.dry); link(src(noise('pink', 10)), filt('bandpass', 650, .6), body, S.dry);
+        link(src(noise('brown', 8)), filt('lowpass', 9), fl); fl.connect(roar.gain); const fl2 = gain(.25); fl.connect(fl2); fl2.connect(body.gain);
+        wander(roar.gain, .18, .28, 3, 7);
+        const cr = gain(1.1); link(src(crackBuf()), filt('highpass', 700), cr, S.dry); cr.connect(S.wet); wander(cr.gain, .7, 1.3, 2, 6);      // sprak
+        link(src(noise('white', 2)), filt('highpass', 5200), gain(.012), S.dry);                                                                   // fräs
+        // ett vedträ smäller till
+        const pop = () => { const t = ac.currentTime, a = R(.2, .6), p = pan(R(-.6, .6)); p.connect(S.dry); p.connect(S.wet);
+          const n = src(noise('white', 2), true, S), bp = filt('bandpass', R(450, 1400), 3), g = gain(0); g.gain.setValueAtTime(a, t); g.gain.exponentialRampToValueAtTime(.0005, t + R(.02, .06)); link(n, bp, g, p);
+          const o = ac.createOscillator(), og = gain(0); o.frequency.setValueAtTime(R(110, 170), t); o.frequency.exponentialRampToValueAtTime(55, t + .07); og.gain.setValueAtTime(a * .5, t); og.gain.exponentialRampToValueAtTime(.0005, t + .09); link(o, og, p); o.start(t); o.stop(t + .15);
+          later(() => { try { n.stop(); } catch (e) {} try { p.disconnect(); } catch (e) {} }, 400); later(pop, R(700, 4500)); }; later(pop, 1200); },
+      bub(S) {
+        const bed = gain(.15), fb = filt('lowpass', 230); link(src(noise('brown', 8)), fb, bed, S.dry); wander(bed.gain, .1, .19, 4, 8); wander(fb.frequency, 160, 320, 4, 8);     // vattnets djupa tryck
+        link(src(noise('pink', 10)), filt('bandpass', 420, .7), gain(.035), S.dry);
+        const b = gain(1.2), lp = filt('lowpass', 3600); link(src(bubBuf()), lp, b, S.dry); const bw = gain(.5); b.connect(bw); bw.connect(conv); wander(b.gain, .8, 1.4, 3, 7);
+        const glug = () => { const t = ac.currentTime, o = ac.createOscillator(), g = gain(0), f = R(140, 320), d = R(.12, .22); o.frequency.setValueAtTime(f, t); o.frequency.exponentialRampToValueAtTime(f * R(1.5, 2.2), t + d);
+          g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(R(.06, .14), t + .01); g.gain.exponentialRampToValueAtTime(.0005, t + d); link(o, g, pan(R(-.6, .6)), S.dry); g.connect(conv); o.start(t); o.stop(t + d + .05); later(glug, R(1500, 7000)); }; later(glug, 2000); }
+    };
+    const WET = { rain: .1, thunder: .2, shore: .12, sea: .18, wind: .1, fire: .07, bub: .3 };
     function play(kind, mins) {
-      stop(true); ctx(); now = kind; out.gain.cancelScheduledValues(ac.currentTime); out.gain.setValueAtTime(0, ac.currentTime); out.gain.linearRampToValueAtTime(level(), ac.currentTime + 2.5);
-      if (kind === 'rain') { const s = loopSrc(noise('white', 3)); s.connect(filt('highpass', 500)).connect(filt('lowpass', 7000)).connect(gain(.22)).connect(out); }
-      if (kind === 'sea') { const s = loopSrc(noise('brown', 4)), g = gain(.35), lfo = ac.createOscillator(), lg = ac.createGain(); lfo.frequency.value = .09; lg.gain.value = .28; lfo.connect(lg).connect(g.gain); lfo.start(); nodes.push(lfo, lg); s.connect(filt('lowpass', 800)).connect(g).connect(out); }
-      if (kind === 'fire') { const s = loopSrc(noise('brown', 3)); s.connect(filt('lowpass', 420)).connect(gain(.32)).connect(out); }
-      if (kind === 'bub') { const s = loopSrc(noise('brown', 3)); s.connect(filt('lowpass', 300)).connect(gain(.12)).connect(out); }
-      const step = () => {
-        if (!now) return;
-        if (now === 'rain' && Math.random() < .55) blip(2200 + Math.random() * 2600, 1200, .03, .03 + Math.random() * .04);
-        if (now === 'fire' && Math.random() < .35) crackle(.15 + Math.random() * .3);
-        if (now === 'bub' && Math.random() < .12) blip(300 + Math.random() * 400, 900 + Math.random() * 900, .09 + Math.random() * .08, .08);
-        if (stopAt && Date.now() > stopAt) { stop(); return; }
-        tick = setTimeout(step, now === 'rain' ? 40 + Math.random() * 90 : 60 + Math.random() * 160);
-      };
-      step(); stopAt = mins ? Date.now() + mins * 60e3 : 0; lsSet('snd_last', kind); repaint(false);
+      if (!SCENES[kind]) kind = 'rain';
+      stop(true); ctx(); now = kind; tok++;
+      const S = scene = { dry: gain(0), wet: gain(WET[kind]), srcs: [] }; S.dry.connect(out); S.wet.connect(conv);
+      S.dry.gain.setValueAtTime(0, ac.currentTime); S.dry.gain.linearRampToValueAtTime(1, ac.currentTime + 2.5);
+      out.gain.setTargetAtTime(level(), ac.currentTime, .1);
+      try { SCENES[kind](S); } catch (e) { console.warn('ljudlandskap', e); }
+      stopAt = mins ? Date.now() + mins * 60e3 : 0;
+      const watch = () => { if (stopAt && Date.now() > stopAt) { stop(); refreshBars(); return; } later(watch, 1000); }; later(watch, 1000);
+      lsSet('snd_last', kind); repaint(false);
     }
-    const level = () => vol * (ducked ? .6 : 1) * .9;
+    const level = () => vol * (ducked ? .6 : 1);
     function stop(quick) {
-      clearTimeout(tick); const ns = nodes; nodes = []; now = null;
-      if (ac && out) { const t = ac.currentTime; out.gain.cancelScheduledValues(t); out.gain.setValueAtTime(out.gain.value, t); out.gain.linearRampToValueAtTime(0, t + (quick ? .15 : 2)); }
-      setTimeout(() => ns.forEach(n => { try { n.stop && n.stop(); } catch (e) {} try { n.disconnect(); } catch (e) {} }), quick ? 200 : 2100);
+      timers.forEach(clearTimeout); timers = []; tok++; const S = scene; scene = null; now = null;
+      if (ac && S) { const t = ac.currentTime, d = quick ? .2 : 2; S.dry.gain.cancelScheduledValues(t); S.dry.gain.setTargetAtTime(0, t, d / 4); S.wet.gain.setTargetAtTime(0, t, d / 4);
+        setTimeout(() => { S.srcs.forEach(n => { try { n.stop(); } catch (e) {} try { n.disconnect(); } catch (e) {} }); try { S.dry.disconnect(); S.wet.disconnect(); } catch (e) {} }, d * 1000 + 300); }
       if (!quick) repaint(false);
     }
     function setVol(v) { vol = v; lsSet('snd_vol', String(v)); if (ac && now) out.gain.setTargetAtTime(level(), ac.currentTime, .2); }
@@ -208,7 +347,7 @@ const TODAY = (() => {
       ${now ? `<button data-act="sndstop"><i>⏹️</i>Tyst</button>` : ''}</div>
       <div class="snd-opts"><label>🔈 <input type="range" min="0" max="1" step=".05" value="${vol}" data-snd="vol"></label>
       <span>Stäng av efter: ${[0, 15, 30, 60].map(m => `<button class="${(stopAt ? Math.round((stopAt - Date.now()) / 60e3) : 0) === m || (!stopAt && !m) ? 'on' : ''}" data-act="sndtimer" data-m="${m}">${m ? m + ' min' : '∞'}</button>`).join('')}</span></div>`;
-    function show() { openModal(`<h3>🎧 Ljudlandskap</h3><div class="setnote" style="margin:-6px 0 10px">Lugna ljud som skapas direkt i telefonen. Fortsätter när du spelar eller vilar.</div>${barHTML()}<div class="btns"><button data-act="close">Klar</button></div>`); bindVol(); }
+    function show() { openModal(`<h3>🎧 Ljudlandskap</h3><div class="setnote" style="margin:-6px 0 10px">Lugna ljud som skapas direkt i enheten – bäst i hörlurar. Fortsätter när du spelar eller vilar.</div>${barHTML()}<div class="btns"><button data-act="close">Klar</button></div>`); bindVol(); }
     function bindVol() { document.querySelectorAll('[data-snd="vol"]').forEach(r => r.addEventListener('input', () => setVol(+r.value))); }
     function act(a, b) {
       if (a === 'sndopen') { show(); return true; }
@@ -218,7 +357,8 @@ const TODAY = (() => {
       return false;
     }
     function refreshBars() { document.querySelectorAll('.snd-host').forEach(h => { h.innerHTML = barHTML(); }); const m = document.querySelector('#modal .snd-bar'); if (m && !m.closest('.snd-host')) { show(); } bindVol(); }
-    return { play, stop, act, duck, barHTML, bindVol, playing: () => now, icon: k => KINDS[k][0], label: k => KINDS[k][1] };
+    return { play, stop, act, duck, barHTML, bindVol, playing: () => now, icon: k => (KINDS[k] || KINDS.rain)[0], label: k => (KINDS[k] || KINDS.rain)[1], KINDS,
+      _t: { strike: d => strike(null, d), wave: () => wave(null, 1), an: () => an, ac: () => ac } };
   })();
 
   /* ---------- akvariet: stjärndelfinen som följeslagare ----------
