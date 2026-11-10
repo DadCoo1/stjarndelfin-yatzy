@@ -140,12 +140,12 @@ const PINS = (() => {
     const d = BY[id]; if (!d) return '';
     const cat = CATS[d.cat], col = d.c || cat.c, n = ++uid, locked = !tier;
     const m = METAL[d.t.length === 1 ? 0 : Math.max(1, tier || 1)];
-    const stars = d.t.length > 1 && tier ? Array.from({ length: tier }, (_, i) => `<text x="${50 + (i - (tier - 1) / 2) * 11}" y="97" font-size="11" text-anchor="middle">★</text>`).join('') : '';
+    const stars = d.t.length > 1 && tier ? Array.from({ length: tier }, (_, i) => `<text x="${50 + (i - (tier - 1) / 2) * 15}" y="99" font-size="17" text-anchor="middle">★</text>`).join('') : '';
     return `<svg class="pin-svg${locked ? ' locked' : ''}" viewBox="0 0 100 104" width="${size}" height="${size * 1.04}" aria-hidden="true">
       <defs><linearGradient id="pm${n}" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="${m[0]}"/><stop offset=".55" stop-color="${m[1]}"/><stop offset="1" stop-color="${m[2]}"/></linearGradient>
       <radialGradient id="pe${n}" cx=".35" cy=".3" r=".85"><stop offset="0" stop-color="${col[0]}"/><stop offset="1" stop-color="${col[1]}"/></radialGradient>
       <clipPath id="pc${n}">${shape(cat.shape, 38)}</clipPath></defs>
-      <ellipse cx="52" cy="96" rx="30" ry="5" fill="rgba(0,0,0,.28)"/>
+      <ellipse cx="52" cy="97" rx="28" ry="4" fill="rgba(0,0,0,.25)"/>
       <g fill="url(#pm${n})">${shape(cat.shape, 46)}</g>
       <g fill="url(#pe${n})" stroke="${m[2]}" stroke-width="1.6">${shape(cat.shape, 38)}</g>
       <g clip-path="url(#pc${n})"><path d="M0 0 H100 V38 Q50 52 0 30 Z" fill="#fff" opacity=".16"/></g>
