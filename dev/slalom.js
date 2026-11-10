@@ -33,18 +33,21 @@ const SLALOM = (()=>{
   let T=null;   // {N, pitch[], y[], mid[], half[], kind[], trees[], crowd[], net[], M, z0, H0, Lr, drop}
   function terrain(g){
     const M=MOUNTAIN.get(venueOf(g)), par=!!g.par, drop=M.p.race[g.disc+(par?'p':'')], z0=M.zOfDrop(drop), Lr=M.zFin-z0, N=Math.ceil(Lr)+260, H0=M.elev(z0);
-    const pitch=new Float32Array(N), half=new Float32Array(N), y=new Float32Array(N), mid=new Float32Array(N), trees=new Float32Array(N), kind=new Array(N), crowd=new Uint8Array(N), net=new Uint8Array(N);
-    for(let k=0;k<N;k++){ const zw=z0+k; mid[k]=M.mid(zw); y[k]=M.elev(zw)-H0; half[k]=M.half(zw)+(par?7:0); }
+    const pitch=new Float32Array(N), half=new Float32Array(N), y=new Float32Array(N), mid=new Float32Array(N), trees=new Float32Array(N), tilt=new Float32Array(N), kind=new Array(N), crowd=new Uint8Array(N), net=new Uint8Array(N);
+    for(let k=0;k<N;k++){ const zw=z0+k; mid[k]=M.mid(zw); y[k]=M.elev(zw)-H0; half[k]=M.half(zw)+(par?7:0); tilt[k]=M.tilt(zw)*Math.min(1,Math.max(0,(Lr-20-k)/60)); }
     for(let k=0;k<N;k++){ pitch[k]=Math.max(0, k<N-1 ? y[k]-y[k+1] : pitch[k-1]);
       trees[k]=Math.max(M.forest(mid[k]+half[k]+14,z0+k), M.forest(mid[k]-half[k]-14,z0+k));
       crowd[k]= k<24 || (k>Lr-140 && k<Lr+70) ? 1 : 0; }
     for(let k=0;k<N;k++){ kind[k]= pitch[k]>.37 ? 'steep' : trees[k]>.6 ? 'forest' : 'open'; net[k]= crowd[k] || pitch[k]>.36 ? 1 : 0; }
-    return {N,pitch,y,mid,half,kind,trees,crowd,net,M,z0,H0,Lr,drop};
+    return {N,pitch,y,mid,half,tilt,kind,trees,crowd,net,M,z0,H0,Lr,drop};
   }
   const at=(arr,z)=>{ const n=T.N-1; if(z<=0) return arr[0]; if(z>=n) return arr[n]; const i=Math.floor(z), f=z-i; return arr[i]+(arr[i+1]-arr[i])*f; };
   const mid=z=>at(T.mid,z), elev=z=>at(T.y,z), pitchAt=z=>at(T.pitch,z), halfAt=z=>at(T.half,z);
   // markens höjd var som helst: pisten är pistad och jämn, utanför den tar fjället över
-  function gy(x,z){ const d=Math.abs(x-mid(z))-halfAt(z), e=elev(z); if(d<=0) return e; const h=T.M.H(x,z+T.z0)-T.H0; return d>=14 ? h : e+(h-e)*(d/14); }
+  // pisten är pistad men inte platt: den lutar lite i sidled och har mjuka rullar, precis som en riktig backe
+  function gy(x,z){ const m=mid(z), hw=halfAt(z), dx=x-m, d=Math.abs(dx)-hw, zw=z+T.z0, fin=Math.min(1,Math.max(0,(T.Lr-20-z)/60)), cx=d>0?Math.sign(dx)*hw:dx,
+      e=elev(z)+at(T.tilt,z)*cx+(T.M.roll(m+cx,zw)-T.M.roll(m,zw))*fin;
+    if(d<=0) return e; const h=T.M.H(x,zw)-T.H0; return d>=14 ? h : e+(h-e)*(d/14); }
 
   /* ---------- bansättning ---------- */
   // bansättarna och deras stilar: pct = var i regelns spann antalet riktningsändringar hamnar, sw = sidled, vary = hur mycket rytmen varierar
@@ -56,60 +59,79 @@ const SLALOM = (()=>{
   function mkGate(a,b,col,type,aim){ return {a,b,col,type,aim, zmin:Math.min(a.z,b.z), zmax:Math.max(a.z,b.z), pass:null, hit:0}; }
   function setCourse(g){
     T=terrain(g);
-    const seed=runSeed(g), d=DISC[g.disc], par=!!g.par, Lr=T.Lr, drop=T.drop, RU=RULES[g.disc];
+    const seed=runSeed(g), d=DISC[g.disc], par=!!g.par, Lr=T.Lr, drop=T.drop, RU=RULES[g.disc], GS=g.disc==='gs';
     const r0=rng(seed^0x51ed), st=STYLES[Math.floor(r0()*STYLES.length)], setter=SETTERS[Math.floor(r0()*SETTERS.length)];
     const lanes = par ? [-8.5, 8.5] : [0], fx=(z,L)=>mid(z)+L;
-    const lead = g.disc==='gs'?30:26, tail = g.disc==='gs'?34:22, avail=Lr-lead-tail;
+    const lead = GS?30:26, tail = GS?34:22, avail=Lr-lead-tail;
     // antal riktningsändringar ur fallhöjden, inom regelns spann; stilen avgör var i spannet
     let n=Math.round(drop*lerp(RU.lo,RU.hi,par?.15:clamp(st.pct+(r0()-.5)*.25,0,1)));
     n=clamp(n,Math.ceil(drop*RU.lo),Math.floor(drop*RU.hi));
-    const nSec=3+Math.floor(r0()*3), secs=[]; for(let i=0;i<nSec;i++) secs.push({d:1+(r0()-.5)*.5*st.vary, o:1+(r0()-.5)*.36*st.vary});
-    const secOf=i=>secs[Math.min(nSec-1,Math.floor(i/n*nSec))];
-    let plan=null, hair=0, vert=0, longs=0;
-    if(g.disc==='sl'){
+    if(GS) while(avail/n>24.5 && n<Math.floor(drop*RU.hi)) n++;
+    else while(avail/n>10.3 && n<Math.floor(drop*RU.hi)+RU.tol) n++;
+    const zOf=i=>lead+i*avail/n, pit=i=>pitchAt(zOf(i)), crest=i=>pitchAt(zOf(i)+10)-pitchAt(zOf(i)-10);
+    /* Banan sätts i "fraser" på några portar, som en riktig bansättare tänker: jämn rytm, öppna upp (längre och rakare),
+       dra ihop (tätare och tvärare, för att ta ned farten före ett brant parti eller ett krön), runda svängar tvärs backen i branten,
+       rakt och fort på flacken, och ojämn rytm där varannan sväng är tvär och varannan rak. Terrängen och stilen väger valet. */
+    const FIG={rytm:'jämn rytm',accel:'öppnar upp',tight:'drar ihop',cross:'runda svängar',straight:'rakt och fort',asym:'ojämn rytm'}, spec=[], used={};
+    for(let i=0;i<n;){ const steep=clamp((pit(i)-.18)/.3,0,1), ahead=Math.max(crest(i+2),crest(i+3),pit(i+4)-pit(i));
+      const w={rytm:1.6*(1.25-st.vary), accel:.5+(1-steep)*1.1+(ahead<-.06?1:0), tight:.3+steep*1.2+(ahead>.06?2:0), cross:steep*1.5*st.sw, straight:(1-steep)*(st.k==='fart'?2:1), asym:st.vary*1.3+(st.k==='teknisk'?.6:0)};
+      if(par){ w.asym=0; w.cross*=.4; }
+      let tot=0; for(const k in w) tot+=w[k]; let u=r0()*tot, fig='rytm'; for(const k in w){ u-=w[k]; if(u<=0){ fig=k; break; } }
+      const len=fig==='asym'?4+2*Math.floor(r0()*2):3+Math.floor(r0()*4); used[fig]=1; const tempo=.84+r0()*.34;      // varje rytmparti har sitt eget tempo
+      for(let j=0;j<len&&i<n;j++,i++){ const t=len>1?j/(len-1):0; let dd=1, oo=1;
+        if(fig==='accel'){ dd=lerp(.74,1.36,t); oo=lerp(1.2,.66,t); } else if(fig==='tight'){ dd=lerp(1.26,.68,t); oo=lerp(.8,1.36,t); }
+        else if(fig==='cross'){ dd=.9; oo=1.5; } else if(fig==='straight'){ dd=1.22; oo=.55; } else if(fig==='asym'){ oo=j%2?1.36:.62; dd=j%2?1.06:.94; } else { dd=tempo; oo=1.1-(tempo-1)*.8; }
+        if(i<2||i>=n-3){ dd=lerp(dd,1,.7); oo=Math.min(oo,.85); }
+        spec.push({d:dd,o:oo,fig}); } }
+    let plan=null, hair=0, vert=0, longs=0, dels=0;
+    if(!GS){
       // kombinationer: aldrig bland de första/sista fem portarna, helst inte i det brantaste eller på ett krön
       plan=new Array(n).fill('o');
       if(!par){
-        const zOf=i=>lead+i*avail/n, bad=i=>{ const z=zOf(i); return pitchAt(z)>.38 || Math.abs(pitchAt(z+8)-pitchAt(z-8))>.09; };
+        const bad=i=>pit(i)>.38 || Math.abs(crest(i))>.09 || Math.abs(mid(zOf(i)+12)-mid(zOf(i)-12))>1.7;     // inte i brant, på krön eller där backen svänger
         const put=(type,len)=>{ let best=-1, bs=9; for(let t=0;t<24;t++){ const i=5+Math.floor(r0()*(n-10-len)); if(!plan.slice(i-2,i+len+2).every(x=>x==='o')) continue; const sc=(bad(i)?1:0)+(bad(i+len)?1:0)+r0()*.5; if(sc<bs){ bs=sc; best=i; } } if(best<0) return 0; for(let k=0;k<len;k++) plan[best+k]=type; return 1; };
         const nv=clamp(Math.round(.6+st.combo*1.2+(r0()-.5)),1,RU.vert), nh=clamp(Math.round(1.2+st.combo*2.4+(r0()-.5)),1,RU.hair), nl=1+Math.floor(r0()*2.6);
         for(let k=0;k<nv;k++) vert+=put('v',3+Math.floor(r0()*2));      // vertikal: 3–4 stängda portar
-        for(let k=0;k<nl;k++) longs+=put('L',1);                        // långsväng (dubbelkäpp)
+        for(let k=0;k<nl;k++) longs+=put('L',1);                        // "banan": lång sväng (dubbelkäpp)
         for(let k=0;k<nh;k++) hair+=put('h',2);                         // hårnål: 2 stängda portar
       }
+    } else if(!par){
+      // "banan" i storslalom: en lång sväng runt två portar på samma sida – den andra längre ned och längre ut
+      const nd=Math.round(st.chg*5+r0()*1.4); for(let k=0;k<nd;k++){ const i=4+Math.floor(r0()*(n-9)); if(!spec[i].delay&&!spec[i-1].delay&&!spec[i+1].delay&&pit(i)<.4){ spec[i].delay=true; dels++; } }
     }
     const info={min:99,max:0};
     const note=(a,b)=>{ if(a&&b){ const q=Math.hypot(a.x-b.x,a.z-b.z); info.min=Math.min(info.min,q); info.max=Math.max(info.max,q); } };
     // k skalar avstånden så att banan fyller backen från start till mål; slumpen är densamma varje varv
     function build(k,measure){
       const r=rng(seed), out=lanes.map(()=>[]); let z=lead, side=r()<.5?1:-1, col=r()<.5?'r':'b', prevTurn=null, i=0;
-      if(g.disc==='gs'){
+      const gsGate=(zz,off,w)=>{ lanes.forEach((L,q)=>{ const s=q===1?-side:side, turn=fx(zz,L)+s*off, a={x:turn,z:zz}, b={x:turn+s*w,z:zz};
+          const gt=mkGate(s>0?a:b, s>0?b:a, par?(q===0?'r':'b'):col, 'gs', {x:turn+s*1.1,z:zz}); gt.turn={x:turn,z:zz}; gt.side=s; out[q].push(gt); });
+        const t={x:fx(zz,0)+side*off,z:zz}; if(measure) note(prevTurn,t); prevTurn=t; col=col==='r'?'b':'r'; };
+      if(GS){
         for(;i<n;i++){
-          const p=pitchAt(z+12), steep=clamp((p-.18)/.3,0,1), sec=secOf(i), u=r(), inner=i>1&&i<n-3&&!par;
-          let dist=22*lerp(1.06,.94,steep)*sec.d*(1+(r()-.5)*.14), off=(lerp(2.6,4.5,steep)+(r()-.5))*sec.o*st.sw*(par?.85:1);
-          if(inner&&u<.08+st.chg*.35){ dist*=1.2; off+=1.3; } else if(inner&&u>1-st.chg*.55){ dist*=.76; off-=.9; }   // lång sväng / rytmbyte
-          dist=clamp(dist*k,11.5,26);
-          if(i>=n-2) off=lerp(off,2.4,.7); if(i===0) off=Math.min(off,3);
-          off=clamp(off,1.5,dist*.2+.5);                                  // inga tvära svängar
-          let zn=z+dist; if(pitchAt(zn+3)-pitchAt(zn-9)>.09) zn-=Math.min(5,dist-11.5);        // porten sätts före krönet, inte gömd bakom det
+          const p=pitchAt(z+12), steep=clamp((p-.18)/.3,0,1), sp=spec[i];
+          // i brant terräng: mer i sidled och kortare mellan portarna (så hålls farten nere); på flacken rakare och längre
+          let dist=22*lerp(1.07,.92,steep)*sp.d*(1+(r()-.5)*.1), off=(lerp(2.7,4.5,steep)+(r()-.5)*.8)*sp.o*st.sw*(par?.85:1);
+          dist=clamp(dist*k,12,26);
+          if(i===0) off=Math.min(off,3);
+          off=clamp(off,1.2,Math.min(dist*.27+.4, halfAt(z+dist)-6));          // inga tvära svängar, och aldrig ut mot pistkanten
+          let zn=z+dist; if(pitchAt(zn+3)-pitchAt(zn-9)>.09) zn-=Math.min(5,dist-12);        // porten sätts på krönet, inte gömd bakom det
           const lat=prevTurn?Math.abs(fx(zn,0)+side*off-prevTurn.x):0; if(prevTurn&&Math.hypot(zn-prevTurn.z,lat)>26.6) zn=prevTurn.z+Math.sqrt(26.6*26.6-lat*lat);
-          z=zn; const w=4.2+r()*3.6;
-          lanes.forEach((L,q)=>{ const s=q===1?-side:side, turn=fx(z,L)+s*off, a={x:turn,z}, b={x:turn+s*w,z};
-            const gt=mkGate(s>0?a:b, s>0?b:a, par?(q===0?'r':'b'):col, 'gs', {x:turn+s*1.1,z}); gt.turn={x:turn,z}; gt.side=s; out[q].push(gt); });
-          const t={x:fx(z,0)+side*off,z}; if(measure) note(prevTurn,t); prevTurn=t; side=-side; col=col==='r'?'b':'r';
+          z=zn; gsGate(z,off,4.2+r()*3.6);
+          if(sp.delay){ const dz2=clamp(12.5*k,11.5,14), off2=Math.min(off+2.4+r()*.8, halfAt(z+dz2)-5); z+=dz2; gsGate(z,off2,4.2+r()*3); }
+          side=-side;
         }
       } else {
         while(i<n){
-          const p=pitchAt(z+6), steep=clamp((p-.18)/.3,0,1), sec=secOf(i);
+          const p=pitchAt(z+6), steep=clamp((p-.18)/.3,0,1), sp=spec[i];
           if(plan[i]==='o'||plan[i]==='L'){
             const long=plan[i]==='L';
-            let off=(lerp(1.7,2.35,steep)+(r()-.5)*.6)*sec.o*st.sw;
+            let off=(lerp(1.35,2.35,steep)+(r()-.5)*.5)*sp.o*st.sw;
             if(plan[i+1]&&plan[i+1]!=='o'&&plan[i+1]!=='L') off=lerp(2.7,3.3,steep);     // fartkontroll före kombination
             if(i>=n-2) off=1.5; if(par) off*=.85;
-            let dz=lerp(10,8.7,steep)*sec.d*(1+(r()-.5)*.16)*k;
+            let dz=lerp(10,8.7,steep)*sp.d*(1+(r()-.5)*.12)*k;
             if(long){ dz=Math.max(dz,11.6)+r()*.6; off+=1.1; }
-            else if(r()<st.chg*.6 && i>3 && i<n-4){ dz*=1.16; off+=.4; }             // rytmbyte
-            off=clamp(off,1.2,3.6); dz=clamp(dz,6.6,12.4);
+            off=clamp(off,.9,3.4); dz=clamp(dz,6.6,12.2);
             const lat = prevTurn ? Math.abs((fx(z+dz,0)+side*off)-prevTurn.x) : off*2, pz=prevTurn?prevTurn.z:z;
             if(Math.hypot(z+dz-pz,lat)>12.8) dz=pz+Math.sqrt(Math.max(1,12.8*12.8-lat*lat))-z;   // vändkäpp–vändkäpp högst 13 m
             if(Math.hypot(z+dz-pz,lat)<6.3) dz=pz+Math.sqrt(Math.max(0,6.3*6.3-Math.min(39,lat*lat)))-z+.01;   // och minst 6 m
@@ -124,7 +146,8 @@ const SLALOM = (()=>{
             // stängda portar längs fallinjen: åkaren korsar linjen fram och tillbaka
             const type=plan[i]; let m=0; while(plan[i+m]===type) m++;
             const Lg=5.25+r()*.6, gap=.85+r()*.15, in0=clamp(8.6*k,7.2,9.2);
-            z+=in0; const cx=fx(z,0); let from=prevTurn ? -(Math.sign(prevTurn.x-cx)||1) : side;
+            let in1=in0; if(prevTurn){ const lat=Math.abs(fx(z+in0,0)-prevTurn.x), mx=Math.sqrt(Math.max(9,12.7*12.7-lat*lat))-Lg/2-(z-prevTurn.z); in1=clamp(Math.min(in0,mx),3.6,9.2); }
+            z+=in1; const cx=fx(z,0); let from=prevTurn ? -(Math.sign(prevTurn.x-cx)||1) : side;
             for(let q=0;q<m;q++){ const za=z+q*(Lg+gap), zb=za+Lg;
               const gt=mkGate({x:cx,z:za},{x:cx,z:zb},col,'closed',{x:cx,z:(za+zb)/2}); gt.turn={x:cx,z:(za+zb)/2}; gt.from=from; gt.combo=type; from=-from; out[0].push(gt);
               if(measure) note(prevTurn,gt.turn); prevTurn=gt.turn; col=col==='r'?'b':'r'; }
@@ -136,11 +159,11 @@ const SLALOM = (()=>{
       }
       return {out,end:z};
     }
-    let k=1, res=null; for(let it=0;it<7;it++){ res=build(k,false); const e=res.end-lead; if(Math.abs(e-avail)<3) break; k=clamp(k*avail/e,.6,1.5); }
+    let k=1, res=null; for(let it=0;it<8;it++){ res=build(k,false); const e=res.end-lead; if(Math.abs(e-avail)<3) break; k=clamp(k*avail/e,.55,1.6); }
     res=build(k,true);
     const L=Math.max(Lr, res.end+12);
-    const count=res.out[0].length;
-    return {d, gates:res.out, lanes, L, info:{n:count, drop:Math.round(drop), pct:Math.round(count/drop*1000)/10, setter, style:st.name, hair, vert, longs, min:info.min, max:info.max, len:Math.round(L), venue:venueOf(g)}};
+    const figs=Object.keys(used).map(f=>FIG[f]); if(dels||longs) figs.push('banan'); if(hair) figs.push('hårnål'); if(vert) figs.push('vertikal');
+    return {d, gates:res.out, lanes, L, info:{n, gates:res.out[0].length, drop:Math.round(drop), pct:Math.round(n/drop*1000)/10, setter, style:st.name, figs, hair, vert, longs, dels, min:info.min, max:info.max, len:Math.round(L), venue:venueOf(g)}};
   }
   // regelkontroll (används av testerna): returnerar en lista med avvikelser
   function checkCourse(C,g){ const RU=RULES[g.disc], I=C.info, bad=[], gs=C.gates[0];
@@ -151,6 +174,7 @@ const SLALOM = (()=>{
     if(g.disc==='sl'){ if(I.hair>RU.hair) bad.push('för många hårnålar'); if(I.vert>RU.vert) bad.push('för många vertikaler'); if(gs[0].type==='closed'||gs[gs.length-1].type==='closed') bad.push('stängd port först/sist'); }
     const last=gs[gs.length-1]; if(Math.abs(last.aim.x-mid(last.aim.z))>halfAt(last.aim.z)*.45) bad.push('sista porten leder inte mot målets mitt');
     if(C.gates.some(l=>l.some(q=>Math.abs(q.turn.x-mid(q.turn.z))>halfAt(q.turn.z)-2.5))) bad.push('port för nära pistkanten');
+    const dz=[]; for(let i=1;i<gs.length;i++) if(gs[i].type!=='closed'&&gs[i-1].type!=='closed') dz.push(gs[i].turn.z-gs[i-1].turn.z); const mean=dz.reduce((a,b)=>a+b,0)/dz.length; I.spread=Math.sqrt(dz.reduce((a,b)=>a+(b-mean)*(b-mean),0)/dz.length)/mean; I.dzMin=Math.min(...dz); I.dzMax=Math.max(...dz);
     return bad; }
 
   // fröet för aktuellt åk: standardbanan är alltid densamma, annars nya frön per parti
@@ -259,6 +283,7 @@ const SLALOM = (()=>{
     // fartriktningen följer skidorna så fort kanterna greppar: skär man för hårt för farten sladdar skidorna
     const grip=d.grip*Math.min(1,.35+load*.7), slip0=s.th-s.vd, rate=grip/Math.max(s.v,4);
     const dvd=clamp(om+slip0*14,-rate,rate); s.vd+=dvd*dt; s.slip=s.th-s.vd;
+    if(!air){ const cs=(gy(s.x+.6,s.z)-gy(s.x-.6,s.z))/1.2; s.vd+=-G0*cs*Math.cos(s.vd)/Math.max(s.v,5)*dt*.8; s.cross=cs; }
     // fartställning: i storslalom på raka partier, i båda grenarna mot mål
     s.straight = Math.abs(om)<.25 ? s.straight+dt : 0;
     const wantTuck = (s.straight>.35 && s.v>8 && (d.panel || s.z>R.C.L-45)) ? 1 : 0;
@@ -283,9 +308,11 @@ const SLALOM = (()=>{
     // portar i tur och ordning
     const gs=R.C.gates[s.lane];
     let g=gs[s.gi];
+    // slalom: handen går fram för att blocka käppen strax innan åkaren är framme
+    if(g && !d.panel && g.zmin-s.z<s.v*.16 && g.zmin>s.z && Math.abs(s.x-g.turn.x)<1.5) s.block=Math.max(s.block||0,.85);
     while(g){
       const c=crossed(g,px,pz,s.x,s.z);
-      if(c!==null && c>=0){ g.pass=true; recEv(s,g,true,c<.5); if(c<.5){ g.hit=1; g.hitT=performance.now(); s.v*=.975; s.block=1; if(s===meSk()) poleSfx(); } s.gi++; }
+      if(c!==null && c>=0){ g.pass=true; recEv(s,g,true,c<.5); if(c<.5){ g.hit=1; g.hitT=performance.now(); s.v*=.975; s.block=1; if(s===meSk()) poleSfx(); } else if(c<1.05 && !d.panel && g.type!=='closed'){ g.hit=1; g.hitT=performance.now(); s.block=1; if(s===meSk()) poleSfx(); } s.gi++; }
       else if(c===-1 && g.type!=='closed' || s.z>g.zmax+(g.type==='closed'?1.5:3)){ miss(s,g); s.gi++; }
       else break;
       if(s===meSk() && s.gi===Math.floor(gs.length/2) && !R.split) R.split=s.t;
@@ -455,6 +482,7 @@ const SLALOM = (()=>{
     for(const z of zs){
       const m=mid(z), hw=halfAt(z), pL=P(m-hw,z), pR=P(m+hw,z);
       if(!pL) continue;
+      const seg=z-cam.z<74?[pL,P(m-hw*.5,z),P(m,z),P(m+hw*.5,z),pR]:null; if(seg&&seg.some(v=>!v)) continue;
       const nb=z-cam.z>90?3:5, oL=[], oR=[]; for(let b=1;b<nb;b++){ oL.push(P(m-hw-OUT[b],z)); oR.push(P(m+hw+OUT[b],z)); }
       if(prev){ const far=Math.min(1,(z-cam.z)/ZMAX), sl=pitchAt(z);
         // terrängen utanför pisten följer fjället
@@ -464,14 +492,16 @@ const SLALOM = (()=>{
           quad(b?prev.oL[b-1]:prev.pL,prev.oL[b],oL[b],b?oL[b-1]:pL); quad(b?prev.oR[b-1]:prev.pR,prev.oR[b],oR[b],b?oR[b-1]:pR); }
         // pisten: branter lite skuggigare, flacken ljusare
         const sh2=clamp((sl-.25)*40,-6,10), band=(Math.floor(z/5)%2)*3;
-        ctx.fillStyle=`rgb(${246-far*16-sh2-band},${250-far*12-sh2*.7-band},${255-far*6})`; quad(prev.pL,prev.pR,pR,pL);
+        if(z-cam.z<70 && prev.seg && seg){ for(let q=0;q<4;q++){ const cs2=(gy(m+(q-1.5)*hw*.5+2,z)-gy(m+(q-1.5)*hw*.5-2,z))*2.2;
+            ctx.fillStyle=`rgb(${246-far*16-sh2-band+cs2*22|0},${250-far*12-sh2*.7-band+cs2*18|0},${255-far*6})`; quad(prev.seg[q],prev.seg[q+1],seg[q+1],seg[q]); } }
+        else { ctx.fillStyle=`rgb(${246-far*16-sh2-band},${250-far*12-sh2*.7-band},${255-far*6})`; quad(prev.pL,prev.pR,pR,pL); }
         if(z>C.L && z<C.L+4){ ctx.fillStyle='rgba(239,68,68,.8)'; quad(prev.pL,prev.pR,pR,pL); }
         // preparerade ränder närmast
         if(z-cam.z<55){ ctx.strokeStyle='rgba(160,180,212,.3)'; ctx.lineWidth=1; ctx.beginPath(); const pm=mid(prev.z), ph=halfAt(prev.z);
           for(let lx=-1+.5;lx<1;lx+=.075){ const a=P(pm+lx*ph,prev.z), b=P(m+lx*hw,z); if(a&&b){ ctx.moveTo(a[0],a[1]); ctx.lineTo(b[0],b[1]); } } ctx.stroke(); }
       }
       while(oi<objs.length && objs[oi].z>=z){ drawObj(objs[oi]); oi++; }
-      prev={pL,pR,oL,oR,z};
+      prev={pL,pR,oL,oR,z,seg};
     }
     while(oi<objs.length){ drawObj(objs[oi]); oi++; }
     // snöstänk
@@ -542,6 +572,9 @@ const SLALOM = (()=>{
       const dirTo=(q,len)=>{ if(!q) return null; const dx=q.aim.x-g.aim.x, dz=q.aim.z-g.aim.z, L=Math.hypot(dx,dz)||1; return {x:g.aim.x+dx/L*len, z:g.aim.z+dz/L*len}; };
       objs.push({z:g.aim.z+.01, t:'dye', p:dirTo(pv,3.6), a:{x:g.aim.x+(g.side||0)*.35,z:g.aim.z}, n:dirTo(nx,3)}); }));
     objs.push({z:C.L, t:'finish'});
+    if(T.M.p.idet){ const L0=T.Lr, m0=mid(L0+100);     // Björnidet: värmestugan med speakertornet vid sjön, liftens dalstation, stugor
+      [{z:L0+112,x:m0+62,w:17,dp:9,h:4.6,tower:1,sign:'BJÖRNIDET'},{z:L0+86,x:m0-74,w:8,dp:6,h:3.6,col:'#475569',sign:'BJÖRNLIFTEN'},{z:L0+128,x:m0-18,w:7,dp:5,h:3,col:'#8b5a2b'},{z:L0+70,x:m0+96,w:9,dp:7,h:3.4},{z:L0+98,x:m0-120,w:9,dp:7,h:3.4},{z:L0+40,x:m0+118,w:8,dp:6,h:3.2}]
+        .forEach(h=>{ if(h.z>zA&&h.z<zB) objs.push({t:'house',...h}); }); }
     R.sk.forEach(o=>{ if(o!==s && o.z>zA && o.z<zB) objs.push({z:o.z, t:'skier', sk:o}); });
     objs.sort((a,b)=>b.z-a.z);
     return objs;
@@ -573,19 +606,34 @@ const SLALOM = (()=>{
     if(o.t==='lift'){ const p=P(o.x,o.z), q=P(o.x,o.z,10.5); if(!p||!q) return; const w=Math.max(1,p[2]*.35);
       ctx.fillStyle='#64748b'; ctx.fillRect(p[0]-w/2,q[1],w,p[1]-q[1]); ctx.fillRect(p[0]-p[2]*1.4,q[1],p[2]*2.8,Math.max(1,p[2]*.25));
       const n=P(o.x,o.z+40,10.5); if(n){ ctx.strokeStyle='rgba(51,65,85,.8)'; ctx.lineWidth=Math.max(.5,p[2]*.04); [-1.2,1.2].forEach(dx=>{ ctx.beginPath(); ctx.moveTo(q[0]+dx*p[2],q[1]); ctx.quadraticCurveTo((q[0]+n[0])/2+dx*(p[2]+n[2])/2,(q[1]+n[1])/2+p[2]*.6,n[0]+dx*n[2],n[1]); ctx.stroke(); });
-        const f=((t*.25)%1); const cz=o.z+f*40, c=P(o.x+1.2,cz,9.2); if(c){ ctx.fillStyle='#ef4444'; ctx.fillRect(c[0]-c[2]*.5,c[1],c[2],c[2]*.6); ctx.fillStyle='#334155'; ctx.fillRect(c[0]-.5,c[1]-c[2]*1.1,1,c[2]*1.1); } }
+        if(T.M.p.liftKind==='tbar'){ for(let q=0;q<3;q++){ const f=1-((t*.09+q/3)%1), c=P(o.x-1.2,o.z+f*40,10.2), b=P(o.x-1.2,o.z+f*40,6.4); if(c&&b){ ctx.strokeStyle='#334155'; ctx.lineWidth=Math.max(.6,b[2]*.05); ctx.beginPath(); ctx.moveTo(c[0],c[1]); ctx.lineTo(b[0],b[1]); ctx.moveTo(b[0]-b[2]*.55,b[1]); ctx.lineTo(b[0]+b[2]*.55,b[1]); ctx.stroke(); } } }
+        else { const f=((t*.25)%1); const cz=o.z+f*40, c=P(o.x+1.2,cz,9.2); if(c){ ctx.fillStyle='#ef4444'; ctx.fillRect(c[0]-c[2]*.5,c[1],c[2],c[2]*.6); ctx.fillStyle='#334155'; ctx.fillRect(c[0]-.5,c[1]-c[2]*1.1,1,c[2]*1.1); } } }
       return; }
     if(o.t==='finish'){ // målportalen räknas i 3D: stolpar från snön och upp, banderollen mellan topparna
       const m=mid(o.z), hw=halfAt(o.z), x1=m-hw-1, x2=m+hw+1, a=P(x1,o.z), b=P(x2,o.z), at=P(x1,o.z,4.4), bt=P(x2,o.z,4.4), al=P(x1,o.z,3.2), bl=P(x2,o.z,3.2); if(!a||!b||!at||!bt||!al||!bl) return;
       ctx.strokeStyle='#1e3a8a'; ctx.lineCap='butt'; ctx.lineWidth=Math.max(1.5,a[2]*.5); ctx.beginPath(); ctx.moveTo(a[0],a[1]); ctx.lineTo(at[0],at[1]); ctx.stroke(); ctx.lineWidth=Math.max(1.5,b[2]*.5); ctx.beginPath(); ctx.moveTo(b[0],b[1]); ctx.lineTo(bt[0],bt[1]); ctx.stroke();
       const g=ctx.createLinearGradient(0,Math.min(at[1],bt[1]),0,Math.max(al[1],bl[1])); g.addColorStop(0,'#ef4444'); g.addColorStop(1,'#b91c1c'); ctx.fillStyle=g; quad(at,bt,bl,al);
       const hh=Math.hypot(at[0]-al[0],at[1]-al[1]); if(hh>8){ ctx.save(); ctx.translate((at[0]+bt[0]+al[0]+bl[0])/4,(at[1]+bt[1]+al[1]+bl[1])/4); ctx.rotate(Math.atan2(bt[1]-at[1],bt[0]-at[0])); ctx.fillStyle='#fff'; ctx.font=`900 ${hh*.62}px system-ui`; ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.fillText(T.M.p.fin,0,0); ctx.restore(); } return; }
+    if(o.t==='house'){ drawHouse(o); return; }
     if(o.t==='gate'){ drawGate(o.g,o.i,o.pole); return; }
     if(o.t==='arrow'){ const g=o.g, zm=(g.zmin+g.zmax)/2, f=g.from||1, p0=P(g.a.x+f*1.6,zm), p1=P(g.a.x-f*1.6,zm); if(!p0||!p1) return;   // pil på snön: åt vilket håll man korsar nästa stängda port
       const sz=clamp(p0[2]*.5,3,18), d=Math.sign(p1[0]-p0[0])||-f; ctx.fillStyle=`rgba(250,204,21,${.8+.2*Math.sin(t*6)})`; ctx.strokeStyle='rgba(30,58,138,.85)'; ctx.lineWidth=1.6;
       ctx.beginPath(); ctx.moveTo(p0[0],p0[1]-sz*.38); ctx.lineTo(p1[0]-d*sz,p1[1]-sz*.38); ctx.lineTo(p1[0]-d*sz,p1[1]-sz*.95); ctx.lineTo(p1[0],p1[1]); ctx.lineTo(p1[0]-d*sz,p1[1]+sz*.95); ctx.lineTo(p1[0]-d*sz,p1[1]+sz*.38); ctx.lineTo(p0[0],p0[1]+sz*.38); ctx.closePath(); ctx.fill(); ctx.stroke(); return; }
     if(o.t==='skier'){ drawSkier(o.sk); return; }
   }
+  // hus i 3D: väggar, sadeltak med snö, vita knutar; Björnidet har dessutom sitt torn med speakerbås
+  function drawHouse(o){ const cx=DM?DCUR.C.x:cam.x, cz=DM?DCUR.C.z:cam.z, {x,z,w,dp,h,col}=o, x0=x-w/2, x1=x+w/2, z0=z-dp/2, z1=z+dp/2, y0=Math.min(gy(x0,z0),gy(x1,z0),gy(x0,z1),gy(x1,z1));
+    const Q=(a,b,c,d,f)=>{ const p=[a,b,c,d].map(v=>P3(v[0],v[1],v[2])); if(p.some(v=>!v)) return; ctx.fillStyle=f; quad(p[0],p[1],p[2],p[3]); };
+    const box=(X0,X1,Z0,Z1,Y0,Y1,c1,c2,roof)=>{ const zf=cz<(Z0+Z1)/2?Z0:Z1, xf=cx<(X0+X1)/2?X0:X1;
+      Q([xf,Y0,Z0],[xf,Y0,Z1],[xf,Y1,Z1],[xf,Y1,Z0],c2); Q([X0,Y0,zf],[X1,Y0,zf],[X1,Y1,zf],[X0,Y1,zf],c1);
+      if(roof){ const zm=(Z0+Z1)/2, yr=Y1+roof, e=.6, za=zf===Z0?Z1:Z0; Q([X0-e,Y1,za+(za>zm?e:-e)],[X1+e,Y1,za+(za>zm?e:-e)],[X1+e,yr,zm],[X0-e,yr,zm],'#dfe7f2'); const g1=P3(xf,Y1,Z0), g2=P3(xf,Y1,Z1), g3=P3(xf,yr,zm); if(g1&&g2&&g3){ ctx.fillStyle=c2; ctx.beginPath(); ctx.moveTo(g1[0],g1[1]); ctx.lineTo(g2[0],g2[1]); ctx.lineTo(g3[0],g3[1]); ctx.fill(); }
+        Q([X0-e,Y1,zf+(zf>zm?e:-e)],[X1+e,Y1,zf+(zf>zm?e:-e)],[X1+e,yr,zm],[X0-e,yr,zm],'#f8fafc'); }
+      // vita knutar och fönster med varmt ljus
+      for(const xx of [X0,X1]){ const a=P3(xx,Y0,zf), b=P3(xx,Y1,zf); if(a&&b){ ctx.strokeStyle='#f8fafc'; ctx.lineWidth=Math.max(.6,a[2]*.18); ctx.beginPath(); ctx.moveTo(a[0],a[1]); ctx.lineTo(b[0],b[1]); ctx.stroke(); } }
+      const nwin=Math.max(1,Math.round((X1-X0)/4)); for(let q=0;q<nwin;q++){ const wx=X0+(q+.5)*(X1-X0)/nwin; Q([wx-.6,Y0+1.3,zf],[wx+.6,Y0+1.3,zf],[wx+.6,Y0+2.5,zf],[wx-.6,Y0+2.5,zf],'#ffe08a'); } };
+    box(x0,x1,z0,z1,y0,y0+h,col||'#9b2c20','#7a2219',h*.55);
+    if(o.tower){ const tx=x0-2.2; box(tx-2,tx+2,z-2,z+2,y0,y0+h+5.5,'#9b2c20','#7a2219',2.2); const zf=cz<z?z-2:z+2; Q([tx-1.7,y0+h+3,zf],[tx+1.7,y0+h+3,zf],[tx+1.7,y0+h+4.8,zf],[tx-1.7,y0+h+4.8,zf],'#bfe3ff'); }
+    if(o.sign){ const zf=cz<z?z0:z1, a=P3(x,y0+h*.78,zf); if(a&&a[2]>3){ ctx.fillStyle='#fff'; ctx.font=`800 ${a[2]*1.1}px system-ui`; ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.fillText(o.sign,a[0],a[1]); } } }
   function drawGate(g,i){
     const C=R.C, a=P(g.a.x,g.a.z), b=P(g.b.x,g.b.z), only=arguments[2];
     if(g.type==='closed'){ if(only==='a'&&!a || only==='b'&&!b) return; } else if(!a||!b) return;
@@ -637,11 +685,15 @@ const SLALOM = (()=>{
   function drawSkier(s){
     const S=suitOf(s), d=R.C.d, t=now(), md = s.done && s.mood ? s.mood : null;
     const E=md?0:clamp(s.lean||0,-1.25,1.25), tk=md?0:(s.tuck||0), air=s.air||0, fl=md?0:clamp((s.flex||0)+Math.min(.5,air*1.2),0,1), slip=clamp(s.slip||0,-.6,.6);
-    const dir=Math.sign(E)||1, inc=E*(d.panel?.6:.5), pa=Math.atan(pitchAt(s.z)*Math.cos(s.th));
+    const dir=Math.sign(E)||1, aE=Math.abs(E), inc=E*(d.panel?.62:.52), pa=Math.atan(pitchAt(s.z)*Math.cos(s.th));
     // åkarens system i världen: framåt längs skidorna och backens lutning, höger vågrätt, upp vinkelrätt mot snön
     const sT=Math.sin(s.th), cT=Math.cos(s.th), fw=[sT*Math.cos(pa),-Math.sin(pa),cT*Math.cos(pa)], rt=[cT,0,-sT], up=[fw[1]*rt[2]-fw[2]*rt[1], fw[2]*rt[0]-fw[0]*rt[2], fw[0]*rt[1]-fw[1]*rt[0]];
     const hop = md==='cheer' ? Math.abs(Math.sin(t*6.5))*.14 : 0, org=[s.x, gy(s.x,s.z)+air+hop, s.z];
     const Wd=(r,u,f)=>[org[0]+rt[0]*r+up[0]*u+fw[0]*f, org[1]+rt[1]*r+up[1]*u+fw[1]*f, org[2]+rt[2]*r+up[2]*u+fw[2]*f];
+    // överkroppen är lugn och vänd utför medan benen och skidorna svänger under den (separation)
+    const sep=md?0:clamp(-s.th*.72,-.7,.7)*(1-tk*.6), cS=Math.cos(sep), sS=Math.sin(sep), fwT=[fw[0]*cS+rt[0]*sS,fw[1]*cS+rt[1]*sS,fw[2]*cS+rt[2]*sS], rtT=[rt[0]*cS-fw[0]*sS,rt[1]*cS-fw[1]*sS,rt[2]*cS-fw[2]*sS];
+    // i kantbytet är kroppen ihopdragen och låg (benen pendlar under kroppen); mitt i svängen är ytterbenet långt och starkt
+    const trans=md?0:(1-Math.min(1,aE/.55))*Math.min(1,s.v/9)*(1-tk);
     const prims=[], PJ=w=>P3(w[0],w[1],w[2]);
     const limb=(a,b,w1,w2,col,stripe)=>{ const pa2=PJ(a), pb=PJ(b); if(!pa2||!pb) return; prims.push({z:(pa2[3]+pb[3])/2, f:()=>{ capsule(pa2[0],pa2[1],pb[0],pb[1],w1*pa2[2],w2*pb[2],col);
       if(stripe){ ctx.strokeStyle=stripe; ctx.lineWidth=Math.max(.6,pa2[2]*.022); ctx.beginPath(); ctx.moveTo(pa2[0],pa2[1]); ctx.lineTo(pb[0],pb[1]); ctx.stroke(); } }}); };
@@ -654,9 +706,9 @@ const SLALOM = (()=>{
     const stance=.3+Math.abs(E)*.1+tk*.06, lead=.13*Math.abs(E), tuckA=air>0?Math.min(.18,air*.5):0;
     const feet=[-1,1].map(sd=>{ const inner=sd===dir&&Math.abs(E)>.05; return {sd, inner, r:sd*stance/2-Math.sin(inc)*.06, u:tuckA+(inner?Math.abs(E)*.03:0), f:(inner?lead:-lead)*.5}; });
     // höft, överkropp, axlar och huvud
-    const leg=.9*(1-.3*tk-.2*fl)-(md==='sad'?.05:0), hipR=Math.sin(inc)*leg*.98, hipU=Math.cos(inc)*leg+tuckA*.6, hipF=-.1-tk*.12-fl*.05;
+    const leg=1.06*(1-.34*tk-.13*fl-.1*trans-(d.panel?0:.03))-(md==='sad'?.05:0), hipR=Math.sin(inc)*leg*.98, hipU=Math.cos(inc)*leg+tuckA*.6, hipF=-.1-tk*.12-fl*.05;
     const hip=Wd(hipR,hipU,hipF);
-    const tf=md==='cheer'?.05:md==='sad'?.55:.42+tk*.78+fl*.16, ang=inc*.3-E*.05, tl=.52;
+    const tf=md==='cheer'?.05:md==='sad'?.55:.4+tk*.78+fl*.12+trans*.14+(d.panel?0:.06), ang=inc*(d.panel?.22:.16), tl=.52;
     const sh=Wd(hipR+Math.sin(ang)*tl*.9, hipU+Math.cos(ang)*Math.cos(tf)*tl, hipF+Math.sin(tf)*tl);
     const hd=V3.add(sh, V3.nrm(V3.sub(Wd(hipR+Math.sin(ang)*(tl+.3), hipU+Math.cos(ang)*Math.cos(tf*.55)*(tl+.3), hipF+Math.sin(tf*.75)*(tl+.3)),sh)), .2+(md==='sad'?-.03:0));
     // skidor och pjäxor
@@ -672,8 +724,8 @@ const SLALOM = (()=>{
       const an=f.an, toe=V3.add(c0,fwS,.13), heel=V3.add(c0,fwS,-.1);
       limb(V3.add(heel,up,.05),V3.add(toe,up,.05),.11,.1,'#1f2937'); limb(V3.add(c0,up,.06),an,.115,.105,S.boot); line(V3.mix(c0,an,.55),V3.mix(V3.add(toe,up,.05),an,.5),.03,S.bootAcc); });
     // ben: innerbenet böjs mer, knäna pekar framåt och in i svängen
-    feet.forEach(f=>{ const hj=V3.add(hip,rt,f.sd*.1), kn=ik(hj,f.an,.45,.44,V3.add(V3.add(fw,rt,dir*Math.abs(E)*.55+f.sd*tk*.25),up,.15));
-      limb(f.an,kn,.105,.125,S.base,S.acc); limb(kn,hj,.13,.165,S.base,S.acc); });
+    const rtH=V3.nrm(V3.add(rt,rtT)); feet.forEach(f=>{ const hj=V3.add(hip,rtH,f.sd*.1), kn=ik(hj,f.an,.45,.44,V3.add(V3.add(fw,rt,dir*aE*.95-f.sd*.12*(1-tk)+f.sd*tk*.25),up,.1));
+      limb(f.an,kn,.105,.125,S.base,S.acc); limb(kn,hj,.13,.165,S.base,S.acc); if(!d.panel) limb(V3.mix(f.an,kn,.12),V3.mix(f.an,kn,.82),.125,.135,'#e2e8f0'); });
     // bål
     limb(hip,V3.mix(hip,sh,.55),.33,.36,S.base); limb(V3.mix(hip,sh,.45),sh,.36,.38,S.vest?S.bib:S.mid);
     ball(hip,.17,S.base);
@@ -681,23 +733,27 @@ const SLALOM = (()=>{
         ctx.save(); ctx.translate(pm[0],pm[1]); ctx.rotate(Math.atan2(ps[0]-ph[0],-(ps[1]-ph[1]))); ctx.fillStyle=S.vest?'#e0f2fe':S.bib; ctx.beginPath(); ctx.roundRect(-w,-h/2,w*2,h,w*.25); ctx.fill();
         ctx.fillStyle=S.bibTxt; ctx.font=`900 ${Math.max(7,h*.7)}px system-ui`; ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.fillText(String(s.k+1),0,h*.04); ctx.restore(); }}); } }
     // armar och stavar
-    [-1,1].forEach(sd=>{ const sj=V3.add(V3.add(sh,rt,sd*.2),up,-.04); let hr,hu,hf,tip, inner=sd===dir;
-      const loc=(r,u,f)=>V3.add(V3.add(V3.add(sh,rt,r),up,u),fw,f);
+    [-1,1].forEach(sd=>{ const sj=V3.add(V3.add(sh,rtT,sd*.2),up,-.04); let hr,hu,hf,tip, inner=sd===dir, blk=0;
+      const loc=(r,u,f)=>V3.add(V3.add(V3.add(sh,rtT,r),up,u),fwT,f);
       if(md==='cheer'){ const w=Math.sin(t*9+sd)*.05; hr=sd*.34+w; hu=.5; hf=.05; tip=loc(hr+sd*.35,hu+1.05,-.1); }
       else if(md==='sad'){ hr=sd*.26; hu=-.52; hf=.02; tip=loc(hr+sd*.08,hu-.5,-.6); }
       else if(tk>.5){ hr=sd*.1; hu=-.02-tk*.08; hf=.4; tip=loc(sd*.26,.12,-.75); }
-      else { const plant=inner?s.plant:0, blk=inner&&!d.panel?(s.block||0):0, sw=Math.sin(t*2.2+sd)*.015;
-        hr=sd*(.36+Math.abs(E)*.05)-E*.06+sw; hu=-.3+(inner?.1:-.05)*Math.abs(E)-plant*.05; hf=.3+plant*.1;
-        if(blk>0){ hr=lerp(hr,sd*.1,blk); hu=lerp(hu,-.05,blk); hf=lerp(hf,.5,blk); }
+      else { const plant=inner?s.plant:0, sw=Math.sin(t*2.2+sd)*.015; blk=!inner&&!d.panel&&aE>.12?(s.block||0):0;
+        if(d.panel){ // storslalom: innerhanden sträcks ned mot snön, ytterarmen hålls fram och i höjd med höften
+          hr=sd*(.38+aE*.1)+sw; hu=inner?-.3-aE*.22:-.24+aE*.05; hf=inner?.2:.34+aE*.08; }
+        else { // slalom: båda händerna högt och framför kroppen
+          hr=sd*.3+sw; hu=-.2+(inner?-.06*aE:.03); hf=.36+plant*.08; }
+        // blockning: ytterhanden slås fram tvärs över kroppen och fäller käppen med stavskyddet
+        if(blk>0){ const b2=Math.min(1,blk*1.3); hr=lerp(hr,-sd*.04,b2); hu=lerp(hu,.02,b2); hf=lerp(hf,.5,b2); }
         tip=null; }
-      const hand=loc(hr,hu,hf); if(!tip){ const pl=inner?s.plant:0, base=Wd(hipR+hr+sd*.1, .03, pl>0?.55:-.55); const dl=V3.len(V3.sub(base,hand)); tip=dl>1.2?V3.add(hand,V3.nrm(V3.sub(base,hand)),1.2):base; }
+      const hand=loc(hr,hu,hf); if(!tip){ const pl=inner?s.plant:0, base=blk>.2?V3.add(V3.add(hand,up,.75),fwT,.5):Wd(hipR+hr*.9+sd*.12, .03, pl>0?.6:-.55); const dl=V3.len(V3.sub(base,hand)); tip=dl>1.2?V3.add(hand,V3.nrm(V3.sub(base,hand)),1.2):base; }
       const el=ik(sj,hand,.3,.27,[rt[0]*sd*.7-fw[0]*.5-up[0]*.6, rt[1]*sd*.7-fw[1]*.5-up[1]*.6, rt[2]*sd*.7-fw[2]*.5-up[2]*.6]);
       line(hand,tip,.022,'#cbd5e1'); ball(V3.mix(tip,hand,.08),.04,'#334155');
-      limb(sj,el,.115,.1,S.base,S.acc); limb(el,hand,.1,.085,S.mid); ball(hand,.055,S.glove,.02); });
+      limb(sj,el,.115,.1,S.base,S.acc); limb(el,hand,.1,.085,S.mid); ball(hand,.055,S.glove,.02); if(!d.panel) ball(V3.add(hand,fwT,.045),.048,'#e2e8f0',.03); });
     ball(sh,.17,S.vest?S.bib:S.mid);
     // nacke, hjälm, glasögon
     limb(sh,hd,.11,.1,S.base);
-    { const p=PJ(hd), pf=PJ(V3.add(hd,V3.nrm(V3.add(V3.add([0,0,0],fw,Math.cos(tf*.5)),up,-Math.sin(tf*.5)*.6)),.13)); if(p&&pf) prims.push({z:p[3]-.12, f:()=>{ const r=Math.max(1.5,.128*p[2]);
+    { const p=PJ(hd), pf=PJ(V3.add(hd,V3.nrm(V3.add(V3.add([0,0,0],fwT,Math.cos(tf*.5)),up,-Math.sin(tf*.5)*.6)),.13)); if(p&&pf) prims.push({z:p[3]-.12, f:()=>{ const r=Math.max(1.5,.128*p[2]);
         ctx.fillStyle=S.helm; ctx.beginPath(); ctx.arc(p[0],p[1],r,0,7); ctx.fill();
         const fx=pf[0]-p[0], fy=pf[1]-p[1], fl2=Math.hypot(fx,fy)/(.13*p[2]+1e-6), toward=pf[3]<p[3], a=Math.atan2(fy,fx);
         ctx.save(); ctx.translate(p[0],p[1]); ctx.rotate(a); ctx.beginPath(); ctx.arc(0,0,r,0,7); ctx.clip();
@@ -756,7 +812,7 @@ const SLALOM = (()=>{
     const kind=T.kind[Math.round(s.z)|0];
     if(R.started && !s.done && kind==='steep' && (R.steepShown||0)<s.z-200){ R.steepShown=s.z; R.banner={txt:'⚠️ Brant!',t:1.6}; }
     if(R.banner&&R.banner.t>0){ ctx.globalAlpha=Math.min(1,R.banner.t*2); ctx.textAlign='center'; ctx.font='900 30px system-ui'; ctx.fillStyle='#fde047'; ctx.fillText(R.banner.txt,W/2,82); ctx.globalAlpha=1; }
-    if(!R.started && R.cd>0){ const n2=Math.ceil(R.cd); ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.font='900 90px system-ui'; ctx.fillStyle='#fff'; ctx.save(); ctx.shadowColor='#ef4444'; ctx.shadowBlur=25; ctx.fillText(n2>3?'':String(n2),W/2,H*.42); ctx.restore(); ctx.font='800 16px system-ui'; ctx.fillStyle='#fff'; ctx.fillText(`${R.wx.icon} ${R.wx.name}`,W/2,H*.42+66); const I=C.info, V=T.M.V; ctx.font='800 15px system-ui'; ctx.fillText(`${V.icon} ${V.name} · ${V.title}`,W/2,H*.42+92); ctx.font='600 13px system-ui'; ctx.fillStyle='#e2e8f0'; ctx.fillText(`${I.n} portar · fallhöjd ${I.drop} m · ${I.len} m`,W/2,H*.42+112); ctx.fillText(`Bansättare ${I.setter}: ${I.style}`,W/2,H*.42+130); }
+    if(!R.started && R.cd>0){ const n2=Math.ceil(R.cd); ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.font='900 90px system-ui'; ctx.fillStyle='#fff'; ctx.save(); ctx.shadowColor='#ef4444'; ctx.shadowBlur=25; ctx.fillText(n2>3?'':String(n2),W/2,H*.42); ctx.restore(); ctx.font='800 16px system-ui'; ctx.fillStyle='#fff'; ctx.fillText(`${R.wx.icon} ${R.wx.name}`,W/2,H*.42+66); const I=C.info, V=T.M.V; ctx.font='800 15px system-ui'; ctx.fillText(`${V.icon} ${V.name} · ${V.title}`,W/2,H*.42+92); ctx.font='600 13px system-ui'; ctx.fillStyle='#e2e8f0'; ctx.fillText(`${I.gates} portar · fallhöjd ${I.drop} m · ${I.len} m`,W/2,H*.42+112); ctx.fillText(`Bansättare ${I.setter}: ${I.style}`,W/2,H*.42+130); ctx.font='500 12px system-ui'; ctx.fillText(I.figs.slice(0,5).join(' · '),W/2,H*.42+147); }
     else if(R.started && s.t<.8){ ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.font='900 72px system-ui'; ctx.fillStyle='#22c55e'; ctx.fillText('KÖR!',W/2,H*.42); }
   }
   const fmt=t=>{ const m=Math.floor(t/60), s=t-m*60; return (m?m+':':'')+(m?String(s.toFixed(2)).padStart(5,'0'):s.toFixed(2)); };

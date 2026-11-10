@@ -10,16 +10,16 @@ const {chromium}=require('playwright'); const sleep=ms=>new Promise(r=>setTimeou
   await p.fill('#nm','Test'); await p.click('[data-sl=solo]'); await sleep(1200);
   // regler och åkbarhet: alla backar, båda grenarna, många bansättningar
   const res=await p.evaluate(()=>{ const T=SLALOM.__test, out=[]; 
-    for(const venue of ['bj','st','ga']) for(const disc of ['gs','sl']) for(const par of [false,true]){ let bad=[], miss=0, runs=0, tmin=1e9, tmax=0, ns=[], setters=new Set(), styles=new Set(), air=0, vmax=0;
+    for(const venue of ['bj','st','ga']) for(const disc of ['gs','sl']) for(const par of [false,true]){ let spr=[], dmin=99, dmax=0, figs=new Set(), bad=[], miss=0, runs=0, tmin=1e9, tmax=0, ns=[], setters=new Set(), styles=new Set(), air=0, vmax=0;
       for(let k=0;k<(par?6:16);k++){ G.venue=venue; G.disc=disc; G.par=par; G.std=k===0; G.seeds=[1000+k*7919,5]; G.run=1; G.pen=true; G.go=(G.go||0)+1; if(par&&G.names.length<2){ } 
-        const C=T.setCourse(G); const v=T.checkCourse(C,G); if(v.length) bad.push(k+': '+v.join(', ')); ns.push(C.info.n); setters.add(C.info.setter); styles.add(C.info.style);
+        const C=T.setCourse(G); const v=T.checkCourse(C,G); if(v.length) bad.push(k+': '+v.join(', ')); ns.push(C.info.n); setters.add(C.info.setter); styles.add(C.info.style); spr.push(C.info.spread); dmin=Math.min(dmin,C.info.dzMin); dmax=Math.max(dmax,C.info.dzMax); C.info.figs.forEach(f=>figs.add(f));
         if(par||k>=8) continue;
         T.newRun(); const R=T.run(), s=R.sk[0]; R.started=true; let t=0; while(!s.done&&t<200){ T.physics(s,1/60,T.aiInput(s,'hard',1/60)); t+=1/60; if(s.air>air) air=s.air; if(s.v>vmax) vmax=s.v; }
         runs++; miss+=s.missed; tmin=Math.min(tmin,s.t); tmax=Math.max(tmax,s.t); }
-      out.push({venue,disc,par,bad,miss,runs,tmin:+tmin.toFixed(1),tmax:+tmax.toFixed(1),n:[Math.min(...ns),Math.max(...ns)],setters:setters.size,styles:styles.size,air:+air.toFixed(2),kmh:Math.round(vmax*3.6)}); }
+      out.push({venue,disc,par,bad,miss,runs,tmin:+tmin.toFixed(1),tmax:+tmax.toFixed(1),n:[Math.min(...ns),Math.max(...ns)],setters:setters.size,styles:styles.size,spread:spr.reduce((a,b)=>a+b,0)/spr.length,dmin,dmax,figs:[...figs],air:+air.toFixed(2),kmh:Math.round(vmax*3.6)}); }
     return out; });
   for(const r of res){ ok(!r.bad.length, `${r.venue} ${r.disc}${r.par?' parallell':''}: regler ok, ${r.n[0]}–${r.n[1]} portar${r.bad.length?' ✗ '+r.bad.slice(0,3).join(' | '):''}`);
-    if(!r.par){ ok(r.miss<=1, `   går att åka: ${r.miss} missade portar på ${r.runs} åk, ${r.tmin}–${r.tmax} s, toppfart ${r.kmh} km/h, luft ${r.air} m`); ok(r.styles>=3, `   varierad bansättning (${r.setters} bansättare, ${r.styles} stilar)`); } }
+    if(!r.par){ ok(r.miss<=1, `   går att åka: ${r.miss} missade portar på ${r.runs} åk, ${r.tmin}–${r.tmax} s, toppfart ${r.kmh} km/h, luft ${r.air} m`); ok(r.styles>=3 && r.spread>.06 && r.figs.length>=6, `   varierad bansättning: avstånd ${r.dmin.toFixed(1)}–${r.dmax.toFixed(1)} m (spridning ${Math.round(r.spread*100)} %), ${r.figs.length} sorters figurer, ${r.setters} bansättare`); } }
   // rita i alla lägen
   await p.evaluate(()=>{ G.venue='st'; G.disc='gs'; G.par=false; G.std=true; G.go++; window.__slAuto=true; render(); }); await sleep(5500);
   await p.screenshot({path:'/tmp/sl-rider.png'});
