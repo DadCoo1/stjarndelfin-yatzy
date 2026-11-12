@@ -777,11 +777,11 @@ const SLALOM = (()=>{
     if(CAP) return;
     prims.sort((a,b)=>b.z-a.z); for(const q of prims) q.f();
   }
-  /* ---------- 3D-provet: samma åk, ritat med grafikkortet (dev/slalomgl.js) ---------- */
-  let GLON=lsGet('sl_gl')==='1', glcv=null, GLW=null, CAP=null; const CAPP=[0,0,1,1], GC={x:0,y:0,ly:0,init:0};
+  /* ---------- 3D-grafik: samma åk, ritat med grafikkortet (slalomgl.js); enkel grafik som reserv ---------- */
+  let GLON=lsGet('sl_gl')!=='0', glcv=null, GLW=null, CAP=null; const CAPP=[0,0,1,1], GC={x:0,y:0,ly:0,init:0};
   const glActive=()=>GLON && typeof SLGL!=='undefined' && !!glcv && SLGL.ok();
-  const glLabel=()=>GLON?'🖼️ Vanlig grafik':'🧪 3D-prov';
-  function glSync(){ if(!glcv) return; if(GLON && (typeof SLGL==='undefined' || !SLGL.init(glcv))){ GLON=false; lsSet('sl_gl','0'); try{ toast('3D-provet går inte att starta på den här enheten'); }catch(e){} }
+  const glLabel=()=>GLON?'🖼️ Enkel grafik':'✨ 3D-grafik';
+  function glSync(explicit){ if(!glcv) return; if(GLON && (typeof SLGL==='undefined' || !SLGL.init(glcv))){ GLON=false; if(explicit){ lsSet('sl_gl','0'); try{ toast('3D-grafiken går inte att starta på den här enheten'); }catch(e){} } }
     glcv.style.display=GLON?'block':'none'; const b=document.querySelector('.sl-glb'); if(b) b.textContent=glLabel(); }
   const JK3=[[.88,.11,.28],[.15,.39,.92],[.96,.62,.04],[.09,.64,.29],[.49,.23,.93],[.03,.57,.7],[.98,.45,.09],[.86,.15,.47]];
   function glBuild(){ const tb=performance.now();
@@ -1080,7 +1080,7 @@ const SLALOM = (()=>{
         <button class="pri" data-sl="host" style="background:linear-gradient(135deg,#f472b6,#a855f7)">🚀 Parallellslalom mot en kompis</button>
         <button data-act="close">Avbryt</button></div>`,'slmenu'); mtLoop(); };
   document.addEventListener('click',e=>{ const b=e.target.closest('[data-sl]'); if(!b) return; const a=b.dataset.sl, nm=(document.getElementById('nm')?.value||'').trim();
-    if(a==='gl'){ GLON=!GLON; lsSet('sl_gl',GLON?'1':'0'); glSync(); fit(); sfx.bubble(); return; }
+    if(a==='gl'){ GLON=!GLON; lsSet('sl_gl',GLON?'1':'0'); glSync(true); fit(); sfx.bubble(); return; }
     if(a==='suit'){ lsSet('sl_suit',b.dataset.v); document.getElementById('slU').innerHTML=segU(); sfx.bubble(); return; }
     if(a==='ph'){ pickPhoto(); return; }
     if(a==='phx'){ try{ localStorage.removeItem((typeof DEV!=='undefined'&&DEV?'dev:':'')+'sl_photo'); }catch(e){} lsSet('sl_photo',''); loadPhoto(); document.getElementById('slPh').innerHTML=photoHTML(); return; }

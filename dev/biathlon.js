@@ -275,6 +275,8 @@ const BIATHLON = (()=>{
   function quad(a,b,c,d){ ctx.beginPath(); ctx.moveTo(a[0],a[1]); ctx.lineTo(b[0],b[1]); ctx.lineTo(c[0],c[1]); ctx.lineTo(d[0],d[1]); ctx.closePath(); ctx.fill(); }
   function drawSki(dt){
     const a=meA(), pen=a.ph==='pen', z=pen?a.pz:a.z; T=pen?TP:TL;
+    if(glOkB()){ try{ ctx.clearRect(0,0,W,H); glSki(dt,a,pen,z); glShow(true); R.g3=true; return; }catch(e){ GLON=false; glSyncB(); try{ console.warn('3D-grafiken stängdes av:',e); }catch(_){} } }
+    R.g3=false; glShow(false);
     const DD=R.camO?DSO:DS.on?DS:null; if(DD){ drawDroneB(dt,a,pen,z,DD); return; }
     const sway=Math.sin(a.t*2.6)*.35*(1-a.tuck);
     const tx=mid(z)+sway, tz=z-BACK;
@@ -429,7 +431,8 @@ const BIATHLON = (()=>{
     const hd=Math.atan2(mid(wz+2)-mid(wz-2),4), ch=Math.cos(hd), sh=Math.sin(hd);
     const J=v=>P(wx+v[0]*ch+v[2]*sh, wz-v[0]*sh+v[2]*ch, v[1]);
     const dep=p=>DM?p[3]:F/p[2];
-    const c0=J([0,.9,0]); if(!c0||c0[2]<1.2) return; if(c0[0]<-c0[2]*2||c0[0]>W+c0[2]*2) return;
+    const W3=v=>{ const x=wx+v[0]*ch+v[2]*sh, z=wz-v[0]*sh+v[2]*ch; return [x,elev(z)+v[1],z]; };
+    const c0=CAP?CAPP:J([0,.9,0]); if(!CAP){ if(!c0||c0[2]<1.2) return; if(c0[0]<-c0[2]*2||c0[0]>W+c0[2]*2) return; }
     const md=a.done&&a.mood?a.mood:null, tn=now(), S=SUIT[a.k%4], st=md?0:clamp(a.stride||0,0,1);
     const tk=md?0:(a.tuck||0), e=sm(st), u=1-st, sd=a.lastSide==='L'?-1:1, nt=1-tk;
     const crunch=Math.sin(Math.PI*st)*nt, hop=md==='cheer'?Math.abs(Math.sin(tn*6.5))*.1:0;
@@ -440,10 +443,10 @@ const BIATHLON = (()=>{
     const chest=add3(add3(hip,tdir,.5),[-sd*.03*e,0,0]);
     const head=add3(chest,[0,.2*Math.cos(lean*.45)-(md==='sad'?.04:0),.2*Math.sin(lean*.45)+.02+(md==='sad'?.06:0)]);
     const list=[], sc0=c0[2];
-    const seg=(p,q,w1,w2,col,bias=0)=>{ const A=J(p), B=J(q); if(!A||!B) return; list.push({z:(dep(A)+dep(B))/2+bias, f:()=>limb(A[0],A[1],B[0],B[1],Math.max(1,w1*A[2]),Math.max(1,w2*B[2]),col)}); };
-    const line=(p,q,w,col,bias=0)=>{ const A=J(p), B=J(q); if(!A||!B) return; list.push({z:(dep(A)+dep(B))/2+bias, f:()=>{ ctx.strokeStyle=col; ctx.lineWidth=Math.max(1,w*(A[2]+B[2])/2); ctx.lineCap='round'; ctx.beginPath(); ctx.moveTo(A[0],A[1]); ctx.lineTo(B[0],B[1]); ctx.stroke(); }}); };
+    const seg=(p,q,w1,w2,col,bias=0)=>{ if(CAP){ CAP.push(['c',W3(p),W3(q),w1/2,w2/2,col]); return; } const A=J(p), B=J(q); if(!A||!B) return; list.push({z:(dep(A)+dep(B))/2+bias, f:()=>limb(A[0],A[1],B[0],B[1],Math.max(1,w1*A[2]),Math.max(1,w2*B[2]),col)}); };
+    const line=(p,q,w,col,bias=0)=>{ if(CAP){ CAP.push(['c',W3(p),W3(q),w/2,w/2,col]); return; } const A=J(p), B=J(q); if(!A||!B) return; list.push({z:(dep(A)+dep(B))/2+bias, f:()=>{ ctx.strokeStyle=col; ctx.lineWidth=Math.max(1,w*(A[2]+B[2])/2); ctx.lineCap='round'; ctx.beginPath(); ctx.moveTo(A[0],A[1]); ctx.lineTo(B[0],B[1]); ctx.stroke(); }}); };
     // skugga på snön
-    { ctx.fillStyle=WEATHER.shadow(R.wx,.24); ctx.beginPath(); let ok=true; const ox=R.wx.kind==='sun'?.28:0; for(let i=0;i<12;i++){ const t=i/12*Math.PI*2, p=J([hip[0]+ox+Math.cos(t)*.42,0,hip[2]-.05+Math.sin(t)*.8]); if(!p){ ok=false; break; } i?ctx.lineTo(p[0],p[1]):ctx.moveTo(p[0],p[1]); } if(ok) ctx.fill(); }
+    if(!CAP){ ctx.fillStyle=WEATHER.shadow(R.wx,.24); ctx.beginPath(); let ok=true; const ox=R.wx.kind==='sun'?.28:0; for(let i=0;i<12;i++){ const t=i/12*Math.PI*2, p=J([hip[0]+ox+Math.cos(t)*.42,0,hip[2]-.05+Math.sin(t)*.8]); if(!p){ ok=false; break; } i?ctx.lineTo(p[0],p[1]):ctx.moveTo(p[0],p[1]); } if(ok) ctx.fill(); }
     for(const k of [-1,1]){
       const f=k===sd?pF:gF, ang=k*(tk>.5?.03:.24), d=[Math.sin(ang),0,Math.cos(ang)], ankle=[f[0],f[1]+.1,f[2]-.02], hj=[hip[0]+k*.1,hip[1],hip[2]];
       // skidan med färgad mittrand, bindning och pjäxa
@@ -462,7 +465,7 @@ const BIATHLON = (()=>{
         if(u<.5 && st>0){ const dz=Math.sqrt(Math.max(.04,L*L-hand[1]*hand[1])); tipP=[hand[0]+k*.1,0,hand[2]-dz]; }
         else { const A=1+.22*Math.sin(Math.PI*r1); tipP=add3(hand,[k*.07,-Math.cos(A)*L,-Math.sin(A)*L]); if(tipP[1]<0) tipP[1]=0; } }
       const elbow=ik(sp,hand,.3,.28,md==='cheer'?[k,0,-.3]:[k*.6,-.5,-.6]);
-      line(hand,tipP,.02,'#cbd5e1'); const bk=add3(tipP,[hand[0]-tipP[0],hand[1]-tipP[1],hand[2]-tipP[2]],.06), bp=J(bk); if(bp&&bp[2]>14) list.push({z:dep(bp), f:()=>{ ctx.strokeStyle='#334155'; ctx.lineWidth=Math.max(1,bp[2]*.012); ctx.beginPath(); ctx.ellipse(bp[0],bp[1],bp[2]*.045,bp[2]*.02,0,0,7); ctx.stroke(); }});
+      line(hand,tipP,.02,'#cbd5e1'); if(CAP) CAP.push(['s',W3(add3(tipP,[hand[0]-tipP[0],hand[1]-tipP[1],hand[2]-tipP[2]],.06)),.035,'#334155']); else { const bk=add3(tipP,[hand[0]-tipP[0],hand[1]-tipP[1],hand[2]-tipP[2]],.06), bp=J(bk); if(bp&&bp[2]>14) list.push({z:dep(bp), f:()=>{ ctx.strokeStyle='#334155'; ctx.lineWidth=Math.max(1,bp[2]*.012); ctx.beginPath(); ctx.ellipse(bp[0],bp[1],bp[2]*.045,bp[2]*.02,0,0,7); ctx.stroke(); }}); }
       seg(sp,elbow,.105,.09,S.b); seg(elbow,hand,.085,.075,S.m); seg(hand,add3(hand,[0,.03,0]),.085,.085,'#0f172a',-.01);
     }
     // bål, höft och axlar
@@ -476,6 +479,8 @@ const BIATHLON = (()=>{
     { const butt=add3(add3(add3(hip,tdir,.1),back,.17),[-.1,0,0]), muz=add3(add3(add3(hip,tdir,.95),back,.16),[.11,0,0]), mid2=[lerp(butt[0],muz[0],.42),lerp(butt[1],muz[1],.42),lerp(butt[2],muz[2],.42)];
       seg(butt,mid2,.085,.06,'#3b2416',.0); line(butt,mid2,.03,'#6b4428',-.01); line(mid2,muz,.028,'#1f2937'); line(add3(chest,back,.1),add3(add3(hip,tdir,.12),back,.12),.022,'#111827',.005); }
     // huvud: mössa i landslagsfärger, ansikte när kameran är framför
+    if(CAP){ seg(add3(chest,tdir,.02),add3(head,[0,-.06,-.01]),.085,.08,'#f1c7a5'); CAP.push(['s',W3(head),.108,'#f1c7a5'],['s',W3(add3(head,[0,.045,-.02])),.105,S.b],['s',W3(add3(head,[0,.15,-.02])),.032,S.a]);
+      for(const k of [-1,1]) CAP.push(['s',W3(add3(head,[k*.035,.01,.1])),.012,'#1e293b']); return; }
     { const hp=J(head), nose=J(add3(head,[0,-.02,.1])); if(hp&&nose){ const front=dep(nose)<dep(hp)-.02, r=Math.max(1.5,hp[2]*.108);
       seg(add3(chest,tdir,.02),add3(head,[0,-.06,-.01]),.085,.08,'#f1c7a5');
       list.push({z:dep(hp)-.02, f:()=>{ ctx.fillStyle='#f1c7a5'; ctx.beginPath(); ctx.arc(hp[0],hp[1],r,0,7); ctx.fill();
@@ -486,6 +491,93 @@ const BIATHLON = (()=>{
     list.sort((p,q)=>q.z-p.z); for(const it of list) it.f();
     // andedräkt i kylan när pulsen är hög
     if(me && !md && a.hr>130 && sc0>20){ const hp=J(add3(head,[0,-.03,.2])); if(hp){ const k=(tn*1.6)%1; ctx.fillStyle=`rgba(255,255,255,${(.22*(1-k)).toFixed(3)})`; ctx.beginPath(); ctx.arc(hp[0],hp[1]-k*sc0*.12,sc0*(.05+k*.1),0,7); ctx.fill(); } }
+  }
+
+
+  /* ---------- 3D-grafik med grafikkortet (slalomgl.js), som i slalom; enkel grafik som reserv ---------- */
+  let GLB=null, glcv=null, GLON=lsGet('bs_gl')!=='0', glVis=false, CAP=null; const CAPP=[0,0,1,1], GCB={x:0,yaw:0,pitch:0,init:0};
+  const SUNB=(()=>{ const v=[.62,.36,-.6], l=Math.hypot(...v); return v.map(x=>x/l); })();   // låg vintersol snett bakifrån
+  const glOkB=()=>GLON && !!glcv && !!GLB && GLB.ok();
+  const glLabelB=()=>GLON?'🖼️ Enkel grafik':'✨ 3D-grafik';
+  function glSyncB(explicit){ if(!glcv) return; if(GLON){ if(typeof SLGL==='undefined') GLON=false; else { if(!GLB) GLB=SLGL.create(); if(!GLB.init(glcv)){ GLON=false; if(explicit){ lsSet('bs_gl','0'); try{ toast('3D-grafiken går inte att starta på den här enheten'); }catch(e){} } } } }
+    if(!GLON) glShow(false); const b=document.querySelector('.bs-glb'); if(b) b.textContent=glLabelB(); }
+  function glShow(on){ if(glcv && glVis!==on){ glVis=on; glcv.style.display=on?'block':'none'; } }
+  // mark utanför spåret: plant närmast (stadion, publik), sedan kullar och skogsåsar; Storsjön till höger med fjällen bortom
+  for(const A of [TL,TP]){ const N=A.N, fr=new Float32Array(N+1); for(let i=0;i<=N;i++){ let s=0; for(let k=-18;k<=18;k++) s+=(A.crowd[((i+k)%N+N)%N]?26:7); fr[i]=s/37; } A.fr=fr; let mn=1e9; for(let i=0;i<=N;i++) mn=Math.min(mn,A.y[i]); A.lake=mn-16; }
+  function gyB(x,z){ const m=mid(z), hw=halfAt(z), s=x-m, d=Math.abs(s)-hw, y0=elev(z); if(d<=0) return y0;
+    const e=Math.max(0,d-at(T,T.fr,z)); if(e<=0) return y0; const w=6.2831853/T.N, k=1-Math.exp(-e/30);
+    let h=k*(2.4+1.7*Math.sin(w*3*z+s*.02)+1.2*Math.sin(w*7*z-s*.037+1.3));
+    if(s<0) h+=e*e*.0004+Math.min(e,900)*.035*(1+.6*Math.sin(w*2*z+s*.006));
+    else { const lk=smooth(clamp((e-150)/160,0,1)); h=lerp(h,T.lake-y0,lk); if(e>1350) h+=Math.pow(e-1350,1.08)*.16*(1+.35*Math.sin(w*4*z+s*.004)); }
+    return y0+h; }
+  function tintB(x,z,y,o){ const m=mid(z), s=x-m, d=Math.abs(s)-halfAt(z), e=d-at(T,T.fr,z), w=6.2831853/T.N, dens=T.trees[Math.round(wrap(z,T.N))]||0;
+    o.m=2; if(s>0 && y<T.lake+.6 && e>150){ o.r=.80; o.g=.86; o.b=.93; return; }
+    let f=d<40 ? dens*clamp((d-1)/8,0,1)*.6 : clamp((.55+.45*Math.sin(w*5*z+s*.013)*Math.sin(s*.004+1))*(s<0?1:.75),0,1);
+    if(y-T.lake>130) f*=clamp(1-(y-T.lake-130)/60,0,1);
+    o.r=.93-.55*f; o.g=.95-.45*f; o.b=.985-.53*f; }
+  function glBuildB(pen){
+    const A=T, N=A.N, Z0=-180, Z1=N+210, B=new SLGL.Builder(120000), B2=new SLGL.Builder(20000), RR=rng(4242);
+    // spåret och marken närmast: tätt rutnät som följer spårets mittlinje
+    const OUT=[.7,1.6,3,5,8,12,17,24,33,45,60,80,105,140,190,260], IN=[-1,-.75,-.5,-.25,0,.25,.5,.75,1], NO=OUT.length, NX=NO*2+IN.length, DZ=2, NZ=Math.floor((Z1-Z0)/DZ)+1;
+    const offs=(i,hw)=> i<NO ? -hw-OUT[NO-1-i] : i<NO+IN.length ? IN[i-NO]*hw : hw+OUT[i-NO-IN.length];
+    GLB.addGrid(NX,NZ,(i,j,o)=>{ const z=Z0+j*DZ, m=mid(z), hw=halfAt(z), dx=offs(i,hw), x=m+dx; o.x=x; o.z=z; o.y=gyB(x,z);
+      if(Math.abs(dx)<=hw+.01){ o.r=.955; o.g=.965; o.b=.985; o.m=1; } else if(Math.abs(dx)<hw+.8){ o.r=.84; o.g=.88; o.b=.95; o.m=2; o.y+=.12; } else tintB(x,z,o.y,o); });
+    // landskapet runt omkring: glest rutnät
+    const FS=70, X0=-1500, FNX=Math.ceil(4300/FS)+1, ZF=Z0-1400, FNZ=Math.ceil((Z1-Z0+2800)/FS)+1;
+    const inNear=(x,z)=> z>Z0+FS && z<Z1-FS && Math.abs(x-mid(z))<halfAt(z)+260-FS*1.2;
+    GLB.addGrid(FNX,FNZ,(i,j,o)=>{ const x=X0+i*FS, z=ZF+j*FS; o.x=x; o.z=z; o.y=gyB(x,z)-(inNear(x,z)?6:0); tintB(x,z,o.y+(inNear(x,z)?6:0),o); },
+      (i,j)=>{ const x=X0+i*FS, z=ZF+j*FS; return inNear(x,z)&&inNear(x+FS,z)&&inNear(x,z+FS)&&inNear(x+FS,z+FS); });
+    // klassiska spår, startlinjen
+    if(!pen){ for(let z=Z0;z<Z1;z+=DZ){ const z2=z+DZ, h1=halfAt(z), h2=halfAt(z2); if(h1<3) continue; for(const o of [.55,.78,1.25,1.48]){ const x1=mid(z)+h1-o, x2=mid(z2)+h2-o, w=.045;
+        B2.quad([x1-w,elev(z)+.012,z],[x1+w,elev(z)+.012,z],[x2+w,elev(z2)+.012,z2],[x2-w,elev(z2)+.012,z2],[.7,.76,.88],3); } }
+      for(let b=-LP;b<=LP;b+=LP){ const z=b+LINE; if(z<Z0||z>Z1) continue; const m=mid(z), hw=halfAt(z); B2.quad([m-hw,elev(z)+.02,z-.25],[m+hw,elev(z)+.02,z-.25],[m+hw,elev(z+.25)+.02,z+.25],[m-hw,elev(z+.25)+.02,z+.25],[.94,.27,.27],3); } }
+    // träd, publik, stängsel, flaggor – samma placering som i den enkla grafiken
+    const fan=(x,y,z,v,sc)=>{ sc=sc||1; const c=SLGL.hex(JACK[v%JACK.length]); B.box(x-.2*sc,x+.2*sc,y,y+.8*sc,z-.13*sc,z+.13*sc,[.13,.16,.24],0); B.box(x-.25*sc,x+.25*sc,y+.8*sc,y+1.42*sc,z-.16*sc,z+.16*sc,c,0); B.sphere([x,y+1.57*sc,z],.13*sc,[.95,.8,.68],0,4,3); B.sphere([x,y+1.66*sc,z],.12*sc,SLGL.hex(JACK[(v*5+3)%JACK.length]),0,4,3); };
+    const tree=(x,z,v,s)=>{ const y=gyB(x,z), h=8*s;
+      if(v===2){ B.cone([x,y-.2,z],[x+.15,y+h*.82,z],.13*s,.035,[.9,.89,.86],0,5); for(let k=0;k<6;k++){ const a=RR()*6.28, hh=h*(.34+k*.08), l=h*(.34-k*.03); B.cone([x+.08,y+hh,z],[x+Math.cos(a)*l*.6,y+hh+l*.75,z+Math.sin(a)*l*.6],.05*s,.008,[.5,.44,.42],0,3,[.88,.89,.93]); } }
+      else { const r=(v?1.5:1.9)*s, g=v?[.10,.27,.20]:[.08,.23,.165]; B.cone([x,y-.3,z],[x,y+h*.2,z],.2*s,.15*s,[.28,.2,.14],0,4); for(let k=0;k<4;k++) B.cone([x,y+h*(.1+.2*k),z],[x,y+Math.min(h,h*(.47+.2*k)),z],r*(1-.23*k),0,g,0,6,[.80,.86,.90]); } };
+    for(let zz=Math.ceil(Z0/5)*5; zz<Z1; zz+=5){ const qi=Math.round(wrap(zz,N)), m=mid(zz), hw=halfAt(zz), r=rng(qi*7+(pen?999:1)), dens=A.trees[qi]||0, cr=A.crowd[qi];
+      for(const sd of [-1,1]){
+        if(cr){ const z2=zz+5, x1=m+sd*(hw+1.3), x2=mid(z2)+sd*(halfAt(z2)+1.3), y1=elev(zz), y2=elev(z2); B.quad([x1,y1+.05,zz],[x2,y2+.05,z2],[x2,y2+1,z2],[x1,y1+1,zz],[.19,.33,.75],4); B.quad([x1-sd*.01,y1+.48,zz],[x2-sd*.01,y2+.48,z2],[x2-sd*.01,y2+.62,z2],[x1-sd*.01,y1+.62,zz],[.98,.8,.08],4); B.cone([x1,y1,zz],[x1,y1+1.1,zz],.03,.03,[.12,.16,.3],0,4); }
+        const n=Math.round(dens*4+r()*1.2);
+        for(let k=0;k<n;k++){ const dist=dens>.8?2.5+r()*6+k*5:9+r()*28+k*9; if(!pen && wrap(zz,LP)<100 && sd>0) continue; const tz=zz+r()*5, v=r()<(dens>.8?.1:.3)?2:(r()<.5?0:1), s=.8+r()*.7; tree(m+sd*(hw+dist),tz,v,s); }
+        if(cr && !(sd<0 && !pen && wrap(zz,LP)<92)){ const nn=cr>1?4:2; for(let k=0;k<nn;k++){ const fx=m+sd*(hw+2.3+r()*3), v=Math.floor(r()*16), fz=zz+k*1.2; fan(fx,elev(fz),fz,v); r(); } }
+      }
+      if(dens>.2 && !pen) for(let k=0;k<2;k++){ if(r()<.35) continue; const sd=r()<.5?-1:1, dist=45+r()*90; tree(m+sd*(hw+dist),zz+r()*5,r()<.25?2:(r()<.5?0:1),.9+r()*.6); }   // glesare skog längre ut
+    }
+    if(!pen){ for(let b=-LP;b<=LP;b+=LP) for(const s of STATIC){ const z=b+s.q; if(z<Z0||z>Z1) continue; const m=mid(z), hw=halfAt(z), y=elev(z);
+      if(s.t==='arch'){ const x1=m-hw-1, x2=m+hw+1; for(const x of [x1,x2]) B.box(x-.25,x+.25,y,y+5.2,z-.25,z+.25,[.04,.18,.48],0); B.box(x1-.25,x2+.25,y+4.1,y+5.2,z-.3,z+.3,[.04,.18,.48],0); B.box(x1+1,x2-1,y+4.45,y+4.85,z-.33,z+.33,[.98,.8,.08],0); }
+      else if(s.t==='stand'){ const x0=m-hw-3; for(let row=0;row<7;row++){ const x=x0-row*1.6, hg=row*1.1; B.box(x-1.6,x,y+hg,y+hg+1.1,z,z+7,row%2?[.28,.33,.41]:[.32,.38,.48],0); for(let k=0;k<5;k++) fan(x-.5,y+hg+1.1,z+(k+.5)*7/5,row*5+k+Math.round(z),.85); } }
+      else if(s.t==='screen'){ const x=m-hw-16; B.cone([x,y-.2,z],[x,y+6,z],.12,.12,[.2,.25,.33],0,5); B.box(x-4,x+4,y+6,y+11,z-.2,z+.2,[.07,.09,.15],0); B.wall([x-3.8,y+6.2,z-.22],[x+3.8,y+6.2,z-.22],[x+3.8,y+10.8,z-.22],[x-3.8,y+10.8,z-.22],[0,0,-1],[.14,.25,.62],3); }
+      else if(s.t==='tower'){ const x=m-48; B.cone([x,y-1,z],[x,y+58,z],1.5,.5,[.88,.91,.95],0,8); for(let k=0;k<6;k++){ const t=.35+k*.11; B.cone([x,y+58*t-.3,z],[x,y+58*t+.3,z],1.5+(.5-1.5)*t+.06,1.5+(.5-1.5)*t+.05,[1.5,1.9,2.1],3,8); } B.sphere([x,y+58.6,z],.7,[1.8,2.2,2.4],3,8,5); }
+      else if(s.t==='mat'){ const x0=m+hw+2; for(let L=0;L<12;L++){ const x=x0+L*2.6; B.box(x,x+1.6,y,y+.05,z,z+1.1,L%2?[.12,.16,.22]:[.15,.2,.29],0); } }
+      else if(s.t==='targets'){ const x0=m+hw+2; for(let L=0;L<12;L++){ const x=x0+L*2.6+.8; B.box(x-.55,x+.55,y,y+1,z,z+.4,[.9,.91,.93],0); for(let k=0;k<5;k++) B.wall([x-.5+.14*1+k*.18-.05,y+.67,z-.01],[x-.5+.14+k*.18+.05,y+.67,z-.01],[x-.5+.14+k*.18+.05,y+.77,z-.01],[x-.5+.14+k*.18-.05,y+.77,z-.01],[0,0,-1],[.05,.05,.06],3);
+          B.box(x-.25,x+.25,y+1.25,y+1.65,z,z+.05,[.97,.97,.97],0); } }
+      else if(s.t==='flag'){ const x=m+s.sd*(hw+3.5); B.cone([x,y-.2,z],[x,y+5,z],.05,.04,[.8,.84,.88],0,4); B.quad([x,y+4,z],[x,y+4,z+1.6],[x,y+5,z+1.6],[x,y+5,z],[0,.42,.65],4); B.quad([x+.01,y+4,z+.48],[x+.01,y+4,z+.69],[x+.01,y+5,z+.69],[x+.01,y+5,z+.48],[1,.8,0],4); B.quad([x+.02,y+4.42,z],[x+.02,y+4.42,z+1.6],[x+.02,y+4.58,z+1.6],[x+.02,y+4.58,z],[1,.8,0],4); } } }
+    else for(let zz=Math.ceil(Z0/30)*30; zz<Z1; zz+=30){ const x=mid(zz)+halfAt(zz)+6, y=elev(zz); B.box(x,x+22,y,y+3,zz-.15,zz+.15,[.89,.91,.94],0); B.box(x,x+22,y+2.25,y+3,zz-.17,zz+.17,[.12,.25,.69],0); }
+    GLB.addMesh(B,true); GLB.addMesh(B2,false);
+  }
+  function glSki(dt,a,pen,z){
+    T=pen?TP:TL; const N=T.N, base=Math.floor(z/N)*N;
+    if(!GLB.use(pen?'pen':'lap')) glBuildB(pen);
+    const DD=R.camO?DSO:DS.on?DS:null; let C;
+    if(DD){ DCUR=DD; const fx=mid(z+3)-mid(z-3), Cc=DRONE.solve(DD,{x:mid(z),y:elev(z)+1,z},fx/6,1,dt,W,H,zz=>elev(zz)); C={x:Cc.x,y:Cc.y,z:Cc.z-base,yaw:Cc.yaw,pitch:Cc.pitch,f:Cc.f}; GCB.init=0; }
+    else { // bakom åkaren, som i den enkla grafiken: åkaren nere i bild, spåret framåt
+      const k=GCB.init?1:0, sway=Math.sin(a.t*2.6)*.35*(1-a.tuck), tx=mid(z)+sway, ez=z-BACK, f=Math.min(W,H)*1.05;
+      GCB.x=k?GCB.x+(tx-GCB.x)*Math.min(1,dt*5):tx;
+      const head=Math.atan((mid(z+8)-mid(z))/8); GCB.yaw=k?GCB.yaw+(head*.8-GCB.yaw)*Math.min(1,dt*3):head*.8;
+      const ey=Math.max(elev(ez)+CAMH,elev(z)+1.6), ahead=Math.atan(-(elev(z+10)-elev(z))/10)*.85, want=ahead-Math.atan((ey-(elev(z)+.9))/BACK)*0;
+      GCB.pitch=k?GCB.pitch+(want-GCB.pitch)*Math.min(1,dt*2.4):want; GCB.init=1;
+      const cy=H*.8-f*((ey-elev(z))/BACK-Math.tan(GCB.pitch));   // samma bildutsnitt som den enkla grafiken: åkaren nere i bild
+      C={x:GCB.x,y:ey,z:ez-base,yaw:GCB.yaw,pitch:GCB.pitch,f,cy}; }
+    lastYH=(C.cy==null?H/2:C.cy)-C.f*Math.tan(C.pitch);
+    const B=GLB.dyn().reset(), put=q=>[q[0],q[1],q[2]-base];
+    const cap=(o,wx,wz)=>{ CAP=[]; let L; try{ skier3(o,wx,wz,o===a); } finally { L=CAP; CAP=null; }
+      for(const q of L){ if(q[0]==='c') B.capsule(put(q[1]),put(q[2]),q[3],q[4],q[5],0,6); else if(q[0]==='s') B.sphere(put(q[1]),q[2],q[3],0,8,5); } };
+    cap(a,mid(z),z);
+    for(const o of R.A){ if(o===a||o.ph==='range'||o.done&&o.ph==='done') continue; const az=pen?(o.ph==='pen'?o.pz:null):(o.ph==='ski'?o.z:null); if(az==null||az<z-150||az>z+260) continue; cap(o,mid(az)+(o.k%3-1)*1.4,az); }
+    R.parts=R.parts.filter(p=>(p.t-=dt)>0); for(const p of R.parts){ p.x+=p.vx*dt; p.z+=p.vz*dt; p.y+=p.vy*dt; p.vy-=9*dt; B.sphere([p.x,elev(p.z)+Math.max(.02,p.y),p.z-base],.035*(p.r||1),[1,1,1],2,4,3); }
+    GLB.render({C,W,H,sun:SUNB,wx:R.wx,focus:[mid(z),elev(z),z-base+(DD?0:14)],shadowR:DD?80:55,time:now()});
   }
 
   /* ---------- siktbilden ---------- */
@@ -914,10 +1006,11 @@ const BIATHLON = (()=>{
     const a=meA(), p=R.play;
     drawMain(dt,a);
     const scope = a.ph==='range' && R.sc && !R.cine;
-    WEATHER.post(ctx,W,H,scope?null:lastYH,R.wx,R.wxs,dt,scope?0:a.v,scope?{scope:true,cy:H*.44}:null);
+    WEATHER.post(ctx,W,H,scope?null:lastYH,R.g3?{...R.wx,fog:0,flat:0,kind:R.wx.kind==='sun'?'gl':R.wx.kind}:R.wx,R.wxs,dt,scope?0:a.v,scope?{scope:true,cy:H*.44}:null);
     if(p) REPLAY.overlay(ctx,W,H,{mode:p.mode, speed:p.speed, flash:p.flash, title:p.mode==='hl'?Math.max(0,1.8-p.rt):0, sub:`${FMT[G.fmt].name} · ${bare(pname(a.k))}`, cap:p.cap, capA:p.capA, slow:p.slow&&p.playing});
   }
   function drawMain(dt,a){
+    R.g3=false; glShow(false);
     if(R.cine && drawCine()) return;
     if(a.ph==='range' && R.sc){ drawScope(dt); return; }
     if(G.fmt==='tr'){ drawTrBg(); return; }
@@ -935,7 +1028,8 @@ const BIATHLON = (()=>{
 
   /* ---------- in/ut ---------- */
   function fit(){ if(!cv) return; const host=cv.parentElement, r=host.getBoundingClientRect(); const w=Math.round(Math.min(host.clientWidth,700)), h=Math.round(Math.max(340,Math.min(window.innerHeight-r.top-10,w*1.9)));
-    dpr=Math.min(weakB()?1.5:3, window.devicePixelRatio||1, Math.sqrt(2.8e6/(w*h))); cv.style.width=w+'px'; cv.style.height=h+'px'; cv.width=Math.round(w*dpr); cv.height=Math.round(h*dpr); W=w; H=h; BDkey=''; WCkey=''; PROFkey=''; }
+    dpr=Math.min(weakB()?1.5:3, window.devicePixelRatio||1, Math.sqrt(2.8e6/(w*h))); cv.style.width=w+'px'; cv.style.height=h+'px'; cv.width=Math.round(w*dpr); cv.height=Math.round(h*dpr); W=w; H=h; BDkey=''; WCkey=''; PROFkey='';
+    if(glcv){ const d2=Math.min(dpr,weakB()?1.25:2.5,Math.sqrt(2.3e6/(w*h))); glcv.width=Math.round(w*d2); glcv.height=Math.round(h*d2); glcv.style.width=w+'px'; glcv.style.height=h+'px'; glcv.style.left=cv.offsetLeft+'px'; glcv.style.top=cv.offsetTop+'px'; } }
   window.addEventListener('resize',()=>{ if(G&&G.kind==='skidskytte'&&view==='game') fit(); });
   function showCtl(on){ const c=document.getElementById('bsCtl'); if(c) c.classList.toggle('on',!!on); const d=document.querySelector('.dr-bar[data-dk="bs_dr"]'); if(d) d.style.display=on?'none':''; }
   function tapSki(e){ const a=meA(); if(!R.started||(a.ph!=='ski'&&a.ph!=='pen')||a.done) return; const r=cv.getBoundingClientRect(), side=(e.clientX-r.left)<r.width/2?'L':'R'; doPush(side); }
@@ -953,7 +1047,8 @@ const BIATHLON = (()=>{
       cv.addEventListener('pointermove',e=>{ if(!R||!R.ptr||e.pointerId!==R.ptr.id||!R.sc) return; const S=R.sc, k=(S.pos==='L'?.55:.65)/Zs; S.P.x+=(e.clientX-R.ptr.x)*k; S.P.y-=(e.clientY-R.ptr.y)*k; S.P.x=clamp(S.P.x,-900,900); S.P.y=clamp(S.P.y,-600,700); R.ptr.x=e.clientX; R.ptr.y=e.clientY; });
       const up=e=>{ if(R&&R.ptr&&e.pointerId===R.ptr.id){ R.ptr=null; R.holding=false; } }; cv.addEventListener('pointerup',up); cv.addEventListener('pointercancel',up);
       cv.addEventListener('contextmenu',e=>e.preventDefault()); }
-    host.appendChild(cv); fit();
+    if(!glcv){ glcv=document.createElement('canvas'); glcv.className='bs-glc'; }
+    host.appendChild(glcv); host.appendChild(cv); glVis=null; glSyncB(); fit();
     if(!raf){ lastT=0; raf=requestAnimationFrame(loop); }
   }
   document.addEventListener('pointerdown',e=>{ const b=e.target.closest('[data-bs]'); if(!b||!G||G.kind!=='skidskytte'||!R) return; e.preventDefault(); const k=b.dataset.bs, S=R.sc;
@@ -962,6 +1057,7 @@ const BIATHLON = (()=>{
   document.addEventListener('click',e=>{ const b=e.target.closest('[data-bsx]'); if(!b||!G||G.kind!=='skidskytte'||!R) return; const k=b.dataset.bsx;
     if(k==='next'){ R.trCard=false; const a=meA(); if(R.trI>=TR_N){ finishTr(); return; } a.hr=G.trHr==='race'?172+Math.random()*6:84; a.st=R.trI; startRange(a); render(); }
     if(k==='end'){ finishTr(); }
+    if(k==='gl'){ GLON=!GLON; lsSet('bs_gl',GLON?'1':'0'); glSyncB(true); fit(); return; }
     if(k==='rp'||k==='hl'){ unlockAudio(); startPlay(k==='rp'?'replay':'hl'); } });
   function finishTr(){ const a=meA(); R.trCard=false; const tot=R.trLog.reduce((s,x)=>s+x.t,0); const hits=R.trLog.reduce((s,x)=>s+x.hits.reduce((p,q)=>p+q,0),0);
     const key=`bs_tr_${G.trPos}_${G.trHr}_${G.easy?1:0}`; try{ const B=JSON.parse(lsGet(key))||{}; const pct=hits/(R.trLog.length*5); if(R.trLog.length===TR_N && (!B.hits||hits>B.hits||(hits===B.hits&&tot<B.t))) lsSet(key,JSON.stringify({hits,t:tot,d:Date.now()})); }catch(e){}
@@ -1026,7 +1122,7 @@ const BIATHLON = (()=>{
           <p class="bs-pb">${l.w&&G.wind?`Vinden: ${Math.abs(l.w).toFixed(1).replace('.',',')} m/s från ${l.w>0?'vänster':'höger'}. `:''}${tipFor(l)}</p>
           <div class="gbtns">${R.trI<TR_N?`<button class="pri" data-bsx="next">▶️ Nästa serie (${stagesOf(G)[R.trI]==='L'?'liggande':'stående'})</button>`:`<button class="pri" data-bsx="end">✅ Se resultatet</button>`}${R.trI<TR_N?'<button data-bsx="end">Avsluta</button>':''}</div></div></div>`; }
       const tr=g.fmt==='tr';
-      return `<div class="bs-wrap ${R&&R.play?'rp-on'+(R.play.mode==='hl'?' rp-hl':''):''}"><div id="bsHost" class="bs-host"></div>${R&&R.play?REPLAY.bar('bs',R.play):''}
+      return `<div class="bs-wrap ${R&&R.play?'rp-on'+(R.play.mode==='hl'?' rp-hl':''):''}"><div id="bsHost" class="bs-host"></div>${R&&R.play?REPLAY.bar('bs',R.play):''}${tr?'':`<button class="bs-glb" data-bsx="gl">${glLabelB()}</button>`}
         ${tr?'':DRONE.panel(DS)}<div class="bs-ctl" id="bsCtl">${g.wind?'<button class="bs-cl" data-bs="cl" data-d="-1" aria-label="Knäpp vänster">◀ klick</button>':''}<button class="bs-fire" data-bs="fire">AVFYRA</button>${g.wind?'<button class="bs-cl" data-bs="cl" data-d="1" aria-label="Knäpp höger">klick ▶</button>':''}</div>${over}</div>
         <div class="ghint">${tr?`Träna skytte · ${g.trPos==='L'?'liggande':g.trPos==='S'?'stående':'växla ligg/stå'} · ${g.trHr==='race'?'hög puls':'lugn puls'}`:`${FMT[g.fmt].name} · ${FMT[g.fmt].desc}`} · Skejta: tryck växelvis vänster–höger (← →). Skytte: dra för att sikta, håll kvar fingret för att hålla andan, tryck AVFYRA (mellanslag). ${g.wind?'Vinden syns på flaggorna – flytta träffläget med knäpparna.':''} ${KIT.resignHTML()}</div>`;
     },
@@ -1091,7 +1187,10 @@ const BIATHLON = (()=>{
   KIND.skidskytte.apply=function(g,a,seat){ const ok=_apply(g,a,seat); if(ok&&a.type==='finish'&&seat===meSeat2()&&g.fmt!=='tr'){ try{ const key='bs_best_'+g.fmt, B=JSON.parse(lsGet(key))||{}; const t=a.ms/1000; if(!B.t||t<B.t){ lsSet(key,JSON.stringify({t,sh:a.sh,d:Date.now()})); if(B.t) setTimeout(()=>{ toast('🏆 Nytt rekord!',2500); sparkles(30); },500); } }catch(e){} } return ok; };
 
   const css=document.createElement('style'); css.textContent=`
-.bs-wrap{position:relative;margin:0 auto}.bs-host{display:flex;justify-content:center}
+.bs-wrap{position:relative;margin:0 auto}.bs-host{display:flex;justify-content:center;position:relative}
+.bs-glc{position:absolute;left:0;top:0;border-radius:16px;display:none}.bs-cv{position:relative;z-index:1}
+.bs-glb{position:absolute;right:8px;top:8px;padding:7px 11px;border-radius:12px;border:1px solid rgba(255,255,255,.35);background:rgba(15,23,42,.6);color:#fff;font-size:12.5px;font-weight:700;z-index:3;touch-action:manipulation}
+.rp-hl .bs-glb{display:none}
 .bs-cv{display:block;border-radius:16px;touch-action:none;-webkit-user-select:none;user-select:none;box-shadow:0 10px 30px rgba(0,0,0,.4)}
 .bs-ctl{position:absolute;left:0;right:0;bottom:10px;display:none;justify-content:center;align-items:center;gap:14px;pointer-events:none}
 .bs-ctl.on{display:flex}.bs-ctl button{pointer-events:auto;touch-action:manipulation}
@@ -1106,5 +1205,5 @@ const BIATHLON = (()=>{
 .bs-log>div:not(svg){display:flex;justify-content:space-between;font-size:13px;padding:2px 4px}.bs-dots{letter-spacing:1px}`;
   document.head.appendChild(css);
 
-  return { net:onNet, __test:(typeof DEV!=='undefined'&&DEV)?{wc:()=>WC,wcb:()=>WCb,run:()=>R,step:dt=>step(dt),TL,TP,push,skiStep,idealGap,newRun,fire,meA,wind}:undefined };
+  return { net:onNet, __test:(typeof DEV!=='undefined'&&DEV)?{gl:()=>GLB&&GLB.ok()?GLB.stats():{tris:0},wc:()=>WC,wcb:()=>WCb,run:()=>R,step:dt=>step(dt),TL,TP,push,skiStep,idealGap,newRun,fire,meA,wind}:undefined };
 })();

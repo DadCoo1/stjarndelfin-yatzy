@@ -1,7 +1,7 @@
 // Slalom: bansättningen följer Skidförbundets regler på alla backar, banorna går att åka, och bilden ritas utan fel i alla kameralägen.
 const {chromium}=require('playwright'); const sleep=ms=>new Promise(r=>setTimeout(r,ms));
 (async()=>{ const b=await chromium.launch(); let fails=0; const ok=(c,m)=>{ console.log((c?'✓ ':'✗ ')+m); if(!c) fails++; }; const errs=[];
-  const c=await b.newContext({viewport:{width:430,height:860},deviceScaleFactor:2}); await c.addInitScript("window.__NET_SERVER=''; localStorage.setItem('dev:onboarded','1'); localStorage.setItem('dev:sfx','0')");
+  const c=await b.newContext({viewport:{width:430,height:860},deviceScaleFactor:2}); await c.addInitScript("window.__NET_SERVER=''; localStorage.setItem('dev:onboarded','1'); localStorage.setItem('dev:sl_gl','0'); /* testar den enkla grafiken; 3D-grafiken provas i look.js */ localStorage.setItem('dev:sfx','0')");
   const p=await c.newPage(); p.on('pageerror',e=>errs.push(e.message)); await p.goto('http://127.0.0.1:8811/dev/'); await sleep(1500);
   await p.evaluate(()=>GINFO.slalom.menu()); await sleep(600);
   ok(await p.$$eval('[data-sl=ven]',e=>e.length)===3, 'tre backar att välja: Björnrike, Störtloppet, Gästrappet');
