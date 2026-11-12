@@ -21,7 +21,7 @@
   if(!same || !/[?&]bot=1/.test(location.search)){ document.documentElement.innerHTML=''; throw new Error('Inramning blockerad'); }
 })();
 /* ================= Version & utvecklingsläge ================= */
-const APP_VERSION='2026.11.10.7';
+const APP_VERSION='2026.11.12.1';
 const DEV = /\/dev(\/|$)/.test(location.pathname);      // testversionen ligger i mappen /dev/
 const BOT = /[?&]bot=1/.test(location.search) && window.parent!==window;   // osynlig ekokompis i en ram
 const LSP = DEV ? (BOT ? 'dev:bot:' : 'dev:') : (BOT ? 'bot:' : '');    // egen sparad data i testversionen
@@ -30,20 +30,7 @@ const LSP = DEV ? (BOT ? 'dev:bot:' : 'dev:') : (BOT ? 'bot:' : '');    // egen 
 let APP_READY=false; document.addEventListener('DOMContentLoaded',()=>{ APP_READY=true; },{once:true});
 if(DEV) document.title='DEV · '+document.title;
 /* ================= Grafik ================= */
-const DOLPHIN = (id='d', c1='#7df9ff', c2='#4f7cff') => `
-<svg viewBox="0 0 200 100" xmlns="http://www.w3.org/2000/svg">
-  <defs><linearGradient id="${id}" x1="0" y1="0" x2="0" y2="1">
-    <stop offset="0" stop-color="${c1}"/><stop offset="1" stop-color="${c2}"/></linearGradient></defs>
-  <g fill="url(#${id})">
-    <path d="M40 60 C70 40 110 30 150 38 C165 41 172 46 178 50 L195 54 C196 57 190 59 178 58 C165 65 140 71 110 71 C85 71 60 67 40 64 Z"/>
-    <path d="M95 38 C100 22 108 14 120 9 C115 19 114 28 121 35 Z"/>
-    <path d="M128 66 C124 78 116 86 104 91 C109 81 111 73 113 68 Z"/>
-    <path d="M44 60 C30 52 18 41 5 36 C13 46 19 55 23 61 C17 67 11 77 7 88 C21 79 33 69 46 64 Z"/>
-  </g>
-  <path d="M120 64 C140 64 160 61 176 57" stroke="rgba(255,255,255,.45)" stroke-width="3" fill="none" stroke-linecap="round"/>
-  <circle cx="160" cy="47" r="3" fill="#0b2050"/>
-  <circle cx="161" cy="46" r="1" fill="#fff"/>
-</svg>`;
+// DOLPHIN() finns i dolphin.js (en gemensam 3D-modell för startsidan, ikonen och akvariet)
 
 function buildSky(){
   const s = document.getElementById('sky');
@@ -165,49 +152,82 @@ function buzz(p){ try{ navigator.vibrate && navigator.vibrate(p) }catch(e){} }
 
 /* --- Bakgrundsmusik: lugn rymd-hav-ambient, genereras live --- */
 let MUS=null;
+/* Bakgrundsmusiken: en egen komposition i svensk elektronisk naturromantik – drömska analoga stråkmattor,
+   en "trollflöjt" som glider mellan tonerna, glasklara älvklockor, eko och rymd, vind och en gök i fjärran.
+   Lugn vals i dorisk folkton (D). Melodierna är egna motiv som sätts ihop på nytt varje gång, så musiken upprepar sig inte. */
 const mtf = m => 440*Math.pow(2,(m-69)/12);
-const CHORDS = [[50,57,62,66,69],[47,54,59,62,66],[43,50,55,59,66],[45,52,57,61,64]];   // D – Hm – G – A
-const BELLS  = [74,76,78,81,83,86,88,90];                                              // D-pentaton, högt
+const SCALE=[0,2,3,5,7,9,10];                                       // D dorisk
+const deg = d => 62 + 12*Math.floor(d/7) + SCALE[((d%7)+7)%7];      // skalsteg → MIDI (0 = D4)
+const PROG=[[0,6,3,0,0,2,6,4],[3,0,6,4,3,0,4,0],[0,2,3,0,6,3,4,0]];  // ackordens grundtoner (skalsteg), två takter var
+// motiv för flöjten: [skalsteg, slag] över fyra takter (12 slag); null = paus
+const MOTIFS=[
+  [[4,2],[5,1],[4,1],[2,1],[1,1],[0,3],[null,3]],
+  [[0,1],[2,1],[4,1],[7,2],[6,1],[4,2],[5,1],[4,3]],
+  [[7,1.5],[6,.5],[4,1],[5,2],[3,1],[4,1],[2,1],[1,1],[0,3]],
+  [[4,1],[null,.5],[4,.5],[5,1],[7,3],[6,1],[5,1],[4,1],[2,3]],
+  [[9,3],[8,2],[7,1],[4,3],[null,3]],
+  [[2,1],[3,1],[4,1],[6,2],[4,1],[3,1],[2,1],[0,1],[1,3]],
+  [[4,.5],[7,2.5],[null,1],[6,.5],[4,.5],[3,1],[4,3],[null,3]],
+  [[0,2],[null,1],[4,2],[null,1],[3,1],[2,1],[0,1],[-1,3]]];
+const BEAT=.72;
 function impulse(sec){ const n=Math.floor(AC.sampleRate*sec), b=AC.createBuffer(2,n,AC.sampleRate);
-  for(let c=0;c<2;c++){ const d=b.getChannelData(c); for(let i=0;i<n;i++) d[i]=(Math.random()*2-1)*Math.pow(1-i/n,2.6); } return b; }
+  for(let c=0;c<2;c++){ const d=b.getChannelData(c); let lp=0; for(let i=0;i<n;i++){ const t=i/n; lp+=((Math.random()*2-1)-lp)*(.6-.45*t); d[i]=lp*Math.pow(1-t,2.4); } } return b; }
 function startMusic(){
   if(!AC || MUS || !musicOn) return;
   if(typeof spPlaying!=='undefined' && spPlaying && spDuck) return;
   try{
-    const out=AC.createGain(); out.gain.setValueAtTime(0,AC.currentTime); out.gain.linearRampToValueAtTime(.55,AC.currentTime+4); out.connect(AC.destination);
-    const rev=AC.createConvolver(); rev.buffer=impulse(4); const wet=AC.createGain(); wet.gain.value=.6; rev.connect(wet).connect(out);
-    const dry=AC.createGain(); dry.gain.value=.5; dry.connect(out);
-    const lp=AC.createBiquadFilter(); lp.type='lowpass'; lp.frequency.value=1500; lp.connect(dry); lp.connect(rev);
-    const nz=AC.createBufferSource(); nz.buffer=noiseBuf(4); nz.loop=true;               // havsbrus
-    const nf=AC.createBiquadFilter(); nf.type='lowpass'; nf.frequency.value=420;
-    const ng=AC.createGain(); ng.gain.value=.028; nz.connect(nf).connect(ng).connect(out);
-    const lfo=AC.createOscillator(); lfo.frequency.value=.09; const lg=AC.createGain(); lg.gain.value=.022; lfo.connect(lg).connect(ng.gain);
-    nz.start(); lfo.start();
-    MUS={out,lp,rev,src:[nz,lfo],next:AC.currentTime+.3,step:0,timer:null};
+    const t0=AC.currentTime, G=v=>{ const g=AC.createGain(); g.gain.value=v; return g; }, F=(type,f,q)=>{ const x=AC.createBiquadFilter(); x.type=type; x.frequency.value=f; if(q) x.Q.value=q; return x; };
+    const out=G(0); out.gain.setValueAtTime(0,t0); out.gain.linearRampToValueAtTime(.85,t0+5);
+    const comp=AC.createDynamicsCompressor(); comp.threshold.value=-18; comp.ratio.value=3; out.connect(comp); comp.connect(AC.destination);
+    const rev=AC.createConvolver(); rev.buffer=impulse(4.5); const wet=G(.55); rev.connect(wet); wet.connect(out);
+    // eko som studsar mellan vänster och höger
+    const dL=AC.createDelay(2), dR=AC.createDelay(2), fb=G(.36), dlp=F('lowpass',2400), echo=G(1); dL.delayTime.value=BEAT*.75; dR.delayTime.value=BEAT*1.5;
+    const pL=AC.createStereoPanner?AC.createStereoPanner():G(1), pR=AC.createStereoPanner?AC.createStereoPanner():G(1); if(pL.pan){ pL.pan.value=-.7; pR.pan.value=.7; }
+    echo.connect(dL); dL.connect(pL); pL.connect(out); dL.connect(dR); dR.connect(pR); pR.connect(out); dR.connect(dlp); dlp.connect(fb); fb.connect(dL); const ew=G(.35); pL.connect(ew); pR.connect(ew); ew.connect(rev);
+    // stråkmattan: sågtandsvågor genom ett filter som andas långsamt
+    const padF=F('lowpass',800,.7), pad=G(.5); padF.connect(pad); pad.connect(out); const pw=G(.6); pad.connect(pw); pw.connect(rev);
+    const l1=AC.createOscillator(), l1g=G(320); l1.frequency.value=.045; l1.connect(l1g); l1g.connect(padF.frequency); l1.start();
+    // trollflöjten: en enda röst som glider (portamento) med vibrato som växer fram
+    const o1=AC.createOscillator(), o2=AC.createOscillator(), o2g=G(.22), lg=G(0), lf=F('lowpass',2600), vib=AC.createOscillator(), vd=G(0); o1.type='triangle'; o2.type='sine'; vib.frequency.value=5.1;
+    vib.connect(vd); vd.connect(o1.frequency); vd.connect(o2.frequency); o1.connect(lg); o2.connect(o2g); o2g.connect(lg); lg.connect(lf); const ld=G(.5); lf.connect(ld); ld.connect(out); const le=G(.5); lf.connect(le); le.connect(echo); const lr=G(.5); lf.connect(lr); lr.connect(rev);
+    o1.frequency.value=mtf(deg(4)); o2.frequency.value=mtf(deg(4)+12); o1.start(); o2.start(); vib.start();
+    // vind i trädkronorna
+    const nz=AC.createBufferSource(); nz.buffer=noiseBuf(5); nz.loop=true; const nf=F('bandpass',500,.8), ng=G(.012); nz.connect(nf); nf.connect(ng); ng.connect(out); ng.connect(rev);
+    const l2=AC.createOscillator(), l2g=G(.009), l2f=G(260); l2.frequency.value=.07; l2.connect(l2g); l2g.connect(ng.gain); l2.connect(l2f); l2f.connect(nf.frequency); nz.start(); l2.start();
+    MUS={out,rev,echo,padF,lead:{o1,o2,lg,vd},src:[nz,l1,l2,o1,o2,vib],next:t0+.4,step:0,sec:0,motif:null,mi:0,mb:0,timer:null,cuckoo:20+Math.random()*30};
     MUS.timer=setInterval(schedMusic,300); schedMusic();
   }catch(e){ MUS=null; }
 }
-function padNote(f,t,dur,vol){
-  [[f,'sine',0],[f*1.004,'triangle',.6]].forEach(([fr,type,mix])=>{
-    const o=AC.createOscillator(), g=AC.createGain(); o.type=type; o.frequency.value=fr;
-    const v=vol*(mix?.5:1);
-    g.gain.setValueAtTime(0,t); g.gain.linearRampToValueAtTime(v,t+2.6); g.gain.setValueAtTime(v,t+dur-2.4); g.gain.linearRampToValueAtTime(0,t+dur);
-    o.connect(g).connect(MUS.lp); o.start(t); o.stop(t+dur+.1);
-  });
+function padNote(m,t,dur,vol){
+  [-6,5].forEach(c=>{ const o=AC.createOscillator(), g=AC.createGain(); o.type='sawtooth'; o.frequency.value=mtf(m); o.detune.value=c+Math.random()*3;
+    g.gain.setValueAtTime(0,t); g.gain.linearRampToValueAtTime(vol,t+1.5); g.gain.setValueAtTime(vol,t+dur-1.2); g.gain.linearRampToValueAtTime(0,t+dur+1.6);
+    o.connect(g); g.connect(MUS.padF); o.start(t); o.stop(t+dur+1.7); });
 }
-function bell(f,t){
-  const o=AC.createOscillator(), g=AC.createGain(); o.type='sine'; o.frequency.value=f;
-  g.gain.setValueAtTime(0,t); g.gain.linearRampToValueAtTime(.022,t+.02); g.gain.exponentialRampToValueAtTime(.0001,t+2.6);
-  o.connect(g).connect(MUS.rev); o.start(t); o.stop(t+2.7);
+function bell(m,t,vol){     // älvklocka: grundton + svag överton, klingar ut i ekot
+  [[1,1],[2.01,.35],[3.98,.12]].forEach(([k,a])=>{ const o=AC.createOscillator(), g=AC.createGain(); o.type='sine'; o.frequency.value=mtf(m)*k;
+    g.gain.setValueAtTime(0,t); g.gain.linearRampToValueAtTime(vol*a,t+.008); g.gain.exponentialRampToValueAtTime(.0001,t+1.6/k+.3); o.connect(g); g.connect(MUS.echo); g.connect(MUS.rev); o.start(t); o.stop(t+2.2); });
 }
+function bassNote(m,t,dur){ const o=AC.createOscillator(), g=AC.createGain(); o.type='triangle'; o.frequency.value=mtf(m);
+  g.gain.setValueAtTime(0,t); g.gain.linearRampToValueAtTime(.085,t+.06); g.gain.exponentialRampToValueAtTime(.02,t+dur*.8); g.gain.linearRampToValueAtTime(0,t+dur); o.connect(g); g.connect(MUS.out); o.start(t); o.stop(t+dur+.05); }
+function leadNote(m,t,dur){ const L=MUS.lead, f=mtf(m);
+  L.o1.frequency.setTargetAtTime(f,t,.045); L.o2.frequency.setTargetAtTime(f*2,t,.045);
+  L.lg.gain.setTargetAtTime(.06,t,.05); L.lg.gain.setTargetAtTime(0,t+dur*.92,.12);
+  L.vd.gain.setTargetAtTime(0,t,.03); if(dur>BEAT*1.2) L.vd.gain.setTargetAtTime(f*.006,t+BEAT*.6,.25); }
 function schedMusic(){
   if(!MUS || !AC) return;
-  const bar=8;
-  while(MUS.next < AC.currentTime+1.2){
-    const t=MUS.next, ch=CHORDS[MUS.step%CHORDS.length];
-    ch.forEach((m,i)=>padNote(mtf(m),t,bar+2.4,i<2?.045:.03));
-    for(let k=0;k<16;k++) if(Math.random()<.26) bell(mtf(BELLS[Math.floor(Math.random()*BELLS.length)]), t+k*bar/16+Math.random()*.08);
-    MUS.next+=bar; MUS.step++;
+  while(MUS.next < AC.currentTime+1.4){
+    const t=MUS.next, st=MUS.step, bar=Math.floor(st/3), beat=st%3, prog=PROG[MUS.sec%PROG.length], ci=Math.floor(bar/2)%8, r=prog[ci], mood=MUS.sec%3;   // 0 flöjt, 1 flöjt + klockor, 2 stilla
+    if(beat===0 && bar%2===0){ [r-14+7,r-7+4,r,r+2].forEach((d,i)=>padNote(deg(d),t,BEAT*6,i?.016:.02)); }
+    if(beat===0) bassNote(deg(r-14),t,BEAT*2.6); else if(beat===2 && bar%2 && mood!==2) bassNote(deg(r-14+4),t,BEAT*.9);
+    // älvklockor: brutna ackord i åttondelar
+    if(mood===1 || (mood===2 && bar%4===3)) for(let h=0;h<2;h++){ if(Math.random()<(mood===1?.7:.45)){ const tones=[r,r+2,r+4,r+7,r+9], d=tones[(st*2+h+bar)%tones.length]; bell(deg(d)+12,t+h*BEAT/2+Math.random()*.012,.018+Math.random()*.012); } }
+    // flöjten: ett motiv över fyra takter, sedan ofta en paus
+    if(st%12===0){ MUS.motif = Math.random()<(mood===2?.45:.78) ? MOTIFS[(MUS.mi=(MUS.mi+1+Math.floor(Math.random()*3))%MOTIFS.length)] : null; MUS.mb=0; MUS.mp=0; MUS.oct=mood===2||Math.random()<.25?12:0; }
+    if(MUS.motif){ const pos=st%12; while(MUS.mp<MUS.motif.length && MUS.mb<pos+1){ const [d,len]=MUS.motif[MUS.mp]; if(d!==null) leadNote(deg(d)+MUS.oct,t+(MUS.mb-pos)*BEAT,len*BEAT); MUS.mb+=len; MUS.mp++; } }
+    // göken ropar någon gång
+    MUS.cuckoo-=BEAT; if(MUS.cuckoo<=0){ MUS.cuckoo=35+Math.random()*50; [[deg(11),0],[deg(9),.42]].forEach(([m,dt])=>{ const o=AC.createOscillator(), g=AC.createGain(); o.type='sine'; o.frequency.setValueAtTime(mtf(m)*1.03,t+dt); o.frequency.exponentialRampToValueAtTime(mtf(m),t+dt+.06);
+        g.gain.setValueAtTime(0,t+dt); g.gain.linearRampToValueAtTime(.022,t+dt+.03); g.gain.exponentialRampToValueAtTime(.0001,t+dt+.34); o.connect(g); g.connect(MUS.rev); g.connect(MUS.echo); o.start(t+dt); o.stop(t+dt+.4); }); }
+    MUS.next+=BEAT; MUS.step++; if(MUS.step%48===0) MUS.sec++;
   }
 }
 function stopMusic(){
@@ -1313,6 +1333,7 @@ function statsHTML(){
   if(!statsWho || !subs.includes(statsWho)) statsWho = subs.includes(lsGet('ry_name')) ? lsGet('ry_name') : subs[0];
   let h=`<div class="topbar"><button class="iconbtn" data-act="lobby" aria-label="Tillbaka">‹</button><div class="tb-title">📊 <b>Statistik</b></div><button class="iconbtn" data-act="sptoggle" aria-label="Musik">🎵</button><button class="iconbtn" data-act="settings" aria-label="Inställningar">⚙️</button></div><div class="stats">`;
   if(!subs.length){ const o=typeof otherStatsHTML==='function'?otherStatsHTML():''; return h+(o?`<div class="stat-cols">${o}</div>`:`<div class="note" style="margin-top:20px">Ingen statistik än – spela en match så dyker den upp här! 🐬</div>`)+`<button class="bigbtn alt" data-act="resetstats" style="margin-top:22px;font-size:15px">${armedReset?'Tryck igen för att radera all statistik':'🗑️ Rensa statistik'}</button></div>`; }
+  if(typeof PINS!=='undefined') h+=`<div class="chips" style="margin:4px 0 6px"><button data-act="pinsopen">📌 Mina pins</button></div>`;
   if(subs.length>1) h+=`<div class="chips" style="margin:4px 0 6px">${subs.map(n=>`<button data-act="statswho" data-n="${esc(n)}" class="${n===statsWho?'sel':''}">${esc(n)}</button>`).join('')}</div>`;
   const mine=statsFor(statsWho);
   const duels=mine.filter(x=>x.opps.length);
@@ -2357,7 +2378,7 @@ function kbHintHTML(){
 // Om något går fel när en vy ritas visas ett vänligt felkort i stället för en tom eller trasig skärm.
 function render(){
   if(!APP_READY) return;
-  try{ renderInner(); }
+  try{ renderInner(); if(typeof PINS!=='undefined') PINS.soon(); }
   catch(e){ try{ window.__flErr && window.__flErr((e&&e.message)||e, 'render '+view+(G&&G.kind?' '+G.kind:'')+' '+String(e&&e.stack||'').split('\n')[1]); }catch(_){} crashCard(e); }
 }
 // en del av startsidan som går fel tar inte ner resten – den hoppas över (och felet sparas)
@@ -2621,6 +2642,7 @@ document.addEventListener('click', e=>{
   if(a==='techclear'){ lsSet('errlog','[]'); showTechInfo(); return; }
   if(typeof TODAY!=='undefined' && /^(mood|greet|moodshow|moodsofa|bkopen|dailyopen|dk|snd|aq)/.test(a) && TODAY.act(a,b)) return;
   if(typeof BK!=='undefined' && /^bk/.test(a)){ BK.act(a,b); return; }
+  if(typeof PINS!=='undefined' && /^pin/.test(a) && PINS.act(a,b)) return;
   switch(a){
     case 'roll': doRoll(); break;
     case 'hold': toggleHold(+b.dataset.i); break;

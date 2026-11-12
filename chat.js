@@ -197,8 +197,14 @@ const CHAT = (()=>{
   async function rotateMySK(gid){ await (skLock.get(gid)||Promise.resolve()); const s=SKEYS[gid]||(SKEYS[gid]={mine:null,recv:{}}); s.mine=null; await mySK(gid); for(const id of (GROUPS[gid]?.members||[])) if(id!==ME.id) await sendSKD(gid,id); }
 
   /* ---------- konversationer ---------- */
-  let convs=ld('convs',{}), outbox=ld('outbox',[]), relayQ=ld('relay',[]), seen=new Set(ld('seen',[])), pendingG=[];
-  let saveT=0; function saveConvs(){ clearTimeout(saveT); saveT=setTimeout(()=>{ sv('convs',convs); sv('outbox',outbox); sv('relay',relayQ); sv('seen',[...seen].slice(-3000)); },150); }
+  let convs=ld('convs',{}), outbox=ld('outbox',[]), relayQ=ld('relay',[]), seen=new Set(ld('seen',[])), pendingG=ld('pendg',[]), ackQ=[];
+  // Leveransgaranti: ett meddelande kvitteras först när det är sparat på enheten, och det som ska skickas sparas direkt.
+  // (Tidigare kvitterades direkt och sparades 150 ms senare – stängdes appen däremellan kunde ett meddelande försvinna på båda sidor.)
+  let saveT=0;
+  function saveNow(){ clearTimeout(saveT); saveT=0; sv('convs',convs); sv('outbox',outbox); sv('relay',relayQ); sv('seen',[...seen].slice(-3000)); sv('pendg',pendingG.slice(-200));
+    const q=ackQ; ackQ=[]; for(const [c,mid] of q) sendRaw(c,{t:'ack', mid}); }
+  function saveConvs(){ if(!saveT) saveT=setTimeout(saveNow,120); }
+  window.addEventListener('pagehide',()=>{ if(saveT||ackQ.length) saveNow(); }); document.addEventListener('visibilitychange',()=>{ if(document.hidden && (saveT||ackQ.length)) saveNow(); });
   function conv(id, init){ if(!convs[id]){ convs[id]={id, type:id.startsWith('g:')?'grp':id.startsWith('n:')?'note':'dm', msgs:[], unread:0, timer:0, theme:null, lastTs:0, ...(init||{})}; } return convs[id]; }
   const peerOfConv = cid => cid.startsWith('d:') ? cid.slice(2) : null;
   const isNote = cid => typeof cid==='string' && cid.startsWith('n:');   // anteckningar till mig själv – lämnar aldrig enheten
@@ -210,7 +216,7 @@ const CHAT = (()=>{
 
   /* ---------- utkorg, kvitton & relä ---------- */
   // outbox-post: {mid, to, kind:'d'|'g', payload|genv, status:'queued'|'sent'|'relayed', ts, ctl}
-  function queueDirect(to, payload, ctl){ outbox.push({mid: payload.mid || uid(), to, kind:'d', payload, status:'queued', ts:Date.now(), ctl:!!ctl}); saveConvs(); flushTo(to); }
+  function queueDirect(to, payload, ctl){ outbox.push({mid: payload.mid || uid(), to, kind:'d', payload, status:'queued', ts:Date.now(), ctl:!!ctl}); if(ctl) saveConvs(); else sv('outbox',outbox); flushTo(to); }
   function requeueFor(peer){ outbox.forEach(o=>{ if(o.to===peer && o.kind==='d'){ o.status='queued'; o.acked=false; o.lastSend=0; } }); saveConvs(); flushTo(peer); }
   function markStatus(cid, mid, who, st, at){
     const c=convs[cid]; if(!c) return; const m=c.msgs.find(x=>x.mid===mid); if(!m || !m.out) return;
@@ -274,6 +280,7 @@ const CHAT = (()=>{
       const proof=b64(await hmac(await dh(ME.curve, ME.ik, ch.e), te.encode('FL-mbox-v1|'+ME.id+'|'+ch.n)));
       const r=await post('/mbox/fetch',{id:ME.id, n:ch.n, proof}); if(!r || !Array.isArray(r.items) || !r.items.length) return;
       const keys=[]; for(const it of r.items){ try{ const env=await unseal(it.env); if(env) await receiveEnv(env, null); }catch(e){ console.warn('brevlåda: kunde inte öppna kuvert', e && e.message); } keys.push(it.k); }
+      saveNow();                                   // först sparat här, sedan tas kuverten bort från servern
       await post('/mbox/ack',{ack:r.ack, keys});
       if(vis()) refresh(); flushAll();
     }finally{ mbBusy=false; }
@@ -498,9 +505,9 @@ const CHAT = (()=>{
         p=await decryptFrom(env.from, env.hdr, env.ct);
       } else if(env.k==='g'){
         try{ p=await gDecrypt(env.gid, env.from, env.iter, env.ct, env.sig); }
-        catch(e){ if(/saknar/.test(e.message)){ pendingG.push(env); if(pendingG.length>200) pendingG.shift(); return; } throw e; }
+        catch(e){ if(/saknar/.test(e.message)){ pendingG.push(env); if(pendingG.length>200) pendingG.shift(); saveConvs(); return; } throw e; }
       } else return;
-      seen.add(dkey); saveConvs(); if(c) sendRaw(c,{t:'ack', mid:env.mid});
+      seen.add(dkey); if(c) ackQ.push([c,env.mid]); saveConvs();
       if(!p || typeof p!=='object' || Array.isArray(p) || typeof p.type!=='string') return;
       await handlePayload(env.from, p, env);
     }catch(e){
@@ -591,6 +598,8 @@ const CHAT = (()=>{
         else if(p.k==='daily'){ const d=p.d; if(!/^\d{4}-\d\d-\d\d$/.test(d.day||'') || !(d.tries>=1 && d.tries<=12)) break;
           const all=ld('daily',{}); for(const k of Object.keys(all)) if(k<d.day.slice(0,8)+'00' && Object.keys(all).length>20) delete all[k];
           (all[d.day]=all[d.day]||{})[from]={tries:d.tries|0, ok:!!d.ok, ms:Math.max(0,+d.ms|0), at:Date.now()}; sv('daily',all); }
+        else if(p.k==='pins'){ const d=p.d; if(!(Number.isInteger(d.n) && d.n>=0 && d.n<=999) || !Array.isArray(d.top) || d.top.length>6 || !d.top.every(x=>typeof x==='string' && /^[a-z0-9_]{1,24}:[0-3]$/.test(x))) break;
+          const all=ld('pinboard',{}); if(d.hide) delete all[from]; else all[from]={n:d.n, lvl:Math.max(0,Math.min(9,d.lvl|0)), top:d.top, at:Date.now()}; sv('pinboard',all); }
         try{ window.dispatchEvent(new CustomEvent('fl-share',{detail:{k:p.k, from}})); }catch(e){}
         break; }
       case 'sync': {                                         // något jag skrev på en annan av mina enheter
@@ -645,8 +654,8 @@ const CHAT = (()=>{
     if(cid.startsWith('g:')){
       const gid=cid.slice(2);
       gEncrypt(gid,payload).then(({iter,ct,sig})=>{ const genv={t:'env', mid:m.mid, from:ME.id, k:'g', gid, iter, ct, sig, ts:m.ts};
-        rec.forEach(to=>outbox.push({mid:m.mid, cid, to, kind:'g', genv, status:'queued', ts:m.ts})); saveConvs(); rec.forEach(flushTo); });
-    } else { rec.forEach(to=>outbox.push({mid:m.mid, cid, to, kind:'d', payload, status:'queued', ts:m.ts})); saveConvs(); rec.forEach(flushTo); }   // alla personens enheter
+        rec.forEach(to=>outbox.push({mid:m.mid, cid, to, kind:'g', genv, status:'queued', ts:m.ts})); saveNow(); rec.forEach(flushTo); });
+    } else { rec.forEach(to=>outbox.push({mid:m.mid, cid, to, kind:'d', payload, status:'queued', ts:m.ts})); saveNow(); rec.forEach(flushTo); }   // alla personens enheter
     tone(880,.06,'sine',.05); refresh();
   }
   function ctlAll(cid, payload){ const gid=cid.startsWith('g:')?cid.slice(2):null; recipients(cid).forEach(id=>queueDirect(id,{...payload, gid},true)); }
@@ -1503,6 +1512,8 @@ Skriv:
       for(const id of Object.keys(contacts)){ if(isNote('d:'+id) || id===ld('botid',null) || blocked.includes(id)) continue; queueDirect(id,{type:'share', k, d},true); n++; } return n; },
     ghosts:df=>{ const all=ld('ghosts',{}), out=[]; for(const [id,g] of Object.entries(all)) if(g[df] && contacts[id]) out.push({id, name:nameOf(id), g:g[df]}); return out; },
     daily:day=>{ const t=(ld('daily',{})[day])||{}; return Object.entries(t).filter(([id])=>contacts[id]).map(([id,r])=>({id, name:nameOf(id), emoji:emoOf(id), ...r})); },
+    pinboard:()=>{ const all=ld('pinboard',{}); return Object.entries(all).filter(([id])=>contacts[id] && !isAlias(id) && !blocked.includes(id)).map(([id,r])=>({id, name:nameOf(id), emoji:emoOf(id), ...r})); },
+    contactCount:()=>Object.keys(contacts).filter(id=>!isAlias(id) && !isNote('d:'+id) && id!==ld('botid',null)).length,
     onlineCount:()=>Object.keys(contacts).filter(id=>!isAlias(id) && !isNote('d:'+id) && id!==ld('botid',null) && isOnline(id)).length,
     devices:id=>devicesOf(id), myDevices:()=>[...myDev()], primaryOf:id=>primaryOf(id),
     myName:()=>ME ? ME.name : '', nudge:(id,k,g)=>{ if(!ME || !id || id===ME.id || !cardOf(id)) return false; queueDirect(id,{type:'nudge', k, g:String(g||'').slice(0,40)},true); return true; },
