@@ -760,7 +760,7 @@ const RACE=(function(){
         <div class="rc-help">${nCar()>1?'🔑 Nya bilar låses upp när du kör – alla bilar kör lika fort, det är utseendet som skiljer. ':''}${TOUCH?'◀ ▶ styr · BROMS bromsar':'← → styr · ↑ gas · ↓ broms · P paus'} · Hinn till nästa checkpoint innan tiden tar slut. Kör nära andra bilar för bonus!</div></div>`;
     } else if(overlay==='pause'){
       o.innerHTML=`<div class="rc-card"><div class="rc-logo sm">PAUS</div><div class="rc-sub">${T[st.stage].name} · ${fmt(st.score)} poäng</div>
-        <button class="rc-go" data-rc="resume">▶ Fortsätt</button><button class="rc-alt" data-rc="restart">↻ Börja om</button><button class="rc-alt" data-rc="menu">☰ Meny</button></div>`;
+        <button class="rc-go" data-rc="resume">▶ Fortsätt</button><button class="rc-alt" data-rc="restart">↻ Börja om</button><button class="rc-alt" data-rc="menu">☰ Meny</button><button class="rc-alt" data-act="lobby">🏠 Lobby</button></div>`;
     } else if(overlay==='over'){
       const done=st.won;
       o.innerHTML=`<div class="rc-card"><div class="rc-logo sm">${done?'DU KOM I MÅL!':'TIDEN TOG SLUT'}</div>
@@ -834,7 +834,7 @@ const RACE=(function(){
   const css=document.createElement('style'); css.textContent=`
 .rc{position:fixed;top:0;right:0;bottom:0;left:0;z-index:3;background:#000;overflow:hidden;--sat:env(safe-area-inset-top);touch-action:none;-webkit-user-select:none;user-select:none}
 #rcc{display:block;width:100%;height:100%}
-.rc-top{position:absolute;top:0;left:0;right:0;height:0}
+.rc-top{position:absolute;top:0;left:0;right:0;height:0;z-index:2}
 .rc-top .rc-ib{position:absolute;top:calc(max(8px,env(safe-area-inset-top)) + 64px)}
 .rc-top .rc-ib[data-act=lobby]{left:10px;top:max(8px,env(safe-area-inset-top))}
 .rc.playing .rc-top .rc-ib[data-act=lobby]{display:none}
