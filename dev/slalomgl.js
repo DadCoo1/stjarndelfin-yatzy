@@ -4,6 +4,7 @@
 const SLGL=(()=>{ function mkGL(){
   const FL=10;                                   // flyttal per hörn: läge 3, normal 3, färg 3, material 1
   // material: 0 föremål · 1 pistad snö · 2 orörd snö · 3 olyst (färg i snön) · 4 tunn yta, lyst från båda håll
+  //           5 billack (blank, speglar himlen) · 6 glas · 7 krom · 8 självlysande (lyktor)
   let gl=null, cv=null, PM=null, PSH=null, PSKY=null, quadB=null, meshes=[], sets={'':[]}, dynB=null, dynBuf=null, sh=null, bad=false;
   const HEX={}; const hex=h=>HEX[h]||(HEX[h]=[parseInt(h.slice(1,3),16)/255,parseInt(h.slice(3,5),16)/255,parseInt(h.slice(5,7),16)/255]);
   const col=c=>typeof c==='string'?(c[0]==='#'&&c.length===7?hex(c):c[0]==='#'&&c.length===4?hex('#'+c[1]+c[1]+c[2]+c[2]+c[3]+c[3]):[.5,.5,.5]):c;
@@ -40,6 +41,10 @@ const SLGL=(()=>{ function mkGL(){
           const P=(rr,y,cc,ss)=>this.v(c[0]+rr*cc*r,c[1]+y*r,c[2]+rr*ss*r,rr*cc,y,rr*ss,cl,m||0);
           if(j>0){ P(r0,y0,c0,s0); P(r0,y0,c1,s1); P(r1,y1,c1,s1); }
           if(j<lat-1){ P(r0,y0,c0,s0); P(r1,y1,c1,s1); P(r1,y1,c0,s0); } } } },
+    // yta över ett rutnät av punkter P[j][i]=[x,y,z] med mjuka normaler; col(j,i) och mat(j,i) per ruta (j längs, i tvärs); flip vänder normalen
+    loft(P,colf,matf,flip){ const nj=P.length, ni=P[0].length, Nn=[]; for(let j=0;j<nj;j++){ Nn.push([]); for(let i=0;i<ni;i++){ const a=P[j][Math.max(0,i-1)], b=P[j][Math.min(ni-1,i+1)], c=P[Math.max(0,j-1)][i], d=P[Math.min(nj-1,j+1)][i];
+          const ax=b[0]-a[0], ay=b[1]-a[1], az=b[2]-a[2], bx=d[0]-c[0], by=d[1]-c[1], bz=d[2]-c[2]; let x=ay*bz-az*by, y=az*bx-ax*bz, z=ax*by-ay*bx; const l=(Math.hypot(x,y,z)||1)*(flip?-1:1); Nn[j].push([x/l,y/l,z/l]); } }
+      this.need((nj-1)*(ni-1)*6); for(let j=0;j<nj-1;j++) for(let i=0;i<ni-1;i++){ const cl=col(colf(j,i)), m=matf?matf(j,i):0; for(const [a,b] of [[j,i],[j+1,i],[j+1,i+1],[j,i],[j+1,i+1],[j,i+1]]){ const p=P[a][b], n=Nn[a][b]; this.v(p[0],p[1],p[2],n[0],n[1],n[2],cl,m); } } },
     capsule(a,b,r1,r2,cl,m,sides){ this.cone(a,b,r1,r2,cl,m,sides||7); if(r1>.028) this.sphere(a,r1,cl,m,sides||7,4); if(r2>.028) this.sphere(b,r2,cl,m,sides||7,4); }
   };
 
@@ -49,15 +54,26 @@ const SLGL=(()=>{ function mkGL(){
 uniform mat4 uVP, uLVP; varying vec3 vW, vN, vC; varying float vM, vD; varying vec4 vS;
 void main(){ vW=aP; vN=aN; vC=aC; vM=aM; vS=uLVP*vec4(aP,1.); vec4 p=uVP*vec4(aP,1.); vD=p.w; gl_Position=p; }`;
   const FS=PREC+`varying vec3 vW, vN, vC; varying float vM, vD; varying vec4 vS;
-uniform vec3 uL, uSun, uAmb, uFog, uCam; uniform float uFogD, uShK, uShOn, uTex; uniform sampler2D uSh;
+uniform vec3 uL, uSun, uAmb, uFog, uCam, uEnvZ, uEnvH, uGnd; uniform float uFogD, uShK, uShOn, uTex, uOpq; uniform sampler2D uSh;
 float hash(vec2 p){ return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453); }
 float shadow(float bias){ if(uShOn<.5) return 1.; vec3 s=vS.xyz*.5+.5; if(s.x<0.||s.x>1.||s.y<0.||s.y>1.||s.z>1.) return 1.;
   float r=0.; r+=step(s.z-bias,texture2D(uSh,s.xy+vec2(-.6,-.6)*uTex).r); r+=step(s.z-bias,texture2D(uSh,s.xy+vec2(.6,-.6)*uTex).r);
   r+=step(s.z-bias,texture2D(uSh,s.xy+vec2(-.6,.6)*uTex).r); r+=step(s.z-bias,texture2D(uSh,s.xy+vec2(.6,.6)*uTex).r); r+=step(s.z-bias,texture2D(uSh,s.xy).r);
   vec2 e=abs(s.xy-.5)*2.; return mix(r*.2,1.,smoothstep(.82,1.,max(e.x,e.y))); }
 void main(){
-  vec3 N=normalize(vN), c=vC; float m=vM;
+  vec3 N=normalize(vN), c=vC; float m=vM, al=1.;
   if(m>2.5&&m<3.5){ c=vC*(uAmb+uSun*.55*mix(1.-uShK,1.,shadow(.0004))); }
+  else if(m>7.5){ c=vC; }
+  else if(m>4.5){ // blanka ytor: lack, glas och krom speglar himmel och mark
+    vec3 V=normalize(uCam-vW); if(dot(N,V)<0.) N=-N; vec3 Rr=reflect(-V,N); float nv=max(dot(N,V),0.), fr=pow(1.-nv,3.);
+    vec3 sky=mix(uEnvH,uEnvZ,pow(clamp(Rr.y,0.,1.),.6)), env=mix(mix(uGnd,uEnvH,.25),sky,smoothstep(-.1,.06,Rr.y));
+    env+=uEnvH*.9*smoothstep(.05,0.,abs(Rr.y-.03));                                               // ljus rand vid horisonten ger lacken liv
+    float d=max(dot(N,uL),0.), s=shadow(mix(.004,.0015,d)), lit=mix(1.-uShK,1.,s);
+    float sp=pow(max(dot(Rr,uL),0.),m>5.5?260.:110.)*lit;
+    if(m<5.5){ float rf=.1+.7*fr, hemi=.62+.38*N.y; c=vC*(uAmb*hemi+uSun*d*lit)*(1.-rf*.55)+env*rf*(.5+.5*hemi)+uSun*(sp*2.2+pow(max(dot(Rr,uL),0.),18.)*.16*lit); }
+    else if(m<6.5){ float rf=.2+.75*fr; c=vC*uAmb*.5*(1.-rf)+env*rf+uSun*sp*2.5; al=mix(clamp(.3+.6*fr+sp,0.,1.),1.,uOpq); }
+    else { c=env*vC*(.55+.45*lit)+uSun*sp*2.; }
+  }
   else {
     float snow=step(.5,m)*step(m,2.5);
     if(m>.5&&m<1.5){ float k=clamp(1.-vD/16.,0.,1.); k*=k; float st=sin(vW.x*110.); N=normalize(N+vec3(st*.1*k,0.,0.)); c*=1.-.02*k*(.5+.5*st); }   // manchester i pisten
@@ -71,7 +87,7 @@ void main(){
   }
   c=1.-exp(-2.15*c);
   c=mix(c,uFog,clamp(1.-exp(-vD*uFogD),0.,1.));
-  gl_FragColor=vec4(c,1.);
+  gl_FragColor=vec4(c*al,al);
 }`;
   const VSH=`attribute vec3 aP; uniform mat4 uLVP; void main(){ gl_Position=uLVP*vec4(aP,1.); }`;
   const FSH=PREC+`void main(){ gl_FragColor=vec4(1.); }`;
@@ -92,9 +108,9 @@ void main(){ float X=vQ.x*uK.x, Y=(vQ.y-uOy)*uK.y, Z0=Y*uR.z+uR.w, dy=Y*uR.w-uR.
     const u={}, n=gl.getProgramParameter(p,gl.ACTIVE_UNIFORMS); for(let i=0;i<n;i++){ const nm=gl.getActiveUniform(p,i).name; u[nm]=gl.getUniformLocation(p,nm); }
     return {p,u,a:{N:gl.getAttribLocation(p,'aN'),C:gl.getAttribLocation(p,'aC'),M:gl.getAttribLocation(p,'aM')}}; }
 
-  function init(canvas){
+  function init(canvas,opts){
     if(gl&&cv===canvas&&!bad) return true; cv=canvas; bad=false;
-    try{ gl=canvas.getContext('webgl',{antialias:true,alpha:false,depth:true,powerPreference:'high-performance'}); if(!gl) return false;
+    try{ gl=canvas.getContext('webgl',{antialias:true,alpha:!!(opts&&opts.alpha),premultipliedAlpha:true,depth:true,powerPreference:'high-performance'}); if(!gl) return false;
       PM=prog(VS,FS); PSH=prog(VSH,FSH); PSKY=prog(VSKY,FSKY);
       quadB=gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER,quadB); gl.bufferData(gl.ARRAY_BUFFER,new Float32Array([-1,-1,3,-1,-1,3]),gl.STATIC_DRAW);
       dynBuf=gl.createBuffer(); dynB=new Builder(16384); sets={'':[]}; meshes=sets['']; sh=null;
@@ -147,29 +163,35 @@ void main(){ float X=vQ.x*uK.x, Y=(vQ.y-uOy)*uK.y, Z0=Y*uR.z+uR.w, dy=Y*uR.w-uR.
   let stats={tris:0};
   // o: {C:{x,y,z,yaw,pitch,f}, W,H, sun:[x,y,z], wx:{kind,fog}, focus:[x,y,z], time}
   function render(o){
-    if(!ok()) return false; const lk=LOOK[o.wx&&o.wx.kind]||LOOK.sun, C=o.C, L=o.sun;
+    if(!ok()) return false; const lk=o.look||LOOK[o.wx&&o.wx.kind]||LOOK.sun, C=o.C, L=o.sun;
     gl.bindBuffer(gl.ARRAY_BUFFER,dynBuf); gl.bufferData(gl.ARRAY_BUFFER,dynB.f.subarray(0,dynB.n*FL),gl.DYNAMIC_DRAW);
     gl.enable(gl.DEPTH_TEST); gl.depthFunc(gl.LEQUAL); gl.disable(gl.CULL_FACE); gl.disable(gl.BLEND);
     for(let i=1;i<6;i++) gl.disableVertexAttribArray(i);
-    if(sh){ lightMat(L,o.focus,o.shadowR||75,170,sh.S,LVP); gl.bindFramebuffer(gl.FRAMEBUFFER,sh.fb); gl.viewport(0,0,sh.S,sh.S); gl.colorMask(false,false,false,false); gl.depthMask(true); gl.clearDepth(1); gl.clear(gl.DEPTH_BUFFER_BIT);
+    if(sh){ lightMat(L,o.focus,o.shadowR||75,o.shadowD||170,sh.S,LVP); gl.bindFramebuffer(gl.FRAMEBUFFER,sh.fb); gl.viewport(0,0,sh.S,sh.S); gl.colorMask(false,false,false,false); gl.depthMask(true); gl.clearDepth(1); gl.clear(gl.DEPTH_BUFFER_BIT);
       gl.useProgram(PSH.p); gl.uniformMatrix4fv(PSH.u.uLVP,false,LVP); gl.enable(gl.POLYGON_OFFSET_FILL); gl.polygonOffset(1.,2.); drawAll(PSH,false,true); gl.disable(gl.POLYGON_OFFSET_FILL); gl.colorMask(true,true,true,true); gl.bindFramebuffer(gl.FRAMEBUFFER,null); }
-    gl.viewport(0,0,cv.width,cv.height); gl.clearColor(lk.hor[0],lk.hor[1],lk.hor[2],1); gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);
+    gl.viewport(0,0,cv.width,cv.height); if(o.clear) gl.clearColor(0,0,0,0); else gl.clearColor(lk.hor[0],lk.hor[1],lk.hor[2],1); gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);
     // himlen
+    if(!o.clear){
     gl.depthMask(false); gl.disable(gl.DEPTH_TEST); gl.useProgram(PSKY.p); gl.bindBuffer(gl.ARRAY_BUFFER,quadB); gl.enableVertexAttribArray(0); gl.vertexAttribPointer(0,2,gl.FLOAT,false,0,0);
     gl.uniform4f(PSKY.u.uR,Math.sin(C.yaw),Math.cos(C.yaw),Math.sin(C.pitch),Math.cos(C.pitch)); gl.uniform2f(PSKY.u.uK,o.W/(2*C.f),o.H/(2*C.f)); gl.uniform1f(PSKY.u.uOy,C.cy==null?0:1-2*C.cy/o.H); gl.uniform3fv(PSKY.u.uL,L); gl.uniform3fv(PSKY.u.uZen,lk.zen); gl.uniform3fv(PSKY.u.uHor,lk.hor); gl.uniform3fv(PSKY.u.uSunC,lk.sunC); gl.uniform1f(PSKY.u.uCloud,lk.cloud); gl.uniform1f(PSKY.u.uT,o.time||0);
-    gl.drawArrays(gl.TRIANGLES,0,3); gl.depthMask(true); gl.enable(gl.DEPTH_TEST);
+    gl.drawArrays(gl.TRIANGLES,0,3); gl.depthMask(true); gl.enable(gl.DEPTH_TEST); }
     // världen
     camMat(C,o.W,o.H,VP); gl.useProgram(PM.p); gl.uniformMatrix4fv(PM.u.uVP,false,VP); gl.uniformMatrix4fv(PM.u.uLVP,false,LVP);
     gl.uniform3fv(PM.u.uL,L); gl.uniform3fv(PM.u.uSun,lk.sun); gl.uniform3fv(PM.u.uAmb,lk.amb); gl.uniform3fv(PM.u.uFog,lk.hor); gl.uniform3f(PM.u.uCam,C.x,C.y,C.z);
     const fg=o.wx?o.wx.fog||0:.1; gl.uniform1f(PM.u.uFogD,.00012+fg*fg*.0042); gl.uniform1f(PM.u.uShK,lk.shK); gl.uniform1f(PM.u.uShOn,sh?1:0); gl.uniform1f(PM.u.uTex,sh?1/sh.S:0);
     if(sh){ gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D,sh.d); gl.uniform1i(PM.u.uSh,0); }
+    gl.uniform3fv(PM.u.uEnvZ,lk.zen); gl.uniform3fv(PM.u.uEnvH,lk.hor); gl.uniform3fv(PM.u.uGnd,o.ground||[.45,.45,.47]); gl.uniform1f(PM.u.uOpq,1);
+    if(o.fogD!=null) gl.uniform1f(PM.u.uFogD,o.fogD);
     drawAll(PM,true,false);
+    if(o.glass&&o.glass.n){ // genomskinligt glas sist, utan att skriva djup
+      gl.bindBuffer(gl.ARRAY_BUFFER,dynBuf); gl.bufferData(gl.ARRAY_BUFFER,o.glass.f.subarray(0,o.glass.n*FL),gl.DYNAMIC_DRAW); bindAttr(PM,true);
+      gl.uniform1f(PM.u.uOpq,0); gl.enable(gl.BLEND); gl.blendFunc(gl.ONE,gl.ONE_MINUS_SRC_ALPHA); gl.depthMask(false); gl.drawArrays(gl.TRIANGLES,0,o.glass.n); gl.depthMask(true); gl.disable(gl.BLEND); }
     let t=dynB.n/3; for(const m of meshes) t+=m.n/3; stats.tris=Math.round(t); stats.shadows=!!sh;
     return true;
   }
   // flera uppsättningar fasta nät (t.ex. varvet och straffrundan i skidskyttet)
   function use(k){ meshes=sets[k]||(sets[k]=[]); return meshes.length>0; }
-  return {init, ok, clear, use, addMesh, addGrid, render, Builder, dyn:()=>dynB, stats:()=>stats, hex};
+  return {init, ok, clear, use, addMesh, addGrid, render, Builder, dyn:()=>dynB, stats:()=>stats, hex, LOOK};
   }
   const def=mkGL(); def.create=mkGL; return def;
 })();
