@@ -10,12 +10,27 @@ const RACE=(function(){
   const CARCOL=[['Havsblå','#0ea5e9','#075985'],['Körsbär','#e11d48','#881337'],['Citron','#facc15','#a16207'],['Mint','#34d399','#047857'],['Pärlvit','#f1f5f9','#94a3b8'],['Natt','#334155','#0f172a'],['Lila','#a855f7','#6b21a8']];
   const HAIR=[['Blont','#f4d27a'],['Brunt','#7c4a22'],['Svart','#1f1a17'],['Rött','#c2410c'],['Rosa','#f472b6'],['Blått','#60a5fa']];
   const PAS=[['Ingen','none'],['Kompis','kid'],['Hund','dog']];
-  let cfg={diff:'normal', radio:0, color:0, dh:1, ph:0, pas:'dog', auto:true, ghost:'me'};
+  let cfg={diff:'normal', radio:0, color:0, car:0, dh:1, ph:0, pas:'dog', auto:true, ghost:'me'};
   try{ cfg={...cfg, ...JSON.parse(lsGet('race_cfg')||'{}')}; }catch(e){}
   if(!DIFF[cfg.diff]) cfg.diff='normal';
   const saveCfg=()=>lsSet('race_cfg',JSON.stringify(cfg));
   const stats=()=>{ try{ return {best:0,games:0,fin:0,hs:[], ...JSON.parse(lsGet('race_stats')||'{}')}; }catch(e){ return {best:0,games:0,fin:0,hs:[]}; } };
   const saveStats=s=>lsSet('race_stats',JSON.stringify(s));
+  /* ---------- garaget: bilar som låses upp. Alla går att nå med tålamod (antal lopp), de flesta snabbare med skicklighet. Bara utseendet skiljer – alla bilar kör lika. ---------- */
+  const C3=()=>typeof CARS3D!=='undefined'?CARS3D:null;
+  const finDs=s=>{ const d={latt:0,normal:0,svar:0,...(s.finD||{})}; for(const e of s.hs||[]) if(e.st>5&&e.df&&!d[e.df]) d[e.df]=1; return d; };
+  const GAR=[null,
+    {t:'Kör 3 lopp', ok:s=>s.games>=3, p:s=>`${Math.min(3,s.games)}/3 lopp`},
+    {t:'40 "nära ögat" – eller 12 lopp', ok:s=>(s.nmT||0)>=40||s.games>=12, p:s=>`${Math.min(40,s.nmT||0)}/40 nära ögat · ${Math.min(12,s.games)}/12 lopp`},
+    {t:'Kom i mål – eller 20 lopp', ok:s=>s.fin>=1||s.games>=20, p:s=>`${Math.min(20,s.games)}/20 lopp`},
+    {t:'Kom i mål på Normal eller Svår – eller 30 lopp', ok:s=>{ const d=finDs(s); return d.normal+d.svar>=1||s.games>=30; }, p:s=>`${Math.min(30,s.games)}/30 lopp`},
+    {t:'Kom i mål på Svår – eller 45 lopp', ok:s=>finDs(s).svar>=1||s.games>=45, p:s=>`${Math.min(45,s.games)}/45 lopp`}];
+  const unlocked=(i,s)=>!GAR[i]||GAR[i].ok(s||stats());
+  const carDef=i=>{ const c=C3(); return c?c.CARS[i]||c.CARS[0]:{name:'Solglimt',sub:'Sommarcab'}; };
+  const nCar=()=>{ const c=C3(); return c?c.CARS.length:1; };
+  const use3d=()=>{ const c=C3(); return !!c&&c.init(); };
+  let garMsg='';
+  try{ if(!(cfg.car>=0&&cfg.car<nCar()&&unlocked(cfg.car))) cfg.car=0; }catch(e){ cfg.car=0; }
 
   /* ---------- hjälpare ---------- */
   const clamp=(v,a,b)=>v<a?a:v>b?b:v, lerp=(a,b,p)=>a+(b-a)*p;
@@ -154,6 +169,9 @@ const RACE=(function(){
     TC.forEach(([a,b],i)=>sprite('car'+i,220,160,600,true,car(a,b,'car')));
     sprite('van',230,220,680,true,car('#f8fafc','#94a3b8','van')); sprite('van2',230,220,680,true,car('#fde68a','#b45309','van'));
     sprite('truck',260,330,800,true,car('#dc2626','#7f1d1d','truck')); sprite('truck2',260,330,800,true,car('#2563eb','#1e3a8a','truck'));
+    // samma fordon som 3D-modeller i fem vinklar; görs ett i taget i bakgrunden så att starten inte hackar
+    if(use3d()){ const Q=[...TC.map((c,i)=>['car'+i,'car',c[0]]),['van','van','#f8fafc'],['van2','van','#fde68a'],['truck','truck','#dc2626'],['truck2','truck','#2563eb']];
+      const next=()=>{ const q=Q.shift(); if(!q) return; try{ const r=CARS3D.traffic(q[1],q[2],(weak()?70:105)*SS); if(r) SP[q[0]].f3=r.f.map(c=>({c,ww:r.wm*333})); }catch(e){} setTimeout(next,overlay?30:400); }; setTimeout(next,200); }
   }
   const POOL=[
     {near:[['rock',3],['rock2',2],['grass',4],['hut',1.4],['lighthouse',.4]], far:[['boat',1]], farSide:-1},
@@ -447,7 +465,10 @@ const RACE=(function(){
     if(gp){ const lead=(gp.pos-st.pos)/SEG; st.ghLead=lead; }
     for(let n=DRAW-1;n>0;n--){
       const s=segs[base.i+n]; if(!s) continue; const a=n>DRAW*.7?clamp((DRAW-n)/(DRAW*.3),0,1):1;
-      for(const c of s.cars){ const p=(c.z%SEG)/SEG, sc=lerp(s.p1.s.scale,s.p2.s.scale,p), cx=lerp(s.p1.s.x,s.p2.s.x,p)+sc*c.off*ROADW*U, cy=lerp(s.p1.s.y,s.p2.s.y,p); drawSprite(c.s,sc,cx,cy,-.5,-1,s.clip,a); }
+      for(const c of s.cars){ const p=(c.z%SEG)/SEG, sc=lerp(s.p1.s.scale,s.p2.s.scale,p), cx=lerp(s.p1.s.x,s.p2.s.x,p)+sc*c.off*ROADW*U, cy=lerp(s.p1.s.y,s.p2.s.y,p);
+        if(c.s.f3){ const dw=c.s.ww*sc*U; if(dw>8&&cy<s.clip){ ctx.fillStyle=`rgba(5,8,25,${(night?.4:.3)*a})`; ctx.beginPath(); ctx.ellipse(cx,cy-dw*.02,dw*.62,dw*.1,0,0,7); ctx.fill(); }
+          const ang=Math.atan((cx-W/2)/(U*DEPTH)*.7); drawSprite(c.s.f3[clamp(2-Math.round(ang/.2618),0,4)],sc,cx,cy,-.5,-.96,s.clip,a); }
+        else drawSprite(c.s,sc,cx,cy,-.5,-1,s.clip,a); }
       if(gp && s.i===gseg){ const p=((gp.pos+PZ)%SEG)/SEG, sc=lerp(s.p1.s.scale,s.p2.s.scale,p), cx=lerp(s.p1.s.x,s.p2.s.x,p)+sc*gp.x*ROADW*U, cy=lerp(s.p1.s.y,s.p2.s.y,p);
         drawSprite(ghostSp(), sc, cx, cy, -.5, -1, s.clip, .42*a);
         const dw=PW*ROADW*sc*U; if(dw>26){ txt('👻 '+st.gh.name, cx, cy-dw*.62, Math.max(11,Math.min(18,dw*.12)), 'rgba(255,255,255,.85)', 'center', true); } }
@@ -527,8 +548,24 @@ const RACE=(function(){
     g.fillStyle='rgba(255,255,255,.2)'; g.beginPath(); g.ellipse(x-5*s,y-8*s,6*s,4*s,-.4,0,7); g.fill();
   }
   let ghC=null, ghK='';
-  function ghostSp(){ const k=cfg.color; if(!ghC || ghK!==k){ ghK=k; const b=carFrame(0); ghC={c:mk(b.width,b.height,(g,w,h)=>{ g.drawImage(b,0,0); g.globalCompositeOperation='source-atop'; g.fillStyle='rgba(170,220,255,.55)'; g.fillRect(0,0,w,h); }), ww:PW*ROADW*1.25}; } return ghC; }
+  function ghostSp(){ if(use3d()){ const k='3|'+cfg.car+'|'+cfg.color; if(!ghC||ghK!==k){ ghK=k; const b=CARS3D.still(CARS3D.CARS[cfg.car]||CARS3D.CARS[0],(CARCOL[cfg.color]||CARCOL[0])[1],{w:480,h:330,yaw:0,dist:7.6,height:2.45,wm:3.2,base:.95});
+        if(b){ ghC={c:mk(b.width,b.height,(g,w,h)=>{ g.drawImage(b,0,0); g.globalCompositeOperation='source-atop'; g.fillStyle='rgba(170,220,255,.55)'; g.fillRect(0,0,w,h); }), ww:3.2*333}; return ghC; } } else return ghC; }
+    const k=cfg.color; if(!ghC || ghK!==k){ ghK=k; const b=carFrame(0); ghC={c:mk(b.width,b.height,(g,w,h)=>{ g.drawImage(b,0,0); g.globalCompositeOperation='source-atop'; g.fillStyle='rgba(170,220,255,.55)'; g.fillRect(0,0,w,h); }), ww:PW*ROADW*1.25}; } return ghC; }
+  function drawPlayer3(){
+    const cw=Math.min(W*.66, U*.98), pseg=findSeg(st.pos+PZ), sp=st.speed/MAXS, off=st.x<-1||st.x>1;
+    const bounce=(Math.sin(st.wave*24)*(off?3.5:.7)*sp + (st.bump>0?Math.sin(st.bump*40)*4:0))*cw/400;
+    const slope=clamp((pseg.p2.w.y-pseg.p1.w.y)/SEG,-.6,.6), brake=((keys.ArrowDown||keys.s||pad.b) && st.speed>0)||st.crash>0;
+    const o=CARS3D.player({car:cfg.car, color:(CARCOL[cfg.color]||CARCOL[0])[1], yaw:(st.yaw||0)*.5, pitch:-slope*.12, steer:clamp(st.steer||0,-1,1), spin:st.pos*.004, brake, stage:st.stage, pas:cfg.pas,
+      hairD:(HAIR[cfg.dh]||HAIR[1])[1], hairP:(HAIR[cfg.ph]||HAIR[0])[1], t:st.hair*.45, sp, lean:st.lean, cheer:st.cheer, fin:st.fin, wt:st.wave, px:Math.round(cw*.84)});
+    if(!o) return false;
+    ctx.save(); ctx.translate(W/2, H-cw*.075+bounce); ctx.rotate(st.lean*.05 + Math.sin(st.spin)*(st.crash>0?.25:0)); if(st.crash>0) ctx.translate(Math.sin(st.spin*1.3)*cw*.06,0);
+    const sh=ctx.createRadialGradient(0,0,cw*.1,0,0,cw*.62); sh.addColorStop(0,'rgba(0,0,10,.5)'); sh.addColorStop(1,'rgba(0,0,10,0)'); ctx.save(); ctx.scale(1,.2); ctx.translate(0,-cw*.22); ctx.fillStyle=sh; ctx.beginPath(); ctx.arc(0,0,cw*.62,0,7); ctx.fill(); ctx.restore();
+    ctx.drawImage(o.c,-o.ax,-o.ay,o.w,o.h);
+    if(brake||st.stage===4){ ctx.globalCompositeOperation='lighter'; const R=o.m*(brake?.34:.22); for(const l of o.lamps){ const X=l[0]-o.ax, Y=l[1]-o.ay, gl=ctx.createRadialGradient(X,Y,0,X,Y,R); gl.addColorStop(0,brake?'rgba(255,70,60,.75)':'rgba(255,50,50,.3)'); gl.addColorStop(1,'rgba(255,0,0,0)'); ctx.fillStyle=gl; ctx.fillRect(X-R,Y-R,R*2,R*2); } ctx.globalCompositeOperation='source-over'; }
+    ctx.restore(); return true;
+  }
   function drawPlayer(){
+    if(use3d()){ try{ if(drawPlayer3()) return; }catch(e){ try{ console.warn('3D-bilen:',e); }catch(_){} } }
     const yaw=st.yaw||0, b=carFrame(yaw), q=Math.round(clamp(yaw,-1,1)*5)/5, a=Math.abs(q), sx=1-.16*a, rx=60-q*52;
     const cw=Math.min(W*.66, U*.98), ch=cw*b.height/520, pseg=findSeg(st.pos+PZ);
     const sp=st.speed/MAXS, off=st.x<-1||st.x>1;
@@ -669,7 +706,8 @@ const RACE=(function(){
 
   function end(won){
     if(overlay==='over') return;
-    const s=stats(); st.won=won; if(won) s.fin++;
+    const s=stats(), had=[]; for(let i=0;i<nCar();i++) if(unlocked(i,{...s,games:s.unl?s.games-1:-1,fin:s.unl?s.fin:0,hs:s.unl?s.hs:[],finD:s.unl?s.finD:{}})) had.push(i);
+    st.won=won; if(won){ s.fin++; s.finD={...(s.finD||{})}; s.finD[cfg.diff]=(s.finD[cfg.diff]||0)+1; } s.nmT=(s.nmT||0)+(st.nm||0);
     try{ const g={v:1, df:cfg.diff, won:!!won, rt:Math.round(st.rt*10)/10, pos:Math.round(st.pos), sc:Math.round(st.score), st:won?6:st.stage+1, s:st.rec, at:Date.now()};
       st.newGhost=false;
       if(g.s.length>5 && better(g, myGhost(cfg.diff))){ lsSet(ghostKey(cfg.diff), JSON.stringify(g)); st.newGhost=true;
@@ -678,7 +716,8 @@ const RACE=(function(){
     }catch(e){}
     const sc=Math.round(st.score); st.rec=sc>s.best; if(st.rec) s.best=sc;
     const entry={n:(lsGet('ry_name')||'Du').slice(0,14), s:sc, st:won?6:st.stage+1, d:Date.now(), df:cfg.diff};
-    s.hs=[...(s.hs||[]), entry].sort((a,b)=>b.s-a.s).slice(0,10); st.rank=s.hs.indexOf(entry); saveStats(s);
+    s.hs=[...(s.hs||[]), entry].sort((a,b)=>b.s-a.s).slice(0,10); st.rank=s.hs.indexOf(entry);
+    st.newCars=[]; for(let i=1;i<nCar();i++) if(unlocked(i,s)&&!had.includes(i)) st.newCars.push(i); s.unl=1; saveStats(s);
     engine.set(0,false,false,false); setTimeout(()=>engine.stop(),300);
     overlay='over'; showOverlay();
   }
@@ -695,6 +734,11 @@ const RACE=(function(){
   const sw=(k,v,lab,on,style)=>`<button class="rc-ch ${on?'on':''}" data-rc="set" data-k="${k}" data-v="${v}" ${style?`style="${style}"`:''}>${lab}</button>`;
   function hsHTML(hl){ const s=stats(); if(!s.hs || !s.hs.length) return '<p class="rc-dim">Ingen har kört än – bli först på topplistan!</p>';
     return `<ol class="rc-hs">${s.hs.map((e,i)=>`<li class="${i===hl?'me':''}"><span>${i+1}.</span><b>${esc(e.n)}</b><em>${e.st>5?'🏁':'Etapp '+e.st}</em><i>${fmt(e.s)}</i></li>`).join('')}</ol>`; }
+  function garHTML(s){ if(nCar()<2) return ''; const three=use3d();
+    return `<div class="rc-gar">${Array.from({length:nCar()},(_,i)=>{ const c=carDef(i), ok=unlocked(i,s); return `<button class="rc-car ${cfg.car===i?'on':''} ${ok?'':'lock'}" data-rc="car" data-v="${i}" aria-label="${esc(c.name)}${ok?'':' (låst)'}">${three?`<canvas data-car="${i}" data-lock="${ok?0:1}" width="264" height="150"></canvas>`:`<span class="rc-cari">${ok?'🚗':'🔒'}</span>`}<b>${ok?'':'🔒 '}${esc(c.name)}</b><small>${ok?esc(c.sub):esc(GAR[i].p(s))}</small></button>`; }).join('')}</div>${garMsg?`<div class="rc-garmsg">${esc(garMsg)}</div>`:''}`; }
+  const THUMB={};
+  function garFill(){ if(overlay!=='menu'||!use3d()) return; const col=(CARCOL[cfg.color]||CARCOL[0])[1];
+    document.querySelectorAll('#rcOv canvas[data-car]').forEach(c=>{ try{ const i=+c.dataset.car, lock=c.dataset.lock==='1', k=i+'|'+(lock?'x':col); const t=THUMB[k]||(THUMB[k]=CARS3D.thumb(i,col,lock,264,150)); if(t) c.getContext('2d').drawImage(t,0,0); }catch(e){} }); }
   function showOverlay(){
     const o=document.getElementById('rcOv'); if(!o) return;
     o.classList.toggle('show',!!overlay); root && root.classList.toggle('playing',!overlay);
@@ -703,7 +747,8 @@ const RACE=(function(){
     if(overlay==='menu'){
       o.innerHTML=`<div class="rc-card"><div class="rc-logo">SOMMAR<span>VÄGEN</span></div><div class="rc-sub">En roadtrip genom Sverige · 5 etapper</div>
         <button class="rc-go" data-rc="go">🏁 KÖR!</button>
-        <div class="rc-row"><label>Bil</label><div>${CARCOL.map(([n,c],i)=>sw('color',i,'',cfg.color===i,`background:${c}`)).join('')}</div></div>
+        ${garHTML(s)}
+        <div class="rc-row"><label>Lack</label><div>${CARCOL.map(([n,c],i)=>sw('color',i,'',cfg.color===i,`background:${c}`)).join('')}</div></div>
         <div class="rc-row"><label>Passagerare</label><div>${PAS.map(([n,v])=>sw('pas',v,n,cfg.pas===v)).join('')}</div></div>
         <div class="rc-row"><label>Ditt hår</label><div>${HAIR.map(([n,c],i)=>sw('dh',i,'',cfg.dh===i,`background:${c}`)).join('')}</div></div>
         ${cfg.pas==='kid'?`<div class="rc-row"><label>Kompisens hår</label><div>${HAIR.map(([n,c],i)=>sw('ph',i,'',cfg.ph===i,`background:${c}`)).join('')}</div></div>`:''}
@@ -712,7 +757,7 @@ const RACE=(function(){
         <div class="rc-row"><label>Gas</label><div>${sw('auto',1,'Automatisk',cfg.auto)}${sw('auto',0,'Själv',!cfg.auto)}</div></div>
         <div class="rc-row"><label>👻 Spöke</label><div>${sw('ghost','off','Av',cfg.ghost==='off')}${(()=>{ const m=myGhost(cfg.diff); return sw('ghost','me', m?'Mitt bästa · '+gTime(m):'Mitt bästa', cfg.ghost==='me'); })()}${friendGhosts(cfg.diff).map(f=>sw('ghost',f.id,esc(f.name)+' · '+gTime(f.g),cfg.ghost===f.id)).join('')}</div></div>
         <details class="rc-det"><summary>🏆 Topplista${s.best?` · rekord ${fmt(s.best)}`:''}</summary>${hsHTML(-1)}</details>
-        <div class="rc-help">${TOUCH?'◀ ▶ styr · BROMS bromsar':'← → styr · ↑ gas · ↓ broms · P paus'} · Hinn till nästa checkpoint innan tiden tar slut. Kör nära andra bilar för bonus!</div></div>`;
+        <div class="rc-help">${nCar()>1?'🔑 Nya bilar låses upp när du kör – alla bilar kör lika fort, det är utseendet som skiljer. ':''}${TOUCH?'◀ ▶ styr · BROMS bromsar':'← → styr · ↑ gas · ↓ broms · P paus'} · Hinn till nästa checkpoint innan tiden tar slut. Kör nära andra bilar för bonus!</div></div>`;
     } else if(overlay==='pause'){
       o.innerHTML=`<div class="rc-card"><div class="rc-logo sm">PAUS</div><div class="rc-sub">${T[st.stage].name} · ${fmt(st.score)} poäng</div>
         <button class="rc-go" data-rc="resume">▶ Fortsätt</button><button class="rc-alt" data-rc="restart">↻ Börja om</button><button class="rc-alt" data-rc="menu">☰ Meny</button><button class="rc-alt" data-act="lobby">🏠 Lobby</button></div>`;
@@ -724,10 +769,13 @@ const RACE=(function(){
         <div class="rc-sub">${st.nm} nära ögat · ${st.cps} checkpoints${done?` · tidsbonus ${fmt(st.bonus||0)}`:''}</div>
         ${st.gh?`<div class="rc-sub">${st.beatGhost?`👻 Du slog ${st.gh.name==='Ditt bästa'?'ditt eget spöke':esc(st.gh.name)+'s spöke'}! 🎉`:`👻 ${st.gh.name==='Ditt bästa'?'Spöket':esc(st.gh.name)} var snabbare den här gången – en gång till?`}</div>`:''}
         ${st.newGhost?`<div class="rc-sub">✨ Nytt bästa åk sparat som spöke${st.shared?` · skickat till ${st.shared} kompis${st.shared>1?'ar':''}`:''}</div>`:''}
+        ${st.newCars&&st.newCars.length?`<div class="rc-unl">🔓 Ny bil i garaget: <b>${st.newCars.map(i=>esc(carDef(i).name)).join(', ')}</b>!</div>`:''}
         ${hsHTML(st.rank)}
         <button class="rc-go" data-rc="go">↻ Kör igen</button><button class="rc-alt" data-rc="menu">☰ Meny</button><button class="rc-alt" data-act="lobby">🏠 Lobby</button></div>`;
       if(st.rec || done) { try{ celebrate && celebrate(done?'I MÅL! 🏁':'REKORD! 🏆'); }catch(e){} }
+      else if(st.newCars&&st.newCars.length){ try{ celebrate && celebrate('NY BIL! 🔓'); }catch(e){} }
     }
+    garFill();
   }
   function fit(){
     if(!cv) return; const r=root.getBoundingClientRect(); const cw=Math.max(200,r.width), chh=Math.max(200,r.height); dpr=Math.min(weak()?1.5:3, window.devicePixelRatio||1, Math.sqrt(2.4e6/(cw*chh))); const q=1;   // skarpt på täta skärmar, men aldrig fler än 2,4 Mpx   // begränsa upplösningen för jämn fart
@@ -775,6 +823,7 @@ const RACE=(function(){
     else if(a==='restart') newGame();
     else if(a==='menu'){ overlay='menu'; engine.stop(); radio.stop(); showOverlay(); }
     else if(a==='radio'){ cfg.radio = cfg.radio+1>=STATIONS.length ? -1 : cfg.radio+1; saveCfg(); if(!overlay) radio.play(cfg.radio); radio.cur=cfg.radio; radio.showT=3; if(cfg.radio<0) toast('📻 Radion är av'); if(overlay==='menu') showOverlay(); }
+    else if(a==='car'){ const i=+b.dataset.v; if(unlocked(i)){ cfg.car=i; garMsg=''; saveCfg(); } else garMsg=`${carDef(i).name}: ${GAR[i].t}`; showOverlay(); }
     else if(a==='set'){ const k=b.dataset.k, v=b.dataset.v; cfg[k]= k==='diff'||k==='pas'||k==='ghost' ? v : k==='auto' ? v==='1' : +v; saveCfg();
       if(k==='radio' && overlay==='menu'){ radio.play(cfg.radio); setTimeout(()=>{ if(overlay==='menu') radio.stop(); },6000); }
       if(k==='auto') root.querySelector('.gs')?.classList.toggle('hide',cfg.auto);
@@ -820,6 +869,12 @@ const RACE=(function(){
 .rc-ch[style]{padding:0;width:30px}
 .rc-ch.on{border-color:#fde047;background-color:rgba(253,224,71,.25)}
 .rc-ch[style].on{box-shadow:0 0 0 2px #fde047}
+.rc-gar{display:flex;gap:8px;overflow-x:auto;margin:10px -6px 4px;padding:2px 6px 8px;scroll-snap-type:x proximity;-webkit-overflow-scrolling:touch}
+.rc-car{flex:none;width:136px;padding:6px 6px 8px;border-radius:16px;background:rgba(255,255,255,.1);border:2px solid transparent;color:#fff;text-align:center;scroll-snap-align:center}
+.rc-car canvas{width:124px;height:70px;display:block;margin:0 auto}.rc-cari{display:block;font-size:34px;line-height:70px}
+.rc-car b{display:block;font-size:13.5px;margin-top:2px}.rc-car small{display:block;font-size:10.5px;color:#c7d2fe;line-height:1.25;min-height:26px}
+.rc-car.on{border-color:#fde047;background:rgba(253,224,71,.2)}.rc-car.lock b{color:#c7d2fe}
+.rc-garmsg{font-size:12.5px;color:#fde68a;margin:0 0 6px}.rc-unl{margin:10px 0;padding:10px;border-radius:14px;background:rgba(253,224,71,.2);border:1px solid rgba(253,224,71,.6);font-size:15px}
 .rc-det{margin-top:8px;text-align:left;font-size:14px}
 .rc-det summary{cursor:pointer;color:#fde68a}
 .rc-hs{list-style:none;margin:8px 0;padding:0;text-align:left;font-size:14px}
@@ -833,6 +888,6 @@ const RACE=(function(){
 `; document.head.appendChild(css);
 
   return {html, mount, stop, open(){ closeModal(); view='race'; render(); }, stats,
-    __test: (typeof DEV!=='undefined' && DEV) ? {draw:()=>draw(), state:()=>st, segs:()=>segs, go:()=>newGame(), cfg:()=>cfg, sim:sec=>{ for(let i=0;i<sec*60;i++) update(1/60); return st; }, overlay:()=>overlay, end:w=>end(w)} : undefined};
+    __test: (typeof DEV!=='undefined' && DEV) ? {unlocked, gar:()=>GAR, draw:()=>draw(), state:()=>st, segs:()=>segs, go:()=>newGame(), cfg:()=>cfg, sim:sec=>{ for(let i=0;i<sec*60;i++) update(1/60); return st; }, overlay:()=>overlay, end:w=>end(w)} : undefined};
 })();
 function openRace(){ RACE.open(); }
