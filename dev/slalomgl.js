@@ -1,12 +1,12 @@
 /* SLGL – 3D-prov för slalom: backen och åkaren ritas med grafikkortet (WebGL).
    Riktig perspektivkamera, ljus från solen, kastade skuggor, dis och himmel. Spelet (fysik, bana, HUD) är detsamma;
    slalom.js lämnar över terräng, träd, portar och åkarens leder hit. Finns WebGL inte faller spelet tillbaka på vanlig grafik. */
-const SLGL=(()=>{
+const SLGL=(()=>{ function mkGL(){
   const FL=10;                                   // flyttal per hörn: läge 3, normal 3, färg 3, material 1
   // material: 0 föremål · 1 pistad snö · 2 orörd snö · 3 olyst (färg i snön) · 4 tunn yta, lyst från båda håll
-  let gl=null, cv=null, PM=null, PSH=null, PSKY=null, quadB=null, meshes=[], dynB=null, dynBuf=null, sh=null, bad=false;
+  let gl=null, cv=null, PM=null, PSH=null, PSKY=null, quadB=null, meshes=[], sets={'':[]}, dynB=null, dynBuf=null, sh=null, bad=false;
   const HEX={}; const hex=h=>HEX[h]||(HEX[h]=[parseInt(h.slice(1,3),16)/255,parseInt(h.slice(3,5),16)/255,parseInt(h.slice(5,7),16)/255]);
-  const col=c=>typeof c==='string'?(c[0]==='#'&&c.length===7?hex(c):[.5,.5,.5]):c;
+  const col=c=>typeof c==='string'?(c[0]==='#'&&c.length===7?hex(c):c[0]==='#'&&c.length===4?hex('#'+c[1]+c[1]+c[2]+c[2]+c[3]+c[3]):[.5,.5,.5]):c;
 
   /* ---------- geometribyggare ---------- */
   function Builder(cap){ this.f=new Float32Array((cap||4096)*FL); this.n=0; }
@@ -76,11 +76,11 @@ void main(){
   const VSH=`attribute vec3 aP; uniform mat4 uLVP; void main(){ gl_Position=uLVP*vec4(aP,1.); }`;
   const FSH=PREC+`void main(){ gl_FragColor=vec4(1.); }`;
   const VSKY=`attribute vec2 aQ; varying vec2 vQ; void main(){ vQ=aQ; gl_Position=vec4(aQ,1.,1.); }`;
-  const FSKY=PREC+`varying vec2 vQ; uniform vec4 uR; uniform vec2 uK; uniform vec3 uL, uZen, uHor, uSunC; uniform float uCloud, uT;
+  const FSKY=PREC+`varying vec2 vQ; uniform vec4 uR; uniform vec2 uK; uniform float uOy; uniform vec3 uL, uZen, uHor, uSunC; uniform float uCloud, uT;
 float hash(vec2 p){ return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453); }
 float noise(vec2 p){ vec2 i=floor(p), f=fract(p); f=f*f*(3.-2.*f); return mix(mix(hash(i),hash(i+vec2(1.,0.)),f.x),mix(hash(i+vec2(0.,1.)),hash(i+vec2(1.,1.)),f.x),f.y); }
 float fbm(vec2 p){ return noise(p)*.5+noise(p*2.03+7.)*.25+noise(p*4.1+3.)*.125+noise(p*8.3)*.0625; }
-void main(){ float X=vQ.x*uK.x, Y=vQ.y*uK.y, Z0=Y*uR.z+uR.w, dy=Y*uR.w-uR.z, dx=X*uR.y+Z0*uR.x, dz=-X*uR.x+Z0*uR.y; vec3 r=normalize(vec3(dx,dy,dz));
+void main(){ float X=vQ.x*uK.x, Y=(vQ.y-uOy)*uK.y, Z0=Y*uR.z+uR.w, dy=Y*uR.w-uR.z, dx=X*uR.y+Z0*uR.x, dz=-X*uR.x+Z0*uR.y; vec3 r=normalize(vec3(dx,dy,dz));
   float t=clamp(r.y,0.,1.); vec3 c=mix(uHor,uZen,pow(t,.55));
   float s=max(dot(r,uL),0.); c+=uSunC*(pow(s,900.)*3.+pow(s,60.)*.35+pow(s,6.)*.14);
   if(r.y>.015){ vec2 uv=r.xz/(r.y+.12)*1.1+vec2(uT*.006,uT*.002); float n=fbm(uv), th=mix(.62,.28,uCloud), cl=smoothstep(th,th+.22,n)*smoothstep(.015,.14,r.y);
@@ -97,7 +97,7 @@ void main(){ float X=vQ.x*uK.x, Y=vQ.y*uK.y, Z0=Y*uR.z+uR.w, dy=Y*uR.w-uR.z, dx=
     try{ gl=canvas.getContext('webgl',{antialias:true,alpha:false,depth:true,powerPreference:'high-performance'}); if(!gl) return false;
       PM=prog(VS,FS); PSH=prog(VSH,FSH); PSKY=prog(VSKY,FSKY);
       quadB=gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER,quadB); gl.bufferData(gl.ARRAY_BUFFER,new Float32Array([-1,-1,3,-1,-1,3]),gl.STATIC_DRAW);
-      dynBuf=gl.createBuffer(); dynB=new Builder(16384); meshes=[]; sh=null;
+      dynBuf=gl.createBuffer(); dynB=new Builder(16384); sets={'':[]}; meshes=sets['']; sh=null;
       const dt=gl.getExtension('WEBGL_depth_texture')||gl.getExtension('WEBKIT_WEBGL_depth_texture');
       if(dt){ const S=Math.min(2048,gl.getParameter(gl.MAX_TEXTURE_SIZE)), d=gl.createTexture(); gl.bindTexture(gl.TEXTURE_2D,d);
         gl.texImage2D(gl.TEXTURE_2D,0,gl.DEPTH_COMPONENT,S,S,0,gl.DEPTH_COMPONENT,gl.UNSIGNED_INT,null); for(const [k,v] of [[gl.TEXTURE_MIN_FILTER,gl.NEAREST],[gl.TEXTURE_MAG_FILTER,gl.NEAREST],[gl.TEXTURE_WRAP_S,gl.CLAMP_TO_EDGE],[gl.TEXTURE_WRAP_T,gl.CLAMP_TO_EDGE]]) gl.texParameteri(gl.TEXTURE_2D,k,v);
@@ -111,7 +111,7 @@ void main(){ float X=vQ.x*uK.x, Y=vQ.y*uK.y, Z0=Y*uR.z+uR.w, dy=Y*uR.w-uR.z, dx=
   const ok=()=>!!gl&&!bad;
 
   /* ---------- fasta nät ---------- */
-  function clear(){ if(!gl) return; for(const m of meshes){ gl.deleteBuffer(m.vb); if(m.ib) gl.deleteBuffer(m.ib); } meshes=[]; }
+  function clear(){ if(!gl) return; for(const m of meshes){ gl.deleteBuffer(m.vb); if(m.ib) gl.deleteBuffer(m.ib); } meshes.length=0; }
   function addMesh(B,cast){ if(!B.n) return; const vb=gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER,vb); gl.bufferData(gl.ARRAY_BUFFER,B.f.subarray(0,B.n*FL),gl.STATIC_DRAW); meshes.push({vb,n:B.n,cast:!!cast}); }
   // rutnät med delade hörn: fn(i,j,o) fyller o.x,o.y,o.z,o.r,o.g,o.b,o.m; skip(i,j) hoppar över en ruta
   function addGrid(nx,nz,fn,skip){ if(nx*nz>65535) throw new Error('för stort rutnät'); const f=new Float32Array(nx*nz*FL), o={};
@@ -129,7 +129,8 @@ void main(){ float X=vQ.x*uK.x, Y=vQ.y*uK.y, Z0=Y*uR.z+uR.w, dy=Y*uR.w-uR.z, dx=
     out[0]=rx[0]*kx; out[4]=rx[1]*kx; out[8]=rx[2]*kx; out[12]=t(rx)*kx;
     out[1]=ry[0]*ky; out[5]=ry[1]*ky; out[9]=ry[2]*ky; out[13]=t(ry)*ky;
     out[2]=rz[0]*A;  out[6]=rz[1]*A;  out[10]=rz[2]*A; out[14]=tz*A+Bz;
-    out[3]=rz[0];    out[7]=rz[1];    out[11]=rz[2];   out[15]=tz; return out; }
+    out[3]=rz[0];    out[7]=rz[1];    out[11]=rz[2];   out[15]=tz;
+    const oy=C.cy==null?0:1-2*C.cy/H; if(oy){ out[1]+=oy*out[3]; out[5]+=oy*out[7]; out[9]+=oy*out[11]; out[13]+=oy*out[15]; } return out; }
   function lightMat(L,c,S,D,tex,out){ const f=[-L[0],-L[1],-L[2]]; let r=[f[2],0,-f[0]]; const rl=Math.hypot(r[0],r[2])||1; r=[r[0]/rl,0,r[2]/rl]; const u=[f[1]*r[2]-f[2]*r[1], f[2]*r[0]-f[0]*r[2], f[0]*r[1]-f[1]*r[0]];
     const step=2*S/tex, snap=v=>Math.round(v/step)*step, tx=-snap(r[0]*c[0]+r[1]*c[1]+r[2]*c[2]), ty=-snap(u[0]*c[0]+u[1]*c[1]+u[2]*c[2]), tz=-(f[0]*c[0]+f[1]*c[1]+f[2]*c[2]);
     out[0]=r[0]/S; out[4]=r[1]/S; out[8]=r[2]/S; out[12]=tx/S; out[1]=u[0]/S; out[5]=u[1]/S; out[9]=u[2]/S; out[13]=ty/S; out[2]=f[0]/D; out[6]=f[1]/D; out[10]=f[2]/D; out[14]=tz/D; out[3]=0; out[7]=0; out[11]=0; out[15]=1; return out; }
@@ -155,7 +156,7 @@ void main(){ float X=vQ.x*uK.x, Y=vQ.y*uK.y, Z0=Y*uR.z+uR.w, dy=Y*uR.w-uR.z, dx=
     gl.viewport(0,0,cv.width,cv.height); gl.clearColor(lk.hor[0],lk.hor[1],lk.hor[2],1); gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);
     // himlen
     gl.depthMask(false); gl.disable(gl.DEPTH_TEST); gl.useProgram(PSKY.p); gl.bindBuffer(gl.ARRAY_BUFFER,quadB); gl.enableVertexAttribArray(0); gl.vertexAttribPointer(0,2,gl.FLOAT,false,0,0);
-    gl.uniform4f(PSKY.u.uR,Math.sin(C.yaw),Math.cos(C.yaw),Math.sin(C.pitch),Math.cos(C.pitch)); gl.uniform2f(PSKY.u.uK,o.W/(2*C.f),o.H/(2*C.f)); gl.uniform3fv(PSKY.u.uL,L); gl.uniform3fv(PSKY.u.uZen,lk.zen); gl.uniform3fv(PSKY.u.uHor,lk.hor); gl.uniform3fv(PSKY.u.uSunC,lk.sunC); gl.uniform1f(PSKY.u.uCloud,lk.cloud); gl.uniform1f(PSKY.u.uT,o.time||0);
+    gl.uniform4f(PSKY.u.uR,Math.sin(C.yaw),Math.cos(C.yaw),Math.sin(C.pitch),Math.cos(C.pitch)); gl.uniform2f(PSKY.u.uK,o.W/(2*C.f),o.H/(2*C.f)); gl.uniform1f(PSKY.u.uOy,C.cy==null?0:1-2*C.cy/o.H); gl.uniform3fv(PSKY.u.uL,L); gl.uniform3fv(PSKY.u.uZen,lk.zen); gl.uniform3fv(PSKY.u.uHor,lk.hor); gl.uniform3fv(PSKY.u.uSunC,lk.sunC); gl.uniform1f(PSKY.u.uCloud,lk.cloud); gl.uniform1f(PSKY.u.uT,o.time||0);
     gl.drawArrays(gl.TRIANGLES,0,3); gl.depthMask(true); gl.enable(gl.DEPTH_TEST);
     // världen
     camMat(C,o.W,o.H,VP); gl.useProgram(PM.p); gl.uniformMatrix4fv(PM.u.uVP,false,VP); gl.uniformMatrix4fv(PM.u.uLVP,false,LVP);
@@ -166,5 +167,9 @@ void main(){ float X=vQ.x*uK.x, Y=vQ.y*uK.y, Z0=Y*uR.z+uR.w, dy=Y*uR.w-uR.z, dx=
     let t=dynB.n/3; for(const m of meshes) t+=m.n/3; stats.tris=Math.round(t); stats.shadows=!!sh;
     return true;
   }
-  return {init, ok, clear, addMesh, addGrid, render, Builder, dyn:()=>dynB, stats:()=>stats, hex};
+  // flera uppsättningar fasta nät (t.ex. varvet och straffrundan i skidskyttet)
+  function use(k){ meshes=sets[k]||(sets[k]=[]); return meshes.length>0; }
+  return {init, ok, clear, use, addMesh, addGrid, render, Builder, dyn:()=>dynB, stats:()=>stats, hex};
+  }
+  const def=mkGL(); def.create=mkGL; return def;
 })();
