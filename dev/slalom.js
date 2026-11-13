@@ -855,6 +855,9 @@ const SLALOM = (()=>{
     R.parts=R.parts.filter(p=>(p.t-=dt)>0); for(const p of R.parts){ p.x+=p.vx*dt; p.z+=p.vz*dt; p.y+=p.vy*dt; p.vy-=9*dt; B.sphere([p.x,gy(p.x,p.z)+Math.max(.02,p.y),p.z],.04*(p.r||1),[1,1,1],2,4,3); }
     const sn=T.M.D.sun, sl=Math.hypot(sn[0],sn[1],sn[2])||1;
     SLGL.render({C,W,H,sun:[sn[0]/sl,sn[1]/sl,sn[2]/sl],wx:R.wx,focus:[s.x,gy(s.x,s.z),s.z+(DD?0:22)],shadowR:DD?95:70,time:now()});
+    // missad port: rött kryss ovanpå 3D-bilden, som i den enkla grafiken
+    for(const gs of R.C.gates) for(const g of gs){ if(g.pass!==false||g.zmax<zA||g.zmin>zB) continue; const q=SLGL.project(C,W,H,[g.aim.x,gy(g.aim.x,g.aim.z),g.aim.z]); if(!q||q[0]<-40||q[0]>W+40) continue;
+      ctx.fillStyle='rgba(239,68,68,.9)'; ctx.font=`900 ${Math.max(10,q[2]*.9)}px system-ui`; ctx.textAlign='center'; ctx.textBaseline='alphabetic'; ctx.fillText('✕',q[0],q[1]-q[2]*.6); }
   }
   function capsule(x1,y1,x2,y2,w1,w2,col){ const dx=x2-x1, dy=y2-y1, L=Math.hypot(dx,dy)||1, nx=-dy/L, ny=dx/L; w1=Math.max(1,w1); w2=Math.max(1,w2);
     ctx.fillStyle=col; ctx.beginPath(); ctx.moveTo(x1+nx*w1/2,y1+ny*w1/2); ctx.lineTo(x2+nx*w2/2,y2+ny*w2/2); ctx.lineTo(x2-nx*w2/2,y2-ny*w2/2); ctx.lineTo(x1-nx*w1/2,y1-ny*w1/2); ctx.closePath(); ctx.fill();
@@ -1104,7 +1107,7 @@ const SLALOM = (()=>{
 .sl-glc{position:absolute;left:0;top:0;border-radius:16px;display:none}
 .sl-cv{position:relative;z-index:1}
 .sl-glb{position:absolute;left:8px;bottom:88px;padding:7px 11px;border-radius:12px;border:1px solid rgba(255,255,255,.35);background:rgba(15,23,42,.6);color:#fff;font-size:12.5px;font-weight:700;z-index:3;touch-action:manipulation}
-.rp-hl .sl-glb{display:none}
+.rp-on .sl-glb{display:none}
 .sl-cv{display:block;border-radius:16px;touch-action:none;-webkit-user-select:none;user-select:none;box-shadow:0 10px 30px rgba(0,0,0,.4)}
 .sl-over{position:absolute;top:0;right:0;bottom:0;left:0;display:grid;place-items:center;padding:14px;background:rgba(15,23,42,.25)}
 .sl-over .gover{max-width:330px;width:100%;background:rgba(11,16,40,.9);-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px)}
