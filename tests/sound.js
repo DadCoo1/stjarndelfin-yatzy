@@ -2,7 +2,7 @@
 const {chromium}=require('playwright'); const sleep=ms=>new Promise(r=>setTimeout(r,ms));
 (async()=>{ const b=await chromium.launch({args:['--autoplay-policy=no-user-gesture-required']}); let fails=0; const ok=(c,m)=>{ console.log((c?'✓ ':'✗ ')+m); if(!c) fails++; }; const errs=[];
   const c=await b.newContext({viewport:{width:390,height:844}}); await c.addInitScript("window.__NET_SERVER=''; localStorage.setItem('dev:onboarded','1'); localStorage.setItem('dev:snd_vol','1')");
-  const p=await c.newPage(); p.on('pageerror',e=>errs.push(e.message)); p.on('console',m=>{ if(m.type()==='warning'&&/ljudlandskap/.test(m.text())) errs.push(m.text()); }); await p.goto('http://127.0.0.1:8811/dev/'); await sleep(1500);
+  const p=await c.newPage(); p.on('pageerror',e=>errs.push(e.message)); p.on('console',m=>{ if(m.type()==='warning'&&/ljudlandskap|inspelat ljud/.test(m.text())) errs.push(m.text()); }); const got=[]; p.on('response',r=>{ if(/snd\/brook\.m4a/.test(r.url())) got.push(r.status()); }); await p.goto('http://127.0.0.1:8811/dev/'); await sleep(1500);
   await p.click('[data-act=sndopen]'); await sleep(300); ok(await p.$$eval('#modal [data-act=sndplay]',e=>e.length)===9, 'nio ljud: regn, åska, vågor, hav, bäck, vind, fjällvind, brasa, bubblor');
   // mäter under några sekunder: styrka (RMS), toppvärde, och var tyngdpunkten i klangen ligger (Hz)
   const measure=(kind,ms,ev)=>p.evaluate(async([kind,ms,ev])=>{ const S=TODAY.SND; S.stop(true); await new Promise(r=>setTimeout(r,500)); const t0=performance.now(); S.play(kind,0); const build=performance.now()-t0; await new Promise(r=>setTimeout(r,2800)); if(ev==='strike') S._t.strike(.1); if(ev==='wave') S._t.wave();
@@ -16,7 +16,7 @@ const {chromium}=require('playwright'); const sleep=ms=>new Promise(r=>setTimeou
   // flera samtidigt, via knapparna
   await p.evaluate(()=>TODAY.SND.stop(true)); await sleep(400);
   await p.click('#modal [data-act=sndplay][data-k=fire]'); await p.click('#modal [data-act=sndplay][data-k=brook]'); await sleep(2500);
-  ok((await p.evaluate(()=>TODAY.SND.active())).join()==='fire,brook' && await p.$$eval('#modal .snd-bar button.on',e=>e.length)===2, 'brasa och bäck spelar samtidigt');
+  ok(got.includes(200), 'bäcken är den riktiga inspelningen (snd/brook.m4a hämtad och avkodad)'); ok((await p.evaluate(()=>TODAY.SND.active())).join()==='fire,brook' && await p.$$eval('#modal .snd-bar button.on',e=>e.length)===2, 'brasa och bäck spelar samtidigt');
   await p.click('#modal [data-act=sndplay][data-k=fire]'); await sleep(300); ok((await p.evaluate(()=>TODAY.SND.active())).join()==='brook', 'tryck igen stänger av bara det ljudet');
   await p.evaluate(()=>TODAY.SND.stop()); await sleep(6500);
   const q=await p.evaluate(()=>{ const an=TODAY.SND._t.an(), td=new Float32Array(an.fftSize); an.getFloatTimeDomainData(td); return Math.max(...td.map(Math.abs)); }); ok(q<.002, 'tystnar när man stänger av ('+q.toFixed(4)+')');
