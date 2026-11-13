@@ -1187,7 +1187,7 @@ const BIATHLON = (()=>{
   KIND.skidskytte.apply=function(g,a,seat){ const ok=_apply(g,a,seat); if(ok&&a.type==='finish'&&seat===meSeat2()&&g.fmt!=='tr'){ try{ const key='bs_best_'+g.fmt, B=JSON.parse(lsGet(key))||{}; const t=a.ms/1000; if(!B.t||t<B.t){ lsSet(key,JSON.stringify({t,sh:a.sh,d:Date.now()})); if(B.t) setTimeout(()=>{ toast('🏆 Nytt rekord!',2500); sparkles(30); },500); } }catch(e){} } return ok; };
 
   const css=document.createElement('style'); css.textContent=`
-.bs-wrap{position:relative;margin:0 auto}.bs-host{display:flex;justify-content:center;position:relative}
+.bs-wrap{position:relative;margin:0 auto}.bs-host{display:flex;justify-content:center;position:relative;z-index:0}
 .bs-glc{position:absolute;left:0;top:0;border-radius:16px;display:none}.bs-cv{position:relative;z-index:1}
 .bs-glb{position:absolute;right:8px;top:8px;padding:7px 11px;border-radius:12px;border:1px solid rgba(255,255,255,.35);background:rgba(15,23,42,.6);color:#fff;font-size:12.5px;font-weight:700;z-index:3;touch-action:manipulation}
 .rp-hl .bs-glb{display:none}

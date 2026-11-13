@@ -1100,7 +1100,7 @@ const SLALOM = (()=>{
 
   const st=document.createElement('style'); st.textContent=`
 .sl-wrap{position:relative;margin:0 auto}
-.sl-host{display:flex;justify-content:center;position:relative}
+.sl-host{display:flex;justify-content:center;position:relative;z-index:0}
 .sl-glc{position:absolute;left:0;top:0;border-radius:16px;display:none}
 .sl-cv{position:relative;z-index:1}
 .sl-glb{position:absolute;left:8px;bottom:88px;padding:7px 11px;border-radius:12px;border:1px solid rgba(255,255,255,.35);background:rgba(15,23,42,.6);color:#fff;font-size:12.5px;font-weight:700;z-index:3;touch-action:manipulation}
