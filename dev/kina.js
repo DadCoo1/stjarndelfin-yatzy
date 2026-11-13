@@ -220,7 +220,7 @@
       <label>Ditt namn</label><input id="nm" maxlength="14" value="${esc(lsGet('ry_name')||'')}" placeholder="Ditt namn">
       <label>Hur många datorspelare?</label><div class="seg" id="kbots">${[1,2,3,4,5].map(n=>`<button data-kb="${n}" class="${botN===n?'sel':''}">${n}</button>`).join('')}</div>
       <label>Hur bra är de?</label><div class="seg" id="segg">${gLevelHTML()}</div>
-      <div class="btns" style="flex-direction:column"><button class="pri" data-kmenu="ai">🤖 Spela mot datorn</button>
+      <div class="btns" style="flex-direction:column"><button class="pri" data-kmenu="ai">🤖 Spela mot datorn</button>${HOT.btn('data-kmenu="hot"')}
         <button class="pri" data-kmenu="host" style="background:linear-gradient(135deg,#f472b6,#a855f7)">🚀 Bjud in kompisar (2–6 spelare)</button>
         <button data-act="close">Avbryt</button></div>`,'kmenu');
   };
@@ -228,6 +228,7 @@
     const kb=e.target.closest('[data-kb]'); if(kb){ botN=+kb.dataset.kb; kb.parentElement.querySelectorAll('button').forEach(x=>x.classList.toggle('sel',x===kb)); sfx.bubble(); return; }
     const b=e.target.closest('[data-kmenu]'); if(!b) return;
     const n=(document.getElementById('nm')?.value||'').trim();
+    if(b.dataset.kmenu==='hot'){ HOT.names('kina', n); return; }
     if(b.dataset.kmenu==='ai'){ const nm=n||'Du'; lsSet('ry_name',nm); unlockAudio(); startGameLocal('kina', nm, gLevel, botN); }
     if(b.dataset.kmenu==='host'){ if(!n){ toast('Skriv ditt namn 🐬'); return; } lsSet('ry_name',n); unlockAudio(); closeModal(); hostGame(n,'free','kina'); }
   });

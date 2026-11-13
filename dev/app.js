@@ -2208,7 +2208,7 @@ function startLocal(names,order,ai){
 }
 function resumeLocal(){
   try{ const g=JSON.parse(lsGet('ry_local')); if(!g || !validState(g)) return false;
-    if(g.kind && g.kind!=='yatzy'){ stopNet(); mode='local'; mySeat=0; gameId=null; role=null; G=g; view='game'; resetDrafts(); render(); gMaybeAI(); return true; }
+    if(g.kind && g.kind!=='yatzy'){ stopNet(); mode='local'; mySeat=0; gameId=null; role=null; G=g; hotView=-1; view='game'; resetDrafts(); render(); gMaybeAI(); return true; }
     stopNet(); mode='local'; G=g; shown=g.dice.slice(); view='game'; aiPlan=null; render(); maybeAI(1200); return true; }catch(e){ console.error('resumeLocal',e); return false; }
 }
 // Kom ihåg var man är, så att appen öppnas på samma ställe efter att mobilen stängt den
@@ -2429,6 +2429,7 @@ function renderInner(){
   if(view==='sol'){ dock.innerHTML=''; if(!document.getElementById('solRoot')){ app.innerHTML=solHTML(); solMount(); } else { solRefreshChrome(); } app.style.paddingBottom='0px'; return; }
   if(!G){ app.innerHTML=topbar()+`<div class="loading">${DOLPHIN('ld')}<p>Simmar till spelet <b>${esc(gameId||'')}</b>…</p><p style="font-size:14px">${netText()}</p><button class="bigbtn alt" data-act="lobby" style="max-width:260px;margin:20px auto">Avbryt</button></div>`; dock.innerHTML=''; return; }
   if(isKind()){
+    if(HOT.sync()){ app.innerHTML = topbar() + HOT.curtainHTML(); dock.innerHTML=''; fitDock(); return; }
     app.innerHTML = topbar() + (ready() ? KIND[G.kind].html() : waitingHTML());
     dock.innerHTML = ready() && G.kind!=='pong' && G.kind!=='slalom' && G.kind!=='skidskytte' && G.names.length>1 ? reactDockHTML() : '';
     if(ready() && KIND[G.kind].mounted) KIND[G.kind].mounted();
