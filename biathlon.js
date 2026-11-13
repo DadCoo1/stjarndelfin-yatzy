@@ -578,6 +578,10 @@ const BIATHLON = (()=>{
     for(const o of R.A){ if(o===a||o.ph==='range'||o.done&&o.ph==='done') continue; const az=pen?(o.ph==='pen'?o.pz:null):(o.ph==='ski'?o.z:null); if(az==null||az<z-150||az>z+260) continue; cap(o,mid(az)+(o.k%3-1)*1.4,az); }
     R.parts=R.parts.filter(p=>(p.t-=dt)>0); for(const p of R.parts){ p.x+=p.vx*dt; p.z+=p.vz*dt; p.y+=p.vy*dt; p.vy-=9*dt; B.sphere([p.x,elev(p.z)+Math.max(.02,p.y),p.z-base],.035*(p.r||1),[1,1,1],2,4,3); }
     GLB.render({C,W,H,sun:SUNB,wx:R.wx,focus:[mid(z),elev(z),z-base+(DD?0:14)],shadowR:DD?80:55,time:now()});
+    // text på startportalen och storbildsskärmen, ritad ovanpå 3D-bilden
+    if(!pen) for(let bq=Math.floor(z/LP)*LP-LP; bq<=z+LP; bq+=LP) for(const o of STATIC){ const zz=bq+o.q; if(zz<z-30||zz>z+220) continue; const m=mid(zz), hw=halfAt(zz), y=elev(zz);
+      if(o.t==='arch'){ const q=GLB.project(C,W,H,[m,y+4.65,zz-base-.31]); if(!q||q[2]<3) continue; const w=(2*hw+2.5)*q[2]; ctx.fillStyle='#facc15'; ctx.font=`900 ${Math.max(6,q[2]*.62)}px system-ui`; ctx.textAlign='center'; ctx.textBaseline='middle'; if(ctx.measureText('ÖSTERSUND · SKIDSKYTTE').width<w*.9) ctx.fillText('ÖSTERSUND · SKIDSKYTTE',q[0],q[1]); }
+      else if(o.t==='screen'){ const q=GLB.project(C,W,H,[m-hw-16,y+8.5,zz-base-.23]); if(!q||q[2]*8<30) continue; const me=meA(); ctx.fillStyle='#fff'; ctx.font=`700 ${q[2]*1}px system-ui`; ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.fillText(`${Math.round(me.hr)} ♥  ${fmtT(me.t)}`,q[0],q[1]); } }
   }
 
   /* ---------- siktbilden ---------- */
@@ -1190,7 +1194,7 @@ const BIATHLON = (()=>{
 .bs-wrap{position:relative;margin:0 auto}.bs-host{display:flex;justify-content:center;position:relative;z-index:0}
 .bs-glc{position:absolute;left:0;top:0;border-radius:16px;display:none}.bs-cv{position:relative;z-index:1}
 .bs-glb{position:absolute;right:8px;top:8px;padding:7px 11px;border-radius:12px;border:1px solid rgba(255,255,255,.35);background:rgba(15,23,42,.6);color:#fff;font-size:12.5px;font-weight:700;z-index:3;touch-action:manipulation}
-.rp-hl .bs-glb{display:none}
+.rp-on .bs-glb{display:none}
 .bs-cv{display:block;border-radius:16px;touch-action:none;-webkit-user-select:none;user-select:none;box-shadow:0 10px 30px rgba(0,0,0,.4)}
 .bs-ctl{position:absolute;left:0;right:0;bottom:10px;display:none;justify-content:center;align-items:center;gap:14px;pointer-events:none}
 .bs-ctl.on{display:flex}.bs-ctl button{pointer-events:auto;touch-action:manipulation}
