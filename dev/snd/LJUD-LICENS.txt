@@ -1,0 +1,4 @@
+brook.m4a – porlande bäck
+Källa: "Stream" av gluckose, Freesound https://freesound.org/people/gluckose/sounds/333987/
+Licens: CC0 1.0 (allmän egendom). Hämtad via Blanket-projektets ljudsamling (SOUNDS_LICENSING.md).
+Bearbetning: 75 s utdrag, högpassfilter 90 Hz, nivå och mjuk begränsning av toppar, sömlös loop (4 s övertoning), AAC 128 kbit/s.

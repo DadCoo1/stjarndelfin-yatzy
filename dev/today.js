@@ -235,6 +235,15 @@ const TODAY = (() => {
     /* ---------- byggstenar ---------- */
     // flera landskap kan spela samtidigt: "cur" är det landskap som just nu bygger eller schemalägger ljud
     const later = (fn, ms) => { const S = cur; if (!S) return; S.timers.push(setTimeout(() => { if (!S.alive) return; cur = S; try { fn(); } catch (e) {} }, ms)); };
+    // inspelade ljud (snd/*.m4a), hämtas en gång och sparas i minnet; misslyckas hämtningen används det syntetiska ljudet
+    const SAMP = {};
+    const sample = name => SAMP[name] || (SAMP[name] = fetch(location.pathname.replace(/[^/]*$/, '') + 'snd/' + name + '.m4a').then(r => { if (!r.ok) throw new Error('ljud ' + r.status); return r.arrayBuffer(); })
+      .then(a => new Promise((res, rej) => ac.decodeAudioData(a, res, rej))).catch(e => { delete SAMP[name]; throw e; }));
+    function loopSample(S, name, g, fallback) { sample(name).then(buf => { if (!S.alive) return;
+        // hoppa över eventuell tystnad som avkodaren lagt till i början och slutet, så att loopen blir sömlös
+        const d = buf.getChannelData(0), n = d.length; let a = 0, b = n - 1; while (a < Math.min(n, 8192) && Math.abs(d[a]) < 1e-4) a++; while (b > n - 8192 && Math.abs(d[b]) < 1e-4) b--;
+        const s = ac.createBufferSource(); s.buffer = buf; s.loop = true; s.loopStart = a / buf.sampleRate; s.loopEnd = (b + 1) / buf.sampleRate; s.start(0, s.loopStart + Math.random() * (s.loopEnd - s.loopStart) * .9); S.srcs.push(s); s.connect(g);
+      }).catch(e => { if (S.alive && fallback) { console.warn('inspelat ljud saknas, syntetiskt används', e); const c = cur; cur = S; try { fallback(); } finally { cur = c; } } }); }
     function src(buf, loop, S) { const s = ac.createBufferSource(); s.buffer = buf; s.loop = loop !== false; s.start(0, Math.random() * buf.duration); (S || cur).srcs.push(s); return s; }
     function filt(type, f, q) { const x = ac.createBiquadFilter(); x.type = type; x.frequency.value = f; if (q) x.Q.value = q; return x; }
     function gain(v) { const g = ac.createGain(); g.gain.value = v; return g; }
@@ -302,8 +311,10 @@ const TODAY = (() => {
         const swell = () => { const t = ac.currentTime, g = gain(0), f = filt('bandpass', R(300, 650), .7), s = src(noise('pink', 10), true, S), d = R(5, 9); g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(R(.12, .28), t + d * .45); g.gain.linearRampToValueAtTime(0, t + d);
           const p = pan(R(-.5, .5)); link(s, f, g, p, S.dry); p.connect(S.wet); later(() => { try { s.stop(); } catch (e) {} }, d * 1000 + 300); later(swell, R(4000, 8000)); }; later(swell, 800); },
       // porlande bäck: vatten som kluckar i toner (små luftfickor) över ett lätt brus som rör sig mellan stenarna
-      brook(S) { const b = gain(1.4); link(src(brookBuf()), filt('lowpass', 5200), b, S.dry); b.connect(S.wet); wander(b.gain, 1.1, 1.7, 3, 7);
-        [[700, 1500, .035], [1500, 3200, .03]].forEach(([lo, hi, v]) => { const f = filt('bandpass', (lo + hi) / 2, 3.5), g = gain(v), p = pan(R(-.6, .6)); link(src(noise('pink', 10)), f, g, p, S.dry); wander(f.frequency, lo, hi, .4, 1.6); wander(g.gain, v * .5, v * 1.4, .5, 2); }); },
+      // porlande bäck: riktig inspelning (CC0, se snd/LJUD-LICENS.txt); syntetisk bäck som reserv utan nät första gången
+      brook(S) { const g = gain(.95), w = gain(.35); g.connect(S.dry); g.connect(w); w.connect(S.wet);
+        loopSample(S, 'brook', g, () => { const b = gain(1.4); link(src(brookBuf(), true, S), filt('lowpass', 5200), b, S.dry); b.connect(S.wet); wander(b.gain, 1.1, 1.7, 3, 7);
+          [[700, 1500, .035], [1500, 3200, .03]].forEach(([lo, hi, v]) => { const f = filt('bandpass', (lo + hi) / 2, 3.5), gg = gain(v), p = pan(R(-.6, .6)); link(src(noise('pink', 10), true, S), f, gg, p, S.dry); wander(f.frequency, lo, hi, .4, 1.6); wander(gg.gain, v * .5, v * 1.4, .5, 2); }); }); },
       wind(S) {
         const mk = (q, f0, f1, g0, g1, pv) => { const f = filt('bandpass', f0, q), g = gain(g0), p = pan(pv); link(src(noise('pink', 10)), f, g, p, S.dry); p.connect(S.wet); return { f, g, f0, f1, g0, g1 }; };
         const Ls = [mk(1.1, 190, 700, .06, .7, -.25), mk(2.4, 420, 1300, .01, .28, .35)];
@@ -332,7 +343,7 @@ const TODAY = (() => {
         const glug = () => { const t = ac.currentTime, o = ac.createOscillator(), g = gain(0), f = R(140, 320), d = R(.12, .22); o.frequency.setValueAtTime(f, t); o.frequency.exponentialRampToValueAtTime(f * R(1.5, 2.2), t + d);
           g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(R(.06, .14), t + .01); g.gain.exponentialRampToValueAtTime(.0005, t + d); link(o, g, pan(R(-.6, .6)), S.dry); g.connect(conv); o.start(t); o.stop(t + d + .05); later(glug, R(1500, 7000)); }; later(glug, 2000); }
     };
-    const WET = { rain: .1, thunder: .25, shore: .14, sea: .18, brook: .12, wind: .1, fjall: .16, fire: .1, bub: .3 };
+    const WET = { rain: .1, thunder: .25, shore: .14, sea: .18, brook: .05, wind: .1, fjall: .16, fire: .1, bub: .3 };
     const active = () => Object.keys(live);
     function play(kind, mins) {      // slår på ett landskap (flera kan vara på samtidigt)
       if (!SCENES[kind] || live[kind]) return; ctx();
