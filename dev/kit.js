@@ -19,6 +19,7 @@ const KIT = (()=>{
       ${o.solo&&o.levels?`<label>Nivå</label><div class="seg" id="kmLvl">${lvlHTML(kind)}</div>`:''}
       <div class="btns" style="flex-direction:column">
         ${o.solo?`<button class="pri" data-km="solo" data-k="${kind}">▶️ Spela</button>`:`<button class="pri" data-km="ai" data-k="${kind}">🤖 Spela mot datorn</button>`}
+        ${!o.solo&&o.local!==false?HOT.btn(`data-km="hot" data-k="${kind}"`):''}
         ${o.online!==false?`<button class="pri" data-km="host" data-k="${kind}" style="background:linear-gradient(135deg,#f472b6,#a855f7)">🚀 Bjud in ${gi.max>2?`kompisar (2–${gi.max} spelare)`:'en kompis (online)'}</button>`:''}
         <button data-act="close">Avbryt</button></div>`,'km_'+kind);
   }
@@ -37,6 +38,7 @@ const KIT = (()=>{
     if(a==='ai'||a==='solo'){ const nm=n||'Du'; lsSet('ry_name',nm); unlockAudio(); o.onStart&&o.onStart(a);
       if(a==='solo') startSolo(kind,nm); else startGameLocal(kind, nm, get(kind+'_lvl','medium'), o.bots?+get(kind+'_bots',o.bots[0]):1); return; }
     if(a==='host'){ if(!n){ toast('Skriv ditt namn 🐬'); return; } lsSet('ry_name',n); unlockAudio(); closeModal(); o.onStart&&o.onStart(a); hostGame(n,'free',kind); return; }
+    if(a==='hot'){ HOT.names(kind, n, ()=>{ o.onStart&&o.onStart('hot'); }); return; }
   });
   // "Ge upp"-knapp som kräver två tryck
   document.addEventListener('click',e=>{
@@ -46,7 +48,7 @@ const KIT = (()=>{
   });
   const resignHTML = () => (!G||G.over) ? '' : `<button class="of-link" data-kit="resign">Ge upp</button>`;
   const lvlName = l => ({easy:'lätt',medium:'medel',hard:'svår'})[l]||'';
-  const turnText = (g, verb) => { const me=meSeat(); if(g.over) return ''; if(g.cur===me && canActG(me)) return `<b style="color:var(--gold)">Din tur</b>${verb?' – '+verb:''}`; return `${isAI(g.cur)?'🤖 ':''}<b>${esc(pname(g.cur))}</b> funderar…`; };
+  const turnText = (g, verb) => { const me=meSeat(); if(g.over) return ''; if(g.hot) return `<b style="color:var(--gold)">${esc(gen(pname(g.cur)))} tur</b>${verb?' – '+verb:''}`; if(g.cur===me && canActG(me)) return `<b style="color:var(--gold)">Din tur</b>${verb?' – '+verb:''}`; return `${isAI(g.cur)?'🤖 ':''}<b>${esc(pname(g.cur))}</b> funderar…`; };
   // vanlig hantering av "ge upp": två spelare → den andra vinner; fler → spelaren åker ut
   function resign(g,seat,alive){
     if(g.over) return false;

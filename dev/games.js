@@ -13,9 +13,9 @@ const GINFO = {
 const isKind = () => !!(G && G.kind && G.kind!=='yatzy' && KIND[G.kind]);
 const gName = () => isKind() ? GINFO[G.kind].name : 'Yatzy';
 const gIcon = () => isKind() ? GINFO[G.kind].icon : '🎲';
-const meSeat = () => mode==='online' ? mySeat : 0;
+const meSeat = () => mode==='online' ? mySeat : (G && G.hot ? hotView : 0);
 const maxP = () => isKind() ? (GINFO[G.kind].max||2) : 4;
-const canActG = seat => !!(G && !G.over && ready() && (mode==='online' ? seat===mySeat : !isAI(seat)));
+const canActG = seat => !!(G && !G.over && ready() && (mode==='online' ? seat===mySeat : G.hot ? seat===hotView : !isAI(seat)));
 const clone = o => JSON.parse(JSON.stringify(o));
 const bare = n => String(n||'').replace(/\s*🤖$/,'');
 const gen = n => { const b=bare(n); return /[sxz]$/i.test(b) ? b : b+'s'; };   // svensk genitiv: Blixts, Tindras, Max
@@ -47,7 +47,7 @@ function doAct(a){
   if(!isKind()) return;
   unlockAudio();
   if(mode==='online' && role==='guest'){ if(net!=='connected'){ toast('Ingen kontakt just nu 📡'); return; } send({t:'act', a}); return; }
-  const seat = mode==='online' ? mySeat : (Number.isInteger(a.seat) ? a.seat : 0);
+  const seat = mode==='online' ? mySeat : (Number.isInteger(a.seat) ? a.seat : G.hot ? hotView : 0);
   applyAndPublish(a, seat);
 }
 // värden (eller lokalt spel) tillämpar ett drag och sprider resultatet
@@ -56,7 +56,7 @@ function applyAndPublish(a, seat){
   const prev=clone(G);
   if(a.type==='rematch'){
     if(!G.over) return false;
-    const n=gNewState(G.kind, G.names.slice(), ((G.starter||0)+1)%G.names.length, G.ai, G.seq); KIND[G.kind].start(n); G=n;
+    const n=gNewState(G.kind, G.names.slice(), ((G.starter||0)+1)%G.names.length, G.ai, G.seq); if(G.hot){ n.hot=1; hotView=-1; } KIND[G.kind].start(n); G=n;
   } else {
     let ok=false; try{ ok=KIND[G.kind].apply(G,a,seat); }catch(e){ ok=false; }
     if(!ok){ G=prev; return false; }                  // ogiltigt drag: inget ändras
@@ -90,7 +90,7 @@ function stats2(){ try{ return JSON.parse(lsGet('ry_stats2'))||{games:[]} }catch
 function gFinish(d){
   const me=meSeat(), st=stats2();
   const KD=KIND[d.kind]||{};
-  if(!(KD.noStats&&KD.noStats(d)) && !st.games.some(g=>g.id===d.id) && me!==null && me!==undefined){
+  if(!d.hot && !(KD.noStats&&KD.noStats(d)) && !st.games.some(g=>g.id===d.id) && me!==null && me!==undefined){
     const res = d.winner===-1 ? 'T' : d.winner===me ? 'W' : 'L';
     const others=d.names.map((n,i)=>i).filter(i=>i!==me);
     const lvl = x => ({hard:'svår',medium:'medel'})[x]||'lätt';
@@ -100,7 +100,8 @@ function gFinish(d){
     if(st.games.length>500) st.games=st.games.slice(-500);
     lsSet('ry_stats2', JSON.stringify(st));
   }
-  const won = d.winner===me;
+  const won = d.hot ? d.winner>=0 : d.winner===me;
+  if(d.hot && won && !KD.overFx){ setTimeout(()=>{ celebrate(`${bare(d.names[d.winner])} vann!`); sfx.win(); sparkles(50); },400); return; }
   if(KD.overFx) setTimeout(()=>KD.overFx(d),400);   // spelet sköter sin egen avslutning (t.ex. träning)
   else setTimeout(()=>{ if(won){ celebrate('VINST!'); sfx.win(); sparkles(50); } else if(d.winner===-1){ sfx.pick(); sparkles(16); } else { tone(392,.3,'triangle',.1); tone(330,.4,'triangle',.1,.25); tone(262,.6,'triangle',.1,.5); } },400);
   if(view!=='game') notice({icon:'🏁', title:`${GINFO[d.kind].name} är klar`, text: KD.overFx?'Se hur det gick':won?'Du vann! 🏆':d.winner===-1?'Oavgjort':'Se hur det gick', actions:[{label:'Visa', run:backToGame}]});
@@ -129,12 +130,52 @@ function gHeadHTML(sub){
   return `<div class="ghead ${G.names.length>2?'multi':''}">${pl}</div>${sub?`<div class="gsub">${sub}</div>`:''}`;
 }
 function gOverHTML(text){
-  const me=meSeat(), won=G.winner===me, tie=G.winner===-1;
+  const me=meSeat(), won=!G.hot&&G.winner===me, tie=G.winner===-1;
   const gic = typeof STYLE!=='undefined' ? STYLE.icon(G.kind, gIcon()) : '';
-  return `<div class="gover ${won?'won':tie?'tie':'lost'}">${gic?`<div class="gbadge">${gic}</div>`:''}<div class="gi">${won?'🏆':tie?'🤝':'🌊'}</div><h3>${tie?'Oavgjort!':won?'Du vann!':`${esc(pname(G.winner))} vann!`}</h3><p>${text||''}</p>
+  return `<div class="gover ${won?'won':tie?'tie':'lost'}">${gic?`<div class="gbadge">${gic}</div>`:''}<div class="gi">${won||G.hot&&!tie?'🏆':tie?'🤝':'🌊'}</div><h3>${tie?'Oavgjort!':won?'Du vann!':`${esc(pname(G.winner))} vann!`}</h3><p>${text||''}</p>
     <div class="gbtns"><button class="pri" data-g="rematch">🔄 Spela igen</button><button data-act="lobby">🏠 Lobby</button></div></div>`;
 }
 let shipsDraft=null, mmDraft=null, hgDraft=null, gAnimT=null;
+/* ---------- samma enhet: två eller fler turas om på en telefon, platta eller dator ----------
+   Spel med dolda kort, skepp eller koder visar en ridå mellan turerna så att man kan lämna över utan att se den andras. */
+let hotView=0, hotWant=null;
+const HOT=(()=>{
+  const where=()=>(typeof isDesk==='function'&&isDesk())?'skärm':'enhet';
+  const btn=attrs=>`<button class="pri" ${attrs} style="background:linear-gradient(135deg,#34d399,#0ea5e9)">👥 Mot en kompis på samma ${where()}</button>`;
+  // vem ska hålla i enheten nu: den som spelet väntar på (prova varje människa, med den som håller i den först)
+  function who(){ const K=KIND[G.kind], n=G.names.length, save=hotView, from=save>=0?save:(G.cur||0); if(!K.waitingFor) return G.cur;
+    let pick=-1, ai=false; try{ for(let k=0;k<n;k++){ const s=(from+k)%n; hotView=s; let w=null; try{ w=K.waitingFor(G); }catch(e){} if(w===s){ if(isAI(s)){ ai=true; continue; } pick=s; break; } } } finally { hotView=save; }
+    if(pick>=0) return pick; if(save>=0) return save;                       // ingen människa väntas (datorns tur, eller visning av resultat): enheten stannar hos den som har den
+    const c=Number.isInteger(G.cur)&&G.cur>=0&&!isAI(G.cur)?G.cur:G.names.findIndex((_,i)=>!isAI(i)); return Math.max(0,c); }
+  function sync(){ hotWant=null; if(!(mode==='local'&&G&&G.hot&&isKind())) return false; if(G.over){ if(hotView<0) hotView=0; return false; }
+    const w=who(); if(w===hotView) return false; if(!KIND[G.kind].redact || OPEN[G.kind]){ hotView=w; return false; } hotWant=w; return true; }
+  const OPEN={memory:1};   // dolt bara för att ingen ska fuska online – på samma enhet ser alla samma bräde
+  const curtainHTML=()=>`<div class="hotc"><div class="hotc-i">📱</div><h2>Lämna över till<br><b>${esc(bare(G.names[hotWant]))}</b></h2>
+      <p>${hotView>=0?`Titta bort, ${esc(bare(G.names[hotView]))} 🙈`:'Den andra tittar bort 🙈'}</p><button class="bigbtn" data-hot="go">Jag är ${esc(bare(G.names[hotWant]))} – visa</button>
+      <button class="hotc-l" data-act="lobby">🏠 Lobby</button></div>`;
+  function start(kind, names, pre){
+    stopNet(); clearTimeout(aiTimer); closeModal(); mode='local'; mySeat=0; gameId=null; role=null; if(pre) pre();
+    G=gNewState(kind,names,0,names.map(()=>false)); G.hot=1; KIND[kind].start(G); saveLocal(); hotView=-1;
+    if(typeof srvStat==='function') srvStat('game',{game:kind, title:GINFO[kind].name, mode:'samma enhet'});
+    view='game'; resetDrafts(); render(); }
+  let pend=null;
+  function namesHTML(){ const {kind,list,max}=pend; return `<h3>${GINFO[kind].icon} ${GINFO[kind].name} · samma ${where()}</h3><p>Ni turas om. ${KIND[kind].redact?'Mellan turerna visas en ridå så att ni kan lämna över utan att se varandras kort.':'Den som står på tur lyser upp överst.'}</p>
+    ${list.map((n,i)=>`<label>Spelare ${i+1}</label><input data-hotn="${i}" maxlength="14" value="${esc(n)}" placeholder="Namn">`).join('')}
+    <div class="btns">${list.length<max?'<button data-hot="add">＋ Spelare</button>':''}${list.length>2?'<button data-hot="rem">－ Spelare</button>':''}</div>
+    <div class="btns" style="flex-direction:column"><button class="pri" data-hot="start">▶️ Starta</button><button data-act="close">Avbryt</button></div>`; }
+  function names(kind, me, pre, min){ const max=Math.max(2,GINFO[kind].max||2), last=(()=>{ try{ return JSON.parse(lsGet('hot_names'))||[]; }catch(e){ return []; } })();
+    const list=[me||lsGet('ry_name')||'', last.find(x=>x&&x!==me)||'']; pend={kind,list,max,pre}; openModal(namesHTML(),'hotnames'); }
+  const read=()=>document.querySelectorAll('#modal [data-hotn]').forEach(i=>{ pend.list[+i.dataset.hotn]=i.value.trim(); });
+  document.addEventListener('click',e=>{ const b=e.target.closest('[data-hot]'); if(!b) return; const a=b.dataset.hot;
+    if(a==='go'){ if(hotWant===null) return; hotView=hotWant; hotWant=null; resetDrafts(); sfx.bubble(); render(); return; }
+    if(!pend) return; read();
+    if(a==='add'&&pend.list.length<pend.max){ pend.list.push(''); openModal(namesHTML(),'hotnames'); return; }
+    if(a==='rem'&&pend.list.length>2){ pend.list.pop(); openModal(namesHTML(),'hotnames'); return; }
+    if(a==='start'){ const ns=pend.list.map((n,i)=>n||`Spelare ${i+1}`), seen={}; for(let i=0;i<ns.length;i++){ let n=ns[i]; while(seen[n]) n+='²'; seen[n]=1; ns[i]=n; }
+      if(pend.list[0]) lsSet('ry_name',pend.list[0]); lsSet('hot_names',JSON.stringify(pend.list.slice(1))); unlockAudio();
+      const p=pend; pend=null; Promise.resolve(p.pre?p.pre():null).then(ok=>{ if(ok===false) return; start(p.kind,ns); }); } });
+  return {btn, sync, curtainHTML, start, names, where};
+})();
 function resetDrafts(){ shipsDraft=null; mmDraft=null; hgDraft=null; gAnimT=null; }
 
 /* =====================================================================
@@ -577,6 +618,7 @@ function showGameMenu(kind){
     <label>Ditt namn</label><input id="nm" maxlength="14" value="${esc(lsGet('ry_name')||'')}" placeholder="Ditt namn">
     <label>Mot datorn – hur bra är ${esc(info.ai.replace(' 🤖',''))}?</label><div class="seg" id="segg">${gLevelHTML()}</div>
     <div class="btns" style="flex-direction:column"><button class="pri" data-g2="ai" data-k="${kind}">🤖 Spela mot datorn</button>
+      ${HOT.btn('data-g2="hot" data-k="'+kind+'"')}
       <button class="pri" data-g2="host" data-k="${kind}" style="background:linear-gradient(135deg,#f472b6,#a855f7)">🚀 Bjud in en kompis (online)</button>
       <button data-act="close">Avbryt</button></div>`,'gmenu');
 }
@@ -588,6 +630,7 @@ document.addEventListener('click',e=>{
   const n=(document.getElementById('nm')?.value||'').trim();
   if(a==='ai'){ const nm=n||'Du'; lsSet('ry_name',nm); unlockAudio(); startGameLocal(k, nm, gLevel); }
   if(a==='host'){ if(!n){ toast('Skriv ditt namn 🐬'); return; } lsSet('ry_name',n); unlockAudio(); closeModal(); hostGame(n,'free',k); }
+  if(a==='hot'){ HOT.names(k, n); }
 });
 
 /* ---------- stil ---------- */
@@ -609,6 +652,10 @@ document.addEventListener('click',e=>{
 .gbtns button{padding:12px 16px;border-radius:16px;font-weight:600;font-size:15px;background:var(--glass2);border:1px solid var(--line)}
 .gbtns button.pri{background:linear-gradient(135deg,#22d3ee,#6366f1);border:0}
 .gbtns button:disabled{opacity:.4}
+.hotc{max-width:420px;margin:8vh auto 0;text-align:center;padding:26px 18px;border-radius:26px;background:var(--glass);border:1px solid var(--line)}
+.hotc-i{font-size:54px;animation:hotw 1.6s ease-in-out infinite}@keyframes hotw{50%{transform:rotate(-10deg) translateX(-6px)}}
+.hotc h2{font-size:20px;font-weight:600;margin:6px 0}.hotc h2 b{display:block;font-size:30px;color:var(--gold)}.hotc p{color:var(--dim)}
+.hotc .bigbtn{margin:16px auto 8px;max-width:300px}.hotc-l{background:none;border:0;color:var(--dim);font-size:14px;padding:8px}
 .gover{text-align:center;padding:16px;border-radius:22px;margin-bottom:12px;border:1px solid var(--line);background:var(--glass)}
 .gover.won{background:linear-gradient(135deg,rgba(255,211,110,.22),rgba(168,85,247,.25));border-color:rgba(255,211,110,.6)}
 .gover .gi{font-size:46px}.gover h3{margin:4px 0;font-size:24px}.gover p{margin:0;color:#d9e9ff}

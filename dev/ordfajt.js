@@ -315,7 +315,7 @@
       ${L.length?`<div class="of-chips">${L.map(l=>`<button data-of="pick" data-id="${l.id}" class="${chosenLists.has(l.id)?'sel':''}">${chosenLists.has(l.id)?'✅':'⬜'} ${esc(l.name)} <small>${l.words.length}</small></button>`).join('')}</div>`:'<div class="setnote">Inga egna listor – bara den vanliga ordlistan används.</div>'}
       <button class="of-link" data-of="lists">📚 Mina ordlistor</button>
       <label>Datorns nivå</label><div class="seg" id="ofLvl">${lvlHTML()}</div>
-      <div class="btns" style="flex-direction:column"><button class="pri" data-of="ai">🤖 Spela mot datorn</button>
+      <div class="btns" style="flex-direction:column"><button class="pri" data-of="ai">🤖 Spela mot datorn</button>${HOT.btn('data-of="hot"')}
         <button class="pri" data-of="host" style="background:linear-gradient(135deg,#f472b6,#a855f7)">🚀 Bjud in en kompis (online)</button>
         <button data-act="close">Avbryt</button></div>
       <div class="setnote" style="margin-top:10px">Ordlistor med alla böjningsformer: svenska från Den Stora Svenska Ordlistan (DSSO, följer svensk rättstavning), norska från spell-norwegian. Långtryck på ett ord för betydelse och synonymer.</div>`,'ofmenu');
@@ -429,6 +429,7 @@
           if(!name){ toast('Ge listan ett namn ✏️'); return; } if(!words.length){ toast('Skriv minst ett ord (2–15 bokstäver a–ö)'); return; }
           const L=listsLoad(); const id=b.dataset.id||Math.random().toString(36).slice(2,10); const i=L.findIndex(x=>x.id===id);
           if(i>=0) L[i]={id,name,words}; else L.push({id,name,words}); listsSave(L); chosenLists.add(id); toast(`${name}: ${words.length} ord sparade 📚`); openModal(listsHTML(),'oflists'); return; }
+        case 'hot': { const n=(document.getElementById('nm')?.value||'').trim(); HOT.names('ordfajt', n, async()=>{ try{ useLang(ofLang); await loadDict(ofLang); }catch(err){ toast('Ordlistan kunde inte laddas – har du internet? 📡',4000); return false; } ofFresh=true; }); return; }
         case 'ai': { const n=(document.getElementById('nm')?.value||'').trim()||'Du'; lsSet('ry_name',n); unlockAudio();
           try{ useLang(ofLang); await loadDict(ofLang); }catch(err){ toast('Ordlistan kunde inte laddas – har du internet? 📡',4000); return; }
           ofFresh=true; startGameLocal('ordfajt', n, ofLevel, 1); return; }
