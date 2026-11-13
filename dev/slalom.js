@@ -1075,7 +1075,7 @@ const SLALOM = (()=>{
       <label>Din dräkt</label><div class="seg" id="slU">${segU()}</div>
       <label>Egen bild till höjdpunkterna</label><div class="sl-phrow" id="slPh">${photoHTML()}</div><div class="setnote">Bilden sparas bara i den här enheten – den laddas aldrig upp eller skickas till någon.</div>
       <div class="setnote" id="slBl">${bestLine()}</div><div class="setnote">Banorna sätts enligt Svenska Skidförbundets regler för ungdom (U14), av olika bansättare med egen stil.</div>
-      <div class="btns" style="flex-direction:column"><button class="pri" data-sl="solo">⏱️ Åk ensam mot klockan</button>
+      <div class="btns" style="flex-direction:column"><button class="pri" data-sl="solo">⏱️ Åk ensam mot klockan</button>${DUEL.btn('slalom')}
         <button class="pri" data-sl="ai" style="background:linear-gradient(135deg,#ef4444,#2563eb)">🤖 Parallellslalom mot datorn</button>
         <button class="pri" data-sl="host" style="background:linear-gradient(135deg,#f472b6,#a855f7)">🚀 Parallellslalom mot en kompis</button>
         <button data-act="close">Avbryt</button></div>`,'slmenu'); mtLoop(); };
@@ -1096,6 +1096,7 @@ const SLALOM = (()=>{
     if(a==='solo'){ pend={disc:mDisc,par:false,pen:mPen,std:mStd,venue:mVen}; fresh=true; KIT.startSolo('slalom',n); return; }
     if(a==='ai'){ pend={disc:mDisc,par:true,pen:mPen,std:mStd,venue:mVen}; fresh=true; startGameLocal('slalom',n,mLvl,1); return; }
     if(a==='host'){ if(!nm){ toast('Skriv ditt namn 🐬'); return; } pend={disc:mDisc,par:true,pen:mPen,std:mStd,venue:mVen}; fresh=true; closeModal(); hostGame(n,'free','slalom'); return; } });
+  GINFO.slalom.duel=n=>{ pend={disc:mDisc,par:false,pen:mPen,std:mStd,venue:mVen}; fresh=true; KIT.startSolo('slalom',n); };
 
   const st=document.createElement('style'); st.textContent=`
 .sl-wrap{position:relative;margin:0 auto}

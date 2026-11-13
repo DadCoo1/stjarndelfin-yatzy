@@ -25,7 +25,7 @@ const KIT = (()=>{
   }
   function startSolo(kind,name){
     stopNet(); clearTimeout(aiTimer); closeModal(); mode='local'; mySeat=0; gameId=null; role=null;
-    G=gNewState(kind,[name],0,[false]); KIND[kind].start(G); lsSet('ry_local', JSON.stringify(G));
+    G=gNewState(kind,[name],0,[false]); KIND[kind].start(G); if(typeof DUEL!=='undefined') DUEL.prep(G); lsSet('ry_local', JSON.stringify(G));
     view='game'; resetDrafts(); render(); gMaybeAI();
   }
   document.addEventListener('click',e=>{

@@ -13,7 +13,7 @@ let fail=0; const ok=(c,m)=>{ console.log((c?'✓ ':'✗ ')+m); if(!c) fail++; }
     const st=await p.evaluate(()=>({kind:G&&G.kind, hot:G&&G.hot, ai:G&&G.ai, names:G&&G.names, curtain:!!document.querySelector('.hotc'), want:hotWant}));
     ok(st.kind===k && st.hot && !st.ai[0] && !st.ai[1] && st.names.slice(0,2).join()==='Tindra,Pappa', `${k}: startar med två människor (${st.names})`);
     const secret=await p.evaluate(()=>!!KIND[G.kind].redact);
-    if(secret) ok(st.curtain, `${k}: ridå visas innan första spelaren ser sina hemligheter`);
+    if(secret && k!=='memory') ok(st.curtain, `${k}: ridå visas innan första spelaren ser sina hemligheter`); if(k==='memory') ok(!st.curtain, 'memory: ingen ridå – alla ser samma bräde');
     // spela tills slutet: datorns drag-funktion får spela för den som står på tur
     const r=await p.evaluate(async()=>{ const sleep=ms=>new Promise(r=>setTimeout(r,ms)); let curt=0, seats=new Set(), n=0;
       for(n=0;n<6000&&!G.over;n++){ if(document.querySelector('.hotc')){ curt++; document.querySelector('[data-hot=go]').click(); await sleep(0); continue; }
