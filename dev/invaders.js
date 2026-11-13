@@ -157,7 +157,9 @@ const INV = (()=>{
   function gameOver(){
     clearRun(); st.live=false;
     const sv=save(); const rec=st.score>sv.best; if(rec) sv.best=Math.round(st.score); sv.kills+=st.kills; store(sv);
-    overlay='over'; st.rec=rec; showOverlay(); if(rec){ celebrate('REKORD!'); sparkles(40); }
+    overlay='over'; st.rec=rec; showOverlay();
+    if(typeof DUEL!=='undefined' && DUEL.report('inv',{v:Math.round(st.score), hi:true, txt:`${Math.round(st.score)} poäng · nivå ${st.level}`})) return;
+    if(rec){ celebrate('REKORD!'); sparkles(40); }
   }
   function burst(x,y,c,n){ for(let i=0;i<n;i++){ const a=Math.random()*Math.PI*2, s=40+Math.random()*140; st.parts.push({x,y,vx:Math.cos(a)*s,vy:Math.sin(a)*s,t:.4+Math.random()*.5,c}); } }
   function floatTxt(x,y,t){ st.parts.push({x,y,vx:0,vy:-40,t:1.2,c:'#fde047',txt:t}); }
@@ -226,6 +228,7 @@ const INV = (()=>{
       o.innerHTML=`<div class="iv-card"><div class="iv-title">SPACE<br>INVADERS</div><div class="iv-sub">Försvara Fröknarnas galax! 👾</div>
         <div class="iv-stats"><span>🏆 Rekord <b>${sv.best}</b></span><span>🚀 Högsta nivå <b>${sv.maxLevel}</b></span></div>
         <button class="iv-btn" data-iv="go" data-l="1">▶ Starta nivå 1</button>
+        <button class="iv-btn alt" data-duel="names" data-k="inv">👥 Turas om på samma enhet</button>
         ${ck>1?`<button class="iv-btn alt" data-iv="go" data-l="${ck}">⏩ Fortsätt från nivå ${ck}</button>`:''}
         ${cps.length>2?`<div class="iv-cps">${cps.slice(-12).map(l=>`<button data-iv="go" data-l="${l}">${l}</button>`).join('')}</div>`:''}
         <div class="iv-help">${FINE_PTR?'⬅ ➡ styr · Mellanslag skjuter · P pausar':'Håll fingret på skärmen och dra – skeppet följer och skjuter av sig självt'}<br>Varje 10:e nivå väntar en boss. Fånga ⚡ 🔥 🛡️ ❤️!</div></div>`;
@@ -277,7 +280,7 @@ const INV = (()=>{
     if(a==='menu'){ if(st && overlay==='pause'){ clearRun(); st.live=false; }
       if(st && overlay==='pause'){ const sv=save(); if(st.score>sv.best){ sv.best=Math.round(st.score); store(sv); } } overlay='menu'; showOverlay(); }
   });
-  return { html, mount, stop, open(){ closeModal(); view='inv'; render(); }, stats(){ return save(); } };
+  return { html, mount, stop, open(){ closeModal(); view='inv'; render(); }, go(l){ newGame(l||1); }, stats(){ return save(); } };
 })();
 function openInv(){ INV.open(); }
 function invStatsHTML(){ const s=INV.stats(); if(!s.games) return ''; return `<section><h2 class="sec">🚀 Space Attack</h2><div class="kpis" style="grid-template-columns:repeat(3,1fr)"><div class="kpi"><b>${s.best}</b><span>rekord</span></div><div class="kpi"><b>${s.maxLevel}</b><span>högsta nivå</span></div><div class="kpi"><b>${s.kills}</b><span>besegrade</span></div></div></section>`; }

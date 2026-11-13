@@ -715,11 +715,12 @@ const RACE=(function(){
       if(st.gh){ st.beatGhost = better(g, st.gh.g); if(st.beatGhost && st.gh.name!=='Ditt bästa') s.fghost=(s.fghost||0)+1; }
     }catch(e){}
     const sc=Math.round(st.score); st.rec=sc>s.best; if(st.rec) s.best=sc;
-    const entry={n:(lsGet('ry_name')||'Du').slice(0,14), s:sc, st:won?6:st.stage+1, d:Date.now(), df:cfg.diff};
+    const entry={n:((typeof DUEL!=='undefined'&&DUEL.who())||lsGet('ry_name')||'Du').slice(0,14), s:sc, st:won?6:st.stage+1, d:Date.now(), df:cfg.diff};
     s.hs=[...(s.hs||[]), entry].sort((a,b)=>b.s-a.s).slice(0,10); st.rank=s.hs.indexOf(entry);
     st.newCars=[]; for(let i=1;i<nCar();i++) if(unlocked(i,s)&&!had.includes(i)) st.newCars.push(i); s.unl=1; saveStats(s);
     engine.set(0,false,false,false); setTimeout(()=>engine.stop(),300);
     overlay='over'; showOverlay();
+    if(typeof DUEL!=='undefined') DUEL.report('race',{v:sc, hi:true, txt:`${sc} poäng · etapp ${won?5:st.stage+1}`});
   }
 
   /* ---------- skal: HTML, menyer och kontroller ---------- */
@@ -746,7 +747,7 @@ const RACE=(function(){
     const s=stats();
     if(overlay==='menu'){
       o.innerHTML=`<div class="rc-card"><div class="rc-logo">SOMMAR<span>VÄGEN</span></div><div class="rc-sub">En roadtrip genom Sverige · 5 etapper</div>
-        <button class="rc-go" data-rc="go">🏁 KÖR!</button>
+        <button class="rc-go" data-rc="go">🏁 KÖR!</button><button class="rc-alt rc-duel" data-duel="names" data-k="race">👥 Turas om på samma enhet</button>
         ${garHTML(s)}
         <div class="rc-row"><label>Lack</label><div>${CARCOL.map(([n,c],i)=>sw('color',i,'',cfg.color===i,`background:${c}`)).join('')}</div></div>
         <div class="rc-row"><label>Passagerare</label><div>${PAS.map(([n,v])=>sw('pas',v,n,cfg.pas===v)).join('')}</div></div>
@@ -875,6 +876,7 @@ const RACE=(function(){
 .rc-car b{display:block;font-size:13.5px;margin-top:2px}.rc-car small{display:block;font-size:10.5px;color:#c7d2fe;line-height:1.25;min-height:26px}
 .rc-car.on{border-color:#fde047;background:rgba(253,224,71,.2)}.rc-car.lock b{color:#c7d2fe}
 .rc-garmsg{font-size:12.5px;color:#fde68a;margin:0 0 6px}.rc-unl{margin:10px 0;padding:10px;border-radius:14px;background:rgba(253,224,71,.2);border:1px solid rgba(253,224,71,.6);font-size:15px}
+.rc-duel{display:block;margin:8px auto 0}
 .rc-det{margin-top:8px;text-align:left;font-size:14px}
 .rc-det summary{cursor:pointer;color:#fde68a}
 .rc-hs{list-style:none;margin:8px 0;padding:0;text-align:left;font-size:14px}
@@ -887,7 +889,7 @@ const RACE=(function(){
 .rc-help{font-size:12px;color:#c7d2fe;margin-top:12px;line-height:1.45}
 `; document.head.appendChild(css);
 
-  return {html, mount, stop, open(){ closeModal(); view='race'; render(); }, stats,
+  return {html, mount, stop, open(){ closeModal(); view='race'; render(); }, go(){ newGame(); }, stats,
     __test: (typeof DEV!=='undefined' && DEV) ? {unlocked, gar:()=>GAR, draw:()=>draw(), state:()=>st, segs:()=>segs, go:()=>newGame(), cfg:()=>cfg, sim:sec=>{ for(let i=0;i<sec*60;i++) update(1/60); return st; }, overlay:()=>overlay, end:w=>end(w)} : undefined};
 })();
 function openRace(){ RACE.open(); }

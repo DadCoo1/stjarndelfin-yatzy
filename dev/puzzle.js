@@ -23,6 +23,7 @@
   let wdLang=lsGet('wd_lang')||'sv', wdMode='daily', wdInput='', wdShake=0;
   const wdStats=()=>{ try{ return JSON.parse(lsGet('wd_stats'))||{}; }catch(e){ return {}; } };
   GINFO.wordle={name:'Wordle', icon:'🟩', ai:'', max:1, desc:'Dagens ord · sex försök', grad:'linear-gradient(135deg,#16a34a,#ca8a04)'};
+  GINFO.wordle.duel=n=>{ wdMode='free'; wdInput=''; KIT.startSolo('wordle',n); };
   KIND.wordle={
     init(){ return {lang:wdLang, daily:wdMode==='daily', guesses:[], marks:[]}; },
     start(g){ const n=dayNo(); g.day = g.daily ? n : null; g.ans = g.daily ? dailyWord(g.lang,n) : WD_WORDS[g.lang][rint(WD_WORDS[g.lang].length)]; g.guesses=[]; g.marks=[]; g.cur=0; },
@@ -83,7 +84,7 @@
     openModal(`<h3>🟩 Wordle</h3><p>Gissa det hemliga ordet på fem bokstäver. Efter varje gissning visar färgerna vilka bokstäver som är rätt. Samma dagens ord för alla – jämför i chatten!</p>
       <label>Språk</label><div class="seg">${Object.entries(WL).map(([k,l])=>`<button data-wd="lang" data-l="${k}" class="${wdLang===k?'sel':''}">${l.flag} ${l.name}</button>`).join('')}</div>
       ${S?`<div class="setnote">Spelade ${S.played} · ${S.streak} i rad · rekord ${S.best}${doneToday?' · dagens ord är klart ✅':''}</div>`:''}
-      <div class="btns" style="flex-direction:column"><button class="pri" data-wd="daily">📅 Dagens ord</button><button class="pri" data-wd="free" style="background:linear-gradient(135deg,#22d3ee,#6366f1)">🔁 Öva med ett slumpat ord</button><button data-act="close">Avbryt</button></div>`,'wdmenu');
+      <div class="btns" style="flex-direction:column"><button class="pri" data-wd="daily">📅 Dagens ord</button>${DUEL.btn('wordle')}<button class="pri" data-wd="free" style="background:linear-gradient(135deg,#22d3ee,#6366f1)">🔁 Öva med ett slumpat ord</button><button data-act="close">Avbryt</button></div>`,'wdmenu');
     if(window.ORDLISTA) ORDLISTA.load(wdLang).catch(()=>{}); };
   GINFO.wordle.menu=()=>showWordleMenu();
   css(`.wd-b{display:grid;gap:6px;max-width:min(330px,100%,max(230px,calc((100vh - 420px)*5/6)));max-width:min(330px,100%,max(230px,calc((100dvh - 420px)*5/6)));margin:8px auto}
@@ -119,6 +120,7 @@
     return {puz,sol};
   }
   let sdLevel=lsGet('sd_lvl')||'medium', sdDaily=false, sdSel=-1, sdNotes=false, sdTick=0;
+  setTimeout(()=>{ if(GINFO.sudoku) GINFO.sudoku.duel=n=>{ sdDaily=false; sdSel=-1; KIT.startSolo('sudoku',n); }; });
   GINFO.sudoku={name:'Sudoku', icon:'🔢', ai:'', max:1, desc:'Tre nivåer + dagens sudoku', grad:'linear-gradient(135deg,#0891b2,#7c3aed)'};
   KIND.sudoku={
     init(){ return {level:sdLevel, daily:sdDaily}; },
@@ -185,7 +187,7 @@
     openModal(`<h3>🔢 Sudoku</h3><p>Fyll rutnätet så att varje rad, kolumn och 3×3-ruta innehåller siffrorna 1–9 exakt en gång.</p>
       <label>Nivå</label><div class="seg">${[['easy','🐣 Lätt'],['medium','🙂 Medel'],['hard','🧠 Svår']].map(([k,l])=>`<button data-sd="lvl" data-l="${k}" class="${sdLevel===k?'sel':''}">${l}</button>`).join('')}</div>
       ${B[sdLevel]?`<div class="setnote">Bästa tid: ${f(B[sdLevel])}${today?` · dagens: ${f(today)} ✅`:''}</div>`:''}
-      <div class="btns" style="flex-direction:column"><button class="pri" data-sd="daily">📅 Dagens sudoku</button><button class="pri" data-sd="start" style="background:linear-gradient(135deg,#22d3ee,#6366f1)">🎲 Nytt slumpat pussel</button><button data-act="close">Avbryt</button></div>`,'sdmenu'); };
+      <div class="btns" style="flex-direction:column"><button class="pri" data-sd="daily">📅 Dagens sudoku</button>${DUEL.btn('sudoku')}<button class="pri" data-sd="start" style="background:linear-gradient(135deg,#22d3ee,#6366f1)">🎲 Nytt slumpat pussel</button><button data-act="close">Avbryt</button></div>`,'sdmenu'); };
   GINFO.sudoku.menu=()=>showSudokuMenu();
   css(`.sd-b{display:grid;grid-template-columns:repeat(9,1fr);max-width:min(460px,100%,max(300px,calc(100vh - 330px)));max-width:min(460px,100%,max(300px,calc(100dvh - 330px)));margin:8px auto;border:3px solid #cbd5e1;border-radius:10px;overflow:hidden;background:#0f172a;container-type:inline-size}
 .sd-c{aspect-ratio:1;border:0;border-right:1px solid #475569;border-bottom:1px solid #475569;background:#f8fafc;color:#1d4ed8;font-size:calc(min(92vw,460px)/9*.58);font-size:calc(100cqw/9*.58);font-weight:700;padding:0;display:grid;place-items:center;position:relative}

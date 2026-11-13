@@ -1159,7 +1159,7 @@ const BIATHLON = (()=>{
       <label>TV-bilder på vallen</label><div class="seg">${seg('tv',[['1','📺 På'],['0','Av']],mTv?1:0)}</div>
       ${tr?'':`<label>Datorspelare och nivå</label><div class="seg">${seg('bots',[[1,'1'],[2,'2'],[3,'3']],mBots)}</div><div class="seg">${seg('lvl',[['easy','🐣 Lätt'],['medium','🙂 Medel'],['hard','🧠 Svår']],mLvl)}</div>`}
       <div class="setnote">${recLine()}</div>
-      <div class="btns" style="flex-direction:column">${tr?`<button class="pri" data-bsm="go" data-v="solo">🎯 Börja träna</button>`:`<button class="pri" data-bsm="go" data-v="solo">⏱️ Åk ensam mot klockan</button>
+      <div class="btns" style="flex-direction:column">${tr?`<button class="pri" data-bsm="go" data-v="solo">🎯 Börja träna</button>`:`<button class="pri" data-bsm="go" data-v="solo">⏱️ Åk ensam mot klockan</button>${DUEL.btn('skidskytte')}
         <button class="pri" data-bsm="go" data-v="ai" style="background:linear-gradient(135deg,#ef4444,#2563eb)">🤖 Tävla mot datorn</button>
         <button class="pri" data-bsm="go" data-v="host" style="background:linear-gradient(135deg,#f472b6,#a855f7)">🚀 Tävla mot kompisar (2–4)</button>`}
         <button data-act="close">Avbryt</button></div>`; }
@@ -1182,6 +1182,7 @@ const BIATHLON = (()=>{
       if(v==='solo'){ KIT.startSolo('skidskytte',n); return; }
       if(v==='ai'){ startGameLocal('skidskytte',n,mLvl,mBots); return; }
       if(v==='host'){ if(!nm){ toast('Skriv ditt namn 🐬'); fresh=false; return; } closeModal(); hostGame(n,'free','skidskytte'); return; } } });
+  GINFO.skidskytte.duel=n=>{ pend={fmt:mFmt, wind:mWind, easy:mEasy, tv:mTv, trPos:mPos, trHr:mHr}; fresh=true; KIT.startSolo('skidskytte',n); };
   // rekord när loppet är slut
   const _apply=KIND.skidskytte.apply;
   KIND.skidskytte.apply=function(g,a,seat){ const ok=_apply(g,a,seat); if(ok&&a.type==='finish'&&seat===meSeat2()&&g.fmt!=='tr'){ try{ const key='bs_best_'+g.fmt, B=JSON.parse(lsGet(key))||{}; const t=a.ms/1000; if(!B.t||t<B.t){ lsSet(key,JSON.stringify({t,sh:a.sh,d:Date.now()})); if(B.t) setTimeout(()=>{ toast('🏆 Nytt rekord!',2500); sparkles(30); },500); } }catch(e){} } return ok; };

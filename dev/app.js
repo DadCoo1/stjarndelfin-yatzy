@@ -21,7 +21,7 @@
   if(!same || !/[?&]bot=1/.test(location.search)){ document.documentElement.innerHTML=''; throw new Error('Inramning blockerad'); }
 })();
 /* ================= Version & utvecklingsläge ================= */
-const APP_VERSION='2026.11.12.3-dev';
+const APP_VERSION='2026.11.13.1-dev';
 const DEV = /\/dev(\/|$)/.test(location.pathname);      // testversionen ligger i mappen /dev/
 const BOT = /[?&]bot=1/.test(location.search) && window.parent!==window;   // osynlig ekokompis i en ram
 const LSP = DEV ? (BOT ? 'dev:bot:' : 'dev:') : (BOT ? 'bot:' : '');    // egen sparad data i testversionen
@@ -1969,6 +1969,7 @@ function solHTML(){
 }
 function solActionsHTML(){
   const auto = S && !S.won && solAllUp();
+  if(typeof DUEL!=='undefined' && DUEL.active('sol')) return `<button data-act="solduel"><i>✋</i>Klar</button><button data-act="solundo" ${solHist.length?'':'disabled'}><i>↶</i>Ångra</button>`;
   return `<button data-act="solnew"><i>🔄</i>Nytt spel</button><button data-act="solundo" ${solHist.length?'':'disabled'}><i>↶</i>Ångra</button>
     ${auto?'<button class="glow" data-act="solauto"><i>✨</i>Lägg upp</button>':'<button data-act="solhint"><i>💡</i>Tips</button>'}<button data-act="lobby"><i>🏠</i>Lobby</button>`;
 }
@@ -2130,7 +2131,7 @@ function solPointerUp(e){
     let flipped=false; if(src.t==='t'){ const tp=topOf(S.tab[src.c]); if(tp && !tp.up){ tp.up=true; flipped=true; } }
     S.moves++; S.idle=0; t.t==='f'?solSnd('found'):solSnd('place'); if(flipped) setTimeout(()=>solSnd('flip'),120);
     solSaveN++; solSave(); solSync(false,dragPos);
-    if(S.found.every(f=>f.length===13) && !S.won){ S.won=true; solSave(); solWin(); }
+    if(S.found.every(f=>f.length===13) && !S.won){ S.won=true; solSave(); solWin(); if(typeof DUEL!=='undefined' && DUEL.active('sol')) solDuelDone(); }
     solRefreshChrome();
   } else {
     d.els.forEach(el=>{ el.style.transform=''; });
@@ -2158,7 +2159,8 @@ function showSolNew(fromLobby){
     <label>Hur många kort vänder du upp?</label>
     <div class="solmodes">${Object.entries(SOL_MODES).map(([k,m])=>`<button data-act="solmode" data-m="${k}" class="${solMode===k?'sel':''}"><b>${m.label}</b><small>${m.sub}</small></button>`).join('')}</div>
     <label>Korttema</label><div class="themes">${themeBtns()}</div>
-    <div class="btns"><button data-act="close">Avbryt</button><button class="pri" data-act="solstart">Dela ut 🃏</button></div>`,'solnew');
+    <div class="btns"><button data-act="close">Avbryt</button><button class="pri" data-act="solstart">Dela ut 🃏</button></div>
+    <div class="btns">${typeof DUEL!=='undefined'?DUEL.btn('sol'):''}</div>`,'solnew');
 }
 function themeBtns(){
   return Object.entries(SOL_THEMES).map(([k,t])=>`<button data-act="solpicktheme" data-t="${k}" class="${solTheme===k?'sel':''}"><span class="mini-back" style="background-image:${backSVG(k)}"></span><span>${t.label}</span></button>`).join('');
@@ -2167,6 +2169,12 @@ function showSolTheme(){
   openModal(`<h3>🎨 Korttema</h3><p>Byt när du vill – spelet fortsätter.</p><div class="themes">${themeBtns()}</div>
     <div class="btns"><button class="pri" data-act="close">Klar</button></div>`,'soltheme');
 }
+// turas om i patiens: samma giv för alla
+let solDuelDeal=null;
+function solDuelStart(){ closeModal(); clearTimeout(solAutoT); solNew(solMode);
+  if(DUEL.turn()===0 || !solDuelDeal) solDuelDeal=JSON.stringify(S); else { S=JSON.parse(solDuelDeal); solHist=[]; }
+  solSave(); view='sol'; const old=document.getElementById('solRoot'); if(old) old.remove(); render(); }
+function solDuelDone(){ if(!S) return; const f=S.found.reduce((n,x)=>n+x.length,0); DUEL.report('sol',{v:f*100000-(S.time||0), hi:true, txt:`${f} kort upplagda · ${Math.floor((S.time||0)/60)}:${String((S.time||0)%60).padStart(2,'0')}`}); solRefreshChrome&&solRefreshChrome(); }
 function solStartNew(){
   closeModal(); clearTimeout(solAutoT);
   if(S && S.started && !S.won){ /* övergivet spel räknas som spelat men inte vunnet */ }
@@ -2665,6 +2673,7 @@ document.addEventListener('click', e=>{
     case 'opensol': openSol(); break;
     case 'solnew': showSolNew(false); break;
     case 'solstart': case 'solnewsame': solStartNew(); break;
+    case 'solduel': solDuelDone(); break;
     case 'solmode': solMode=b.dataset.m; lsSet('ry_solmode',solMode); showSolNew(); break;
     case 'solpicktheme': solTheme=b.dataset.t; lsSet('ry_soltheme',solTheme); solRetheme(); M().querySelector('.solmodes') ? showSolNew() : showSolTheme(); break;
     case 'soltheme': showSolTheme(); break;

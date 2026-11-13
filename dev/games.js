@@ -88,6 +88,7 @@ function gMaybeAI(){
 /* ---------- resultat & statistik ---------- */
 function stats2(){ try{ return JSON.parse(lsGet('ry_stats2'))||{games:[]} }catch(e){ return {games:[]} } }
 function gFinish(d){
+  if(typeof DUEL!=='undefined') DUEL.over(d);
   const me=meSeat(), st=stats2();
   const KD=KIND[d.kind]||{};
   if(!d.hot && !(KD.noStats&&KD.noStats(d)) && !st.games.some(g=>g.id===d.id) && me!==null && me!==undefined){
