@@ -21,7 +21,7 @@
   if(!same || !/[?&]bot=1/.test(location.search)){ document.documentElement.innerHTML=''; throw new Error('Inramning blockerad'); }
 })();
 /* ================= Version & utvecklingsläge ================= */
-const APP_VERSION='2026.11.14.1';
+const APP_VERSION='2026.11.15.1';
 const DEV = /\/dev(\/|$)/.test(location.pathname);      // testversionen ligger i mappen /dev/
 const BOT = /[?&]bot=1/.test(location.search) && window.parent!==window;   // osynlig ekokompis i en ram
 const LSP = DEV ? (BOT ? 'dev:bot:' : 'dev:') : (BOT ? 'bot:' : '');    // egen sparad data i testversionen
@@ -2053,12 +2053,16 @@ function solSync(instant, dragPos){
     if(instant) el.style.transition='none';
     if(dragPos && dragPos[id]){ el.style.transition='none'; el.style.left=dragPos[id].x+'px'; el.style.top=dragPos[id].y+'px'; el.style.transform=''; el.style.zIndex=2000+p.z; void el.offsetWidth; el.style.transition=''; }
     el.style.left=p.x+'px'; el.style.top=p.y+'px'; el.style.zIndex=(dragPos&&dragPos[id])?2000+p.z:p.z;
-    el.classList.toggle('down',!p.up);
+    if(el.classList.contains('down')!==!p.up){ if(instant) el.classList.toggle('down',!p.up); else solFlip(el,!p.up); }
     el.classList.toggle('wtop',!!p.top);
     if(instant){ void el.offsetWidth; el.style.transition=''; }
     if(dragPos && dragPos[id]) setTimeout(()=>{ el.style.zIndex=p.z; },260);
   });
 }
+// vänd ett kort med 3D bara under själva vändningen
+function solFlip(el,down){ const inn=el.querySelector('.in'); if(!inn){ el.classList.toggle('down',down); return; }
+  clearTimeout(el._fl); inn.style.transition='none'; el.classList.add('flip3'); void inn.offsetWidth; inn.style.transition='';
+  el.classList.toggle('down',down); el._fl=setTimeout(()=>{ inn.style.transition='none'; el.classList.remove('flip3'); void inn.offsetWidth; inn.style.transition=''; },430); }
 // vilken hög och vilket kort sitter ett kort-id i?
 function solLocate(id){
   if(S.waste.length && topOf(S.waste)===id) return {t:'w'};

@@ -779,6 +779,8 @@ const SLALOM = (()=>{
   }
   /* ---------- 3D-grafik: samma åk, ritat med grafikkortet (slalomgl.js); enkel grafik som reserv ---------- */
   let GLON=lsGet('sl_gl')!=='0', glcv=null, GLW=null, CAP=null; const CAPP=[0,0,1,1], GC={x:0,y:0,ly:0,init:0};
+  function glFree(){ if(!glcv) return; try{ SLGL.dispose(); }catch(e){} glcv.remove(); glcv=null; GLW=null; }   // grafikminnet tillbaka när man lämnar slalom
+  setInterval(()=>{ if(glcv && (!G||G.kind!=='slalom'||view!=='game')) glFree(); }, 1000);
   const glActive=()=>GLON && typeof SLGL!=='undefined' && !!glcv && SLGL.ok();
   const glLabel=()=>GLON?'🖼️ Enkel grafik':'✨ 3D-grafik';
   function glSync(explicit){ if(!glcv) return; if(GLON && (typeof SLGL==='undefined' || !SLGL.init(glcv))){ GLON=false; if(explicit){ lsSet('sl_gl','0'); try{ toast('3D-grafiken går inte att starta på den här enheten'); }catch(e){} } }
@@ -916,7 +918,7 @@ const SLALOM = (()=>{
 
   /* ---------- slingan ---------- */
   function loop(nowMs){
-    raf=0; if(!G||G.kind!=='slalom'||view!=='game'||!cv||!cv.isConnected){ sndOff(); return; }
+    raf=0; if(!G||G.kind!=='slalom'||view!=='game'||!cv||!cv.isConnected){ sndOff(); if(!G||G.kind!=='slalom'||view!=='game') glFree(); return; }
     raf=requestAnimationFrame(loop);
     const dt=Math.min(.05,(nowMs-(lastT||nowMs))/1000); lastT=nowMs;
     const runId=G.id+':'+(G.go||0); if(!R||R.gid!==runId) newRun();

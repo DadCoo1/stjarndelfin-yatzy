@@ -501,6 +501,8 @@ const BIATHLON = (()=>{
   const glLabelB=()=>GLON?'🖼️ Enkel grafik':'✨ 3D-grafik';
   function glSyncB(explicit){ if(!glcv) return; if(GLON){ if(typeof SLGL==='undefined') GLON=false; else { if(!GLB) GLB=SLGL.create(); if(!GLB.init(glcv)){ GLON=false; if(explicit){ lsSet('bs_gl','0'); try{ toast('3D-grafiken går inte att starta på den här enheten'); }catch(e){} } } } }
     if(!GLON) glShow(false); const b=document.querySelector('.bs-glb'); if(b) b.textContent=glLabelB(); }
+  function glFreeB(){ if(!glcv) return; try{ GLB&&GLB.dispose(); }catch(e){} glcv.remove(); glcv=null; glVis=false; }   // grafikminnet tillbaka när man lämnar skidskyttet
+  setInterval(()=>{ if(glcv && (!G||G.kind!=='skidskytte'||view!=='game')) glFreeB(); }, 1000);
   function glShow(on){ if(glcv && glVis!==on){ glVis=on; glcv.style.display=on?'block':'none'; } }
   // mark utanför spåret: plant närmast (stadion, publik), sedan kullar och skogsåsar; Storsjön till höger med fjällen bortom
   for(const A of [TL,TP]){ const N=A.N, fr=new Float32Array(N+1); for(let i=0;i<=N;i++){ let s=0; for(let k=-18;k<=18;k++) s+=(A.crowd[((i+k)%N+N)%N]?26:7); fr[i]=s/37; } A.fr=fr; let mn=1e9; for(let i=0;i<=N;i++) mn=Math.min(mn,A.y[i]); A.lake=mn-16; }
@@ -986,7 +988,7 @@ const BIATHLON = (()=>{
     REPLAY.refresh('bs',p); });
   const rpBtns=()=> R&&R.rec&&R.rec.fr.length>10 ? `<div class="rp-btns"><button data-bsx="rp">⏪ Repris</button><button data-bsx="hl">🎬 Höjdpunkter</button></div>` : '';
   function loop(ms){
-    raf=0; if(!G||G.kind!=='skidskytte'||view!=='game'||!cv||!cv.isConnected){ ambOff(); showCtl(false); return; }
+    raf=0; if(!G||G.kind!=='skidskytte'||view!=='game'||!cv||!cv.isConnected){ ambOff(); showCtl(false); if(!G||G.kind!=='skidskytte'||view!=='game') glFreeB(); return; }
     raf=requestAnimationFrame(loop);
     const dt=Math.min(.05,(ms-(lastT||ms))/1000); lastT=ms;
     const id=G.id+':'+(G.go||0); if(!R||R.gid!==id) newRun();

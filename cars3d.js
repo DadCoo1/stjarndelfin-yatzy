@@ -156,6 +156,8 @@ const CARS3D=(()=>{
   function init(){ if(dead) return false; if(G&&G.ok()) return true; if(typeof SLGL==='undefined') return false;
     try{ if(!cv) cv=document.createElement('canvas'); if(!G) G=SLGL.create(); if(!G.init(cv,{alpha:true})){ dead=true; return false; } GLASS=new SLGL.Builder(64); keys=[]; return true; }catch(e){ dead=true; return false; } }
   const ok=()=>!dead&&!!G&&G.ok();
+  // lämna tillbaka grafikminnet när man går ur Sommarvägen; bilderna av trafiken och garaget finns kvar som vanliga bilder
+  function free(){ if(!G) return; try{ G.dispose(); }catch(e){} cv=null; keys=[]; for(const S of CARS) S._glass=null; }
   function size(w,h){ w=Math.round(w); h=Math.round(h); if(cv.width!==w||cv.height!==h){ cv.width=w; cv.height=h; } }
   // samma kamera som slalomgl: punkt → bildpunkt
   function proj(C,W,H,p){ const cy=Math.cos(C.yaw), sy=Math.sin(C.yaw), cp=Math.cos(C.pitch), sp=Math.sin(C.pitch), dx=p[0]-C.x, dy=p[1]-C.y, dz=p[2]-C.z;
@@ -215,5 +217,5 @@ const CARS3D=(()=>{
   // garagebild snett framifrån; låst bil visas som siluett
   function thumb(i,color,locked,w,h){ const S=CARS[i], c=still(S,color,{w,h,yaw:.66,dist:9.5,height:1.6,wm:S.L+1.1,front:true,ty:.5,base:.9}); if(!c) return null;
     if(locked){ const g=c.getContext('2d'); g.globalCompositeOperation='source-in'; g.fillStyle='rgba(20,18,50,.82)'; g.fillRect(0,0,w,h); g.globalCompositeOperation='source-over'; } return c; }
-  return {CARS, init, ok, player, still, traffic, thumb};
+  return {CARS, init, ok, free, player, still, traffic, thumb};
 })();

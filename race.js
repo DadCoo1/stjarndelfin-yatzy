@@ -702,7 +702,7 @@ const RACE=(function(){
     raf=requestAnimationFrame(loop);
   }
   function startLoop(){ if(!raf){ lastT=performance.now(); raf=requestAnimationFrame(loop); } }
-  function stop(){ if(raf) cancelAnimationFrame(raf); raf=0; engine.stop(); radio.stop(); for(const k in pad) pad[k]=false; if(typeof musicOn!=='undefined' && musicOn && typeof startMusic==='function') setTimeout(()=>{ if(view!=='race') startMusic(); },400); }
+  function stop(){ if(raf) cancelAnimationFrame(raf); raf=0; if(typeof CARS3D!=='undefined') CARS3D.free(); engine.stop(); radio.stop(); for(const k in pad) pad[k]=false; if(typeof musicOn!=='undefined' && musicOn && typeof startMusic==='function') setTimeout(()=>{ if(view!=='race') startMusic(); },400); }
 
   function end(won){
     if(overlay==='over') return;

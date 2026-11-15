@@ -119,8 +119,8 @@ void main(){ float X=vQ.x*uK.x, Y=(vQ.y-uOy)*uK.y, Z0=Y*uR.z+uR.w, dy=Y*uR.w-uR.
         gl.texImage2D(gl.TEXTURE_2D,0,gl.DEPTH_COMPONENT,S,S,0,gl.DEPTH_COMPONENT,gl.UNSIGNED_INT,null); for(const [k,v] of [[gl.TEXTURE_MIN_FILTER,gl.NEAREST],[gl.TEXTURE_MAG_FILTER,gl.NEAREST],[gl.TEXTURE_WRAP_S,gl.CLAMP_TO_EDGE],[gl.TEXTURE_WRAP_T,gl.CLAMP_TO_EDGE]]) gl.texParameteri(gl.TEXTURE_2D,k,v);
         const c=gl.createTexture(); gl.bindTexture(gl.TEXTURE_2D,c); gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA,S,S,0,gl.RGBA,gl.UNSIGNED_BYTE,null); gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MIN_FILTER,gl.NEAREST); gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MAG_FILTER,gl.NEAREST);
         const fb=gl.createFramebuffer(); gl.bindFramebuffer(gl.FRAMEBUFFER,fb); gl.framebufferTexture2D(gl.FRAMEBUFFER,gl.COLOR_ATTACHMENT0,gl.TEXTURE_2D,c,0); gl.framebufferTexture2D(gl.FRAMEBUFFER,gl.DEPTH_ATTACHMENT,gl.TEXTURE_2D,d,0);
-        if(gl.checkFramebufferStatus(gl.FRAMEBUFFER)===gl.FRAMEBUFFER_COMPLETE) sh={fb,d,S}; gl.bindFramebuffer(gl.FRAMEBUFFER,null); }
-      canvas.addEventListener('webglcontextlost',e=>{ e.preventDefault(); bad=true; },false);
+        if(gl.checkFramebufferStatus(gl.FRAMEBUFFER)===gl.FRAMEBUFFER_COMPLETE) sh={fb,d,c,S}; gl.bindFramebuffer(gl.FRAMEBUFFER,null); }
+      canvas.addEventListener('webglcontextlost',e=>{ e.preventDefault(); if(canvas===cv) bad=true; },false);
       return true;
     }catch(e){ bad=true; gl=null; try{ console.warn('SLGL',e); }catch(_){} return false; }
   }
@@ -191,10 +191,16 @@ void main(){ float X=vQ.x*uK.x, Y=(vQ.y-uOy)*uK.y, Z0=Y*uR.z+uR.w, dy=Y*uR.w-uR.
   }
   // flera uppsättningar fasta nät (t.ex. varvet och straffrundan i skidskyttet)
   function use(k){ meshes=sets[k]||(sets[k]=[]); return meshes.length>0; }
+  // lämna tillbaka allt grafikminne (när man går ur spelet); nästa init behöver en ny canvas
+  function dispose(){ if(!gl) return; const g=gl, c=cv;
+    try{ for(const k in sets) for(const m of sets[k]){ g.deleteBuffer(m.vb); if(m.ib) g.deleteBuffer(m.ib); } if(dynBuf) g.deleteBuffer(dynBuf); if(quadB) g.deleteBuffer(quadB);
+      if(sh){ g.deleteFramebuffer(sh.fb); g.deleteTexture(sh.d); g.deleteTexture(sh.c); } for(const P of [PM,PSH,PSKY]) if(P) g.deleteProgram(P.p);
+      const L=g.getExtension('WEBGL_lose_context'); if(c){ c.width=1; c.height=1; } if(L) L.loseContext(); }catch(e){}
+    gl=null; cv=null; sets={'':[]}; meshes=sets['']; sh=null; dynBuf=null; quadB=null; bad=false; if(dynB) dynB=new Builder(16384); stats={tris:0}; }
   // punkt i världen → bildpunkt med samma kamera som render (för text och markeringar som ritas ovanpå i 2D)
   function project(C,W,H,p){ const cy=Math.cos(C.yaw), sy=Math.sin(C.yaw), cp=Math.cos(C.pitch), sp=Math.sin(C.pitch), dx=p[0]-C.x, dy=p[1]-C.y, dz=p[2]-C.z;
     const X=cy*dx-sy*dz, Y=sy*sp*dx+cp*dy+cy*sp*dz, Z=sy*cp*dx-sp*dy+cy*cp*dz; if(Z<.5) return null; return [W/2+C.f*X/Z,(C.cy==null?H/2:C.cy)-C.f*Y/Z,C.f/Z]; }
-  return {init, ok, clear, use, project, addMesh, addGrid, render, Builder, dyn:()=>dynB, stats:()=>stats, hex, LOOK};
+  return {init, ok, clear, use, dispose, project, addMesh, addGrid, render, Builder, dyn:()=>dynB, stats:()=>stats, hex, LOOK};
   }
   const def=mkGL(); def.create=mkGL; return def;
 })();
