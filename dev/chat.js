@@ -91,7 +91,7 @@ const CHAT = (()=>{
     known[card.id]={...card, bot:known[card.id]?.bot}; if(contacts[card.id]){ contacts[card.id]={...contacts[card.id], name:card.name, emoji:card.emoji}; } saveC(); return true; }
   async function seenCards(cards, where){ if(!ME || !Array.isArray(cards)) return; let added=0; for(const c of cards.slice(0,8)){ if(c && c.id!==ME.id && await remember(c) && !contacts[c.id]){ friends[c.id]={card:normCard(c), where:where||'spel', seen:Date.now()}; added++; } } saveC(); if(added && vis()) refresh(); }
   function addContact(id, vl){ addContact0(id, vl); try{ if(contacts[id] && dirIds.has(id)) linkDevices(id); }catch(e){} }
-  function addContact0(id, vl){ const c=cardOf(id); if(!c) return; const was=contacts[id]; contacts[id]={...normCard(c), added:was?.added||Date.now(), vl:Math.max(was?.vl||0, vl || (friends[id]?2:1)), vAt:was?.vAt, bot:was?.bot}; delete friends[id]; blocked=blocked.filter(x=>x!==id); const cv=convs['d:'+id]; if(cv) cv.request=false; saveC(); saveConvs(); refresh(); connectTo(id); }
+  function addContact0(id, vl){ const c=cardOf(id); if(!c) return; const was=contacts[id]; contacts[id]={...normCard(c), added:was?.added||Date.now(), vl:Math.max(was?.vl||0, vl || (friends[id]?2:1)), vAt:was?.vAt, bot:was?.bot, user:was?.user||dirIds.get(id)||undefined, alias:was?.alias}; delete friends[id]; blocked=blocked.filter(x=>x!==id); const cv=convs['d:'+id]; if(cv) cv.request=false; saveC(); saveConvs(); refresh(); connectTo(id); }
   function block(id){ if(!blocked.includes(id)) blocked.push(id); delete contacts[id]; delete convs['d:'+id]; saveC(); saveConvs(); refresh(); }
   async function safetyNumber(id){ const c=cardOf(id); if(!c) return '–'; const ks=[ME.ik.pub,c.ik].sort();
     const h=new Uint8Array(await crypto.subtle.digest('SHA-512',cat(ub64(ks[0]),ub64(ks[1]),te.encode('FL-Safety-v1'))));
@@ -354,6 +354,7 @@ const CHAT = (()=>{
     DIRL=out; dirIds.clear(); out.forEach(x=>dirIds.set(x.card.id,x.user)); sv('dir',DIRL);
     DIRME=mine; sv('dirme',DIRME);
     for(const u of Object.keys(PRIM)) if(contacts[PRIM[u]]) linkDevices(PRIM[u]);      // en kompis har fått en ny enhet
+    mergeAll();
     if(vis() && tab==='contacts') refresh();
   }
   // en registrerad användare som hör av sig blir kontakt direkt (ingen förfrågan)
@@ -363,7 +364,7 @@ const CHAT = (()=>{
      I chatten är personen en enda kontakt och en enda konversation – den första enheten man lade till ("primär"). */
   let DIRME=ld('dirme',[]), PRIM=ld('prim',{});
   const myDev = () => new Set(DIRME.map(x=>x.card.id));
-  const userOf = id => dirIds.get(id) || null;
+  const userOf = id => dirIds.get(id) || contacts[id]?.user || null;     // användarnamnet sparas på kontakten, så att gamla enheter (som inte längre finns i listan) hör till rätt person
   function devicesOf(id){ const u=userOf(id); if(!u) return [id]; const ids=DIRL.filter(x=>x.user===u && !blocked.includes(x.card.id)).map(x=>x.card.id); if(!ids.includes(id)) ids.unshift(id); return ids; }
   function primaryOf(id){ const u=userOf(id); if(!u) return id; const p=PRIM[u]; return (p && contacts[p]) ? p : id; }
   const isAlias = id => !!contacts[id] && primaryOf(id)!==id;
@@ -372,9 +373,34 @@ const CHAT = (()=>{
     const u=userOf(id); if(!u) return false; let ch=false;
     if(!PRIM[u] || !contacts[PRIM[u]]){ PRIM[u]=id; sv('prim',PRIM); ch=true; }
     for(const d of devicesOf(id)){ if(d===id || contacts[d] || blocked.includes(d) || !cardOf(d)) continue;
-      contacts[d]={...normCard(cardOf(d)), added:Date.now(), vl:contacts[id]?contacts[id].vl:1, alias:true}; ch=true; }
+      contacts[d]={...normCard(cardOf(d)), added:Date.now(), vl:contacts[id]?contacts[id].vl:1, alias:true, user:u}; ch=true; }
     if(ch) saveC(); return ch;
   }
+  /* ---------- en person = en chatt ----------
+     Gamla nycklar (ny installation, utloggning, byte av telefon) gav tidigare en ny chatt för samma person.
+     Varje kontakt får nu sitt användarnamn sparat; chattar för samma användare slås ihop till en, och de gamla
+     nycklarna blir dolda enheter. Verifiering följer bara med nyckeln den gjordes för. */
+  const nn = x => String(x||'').trim().toLowerCase();
+  function mergeAll(){ if(!ME) return 0; let ch=false;
+    for(const [id,u] of dirIds) if(contacts[id] && contacts[id].user!==u){ contacts[id].user=u; ch=true; }
+    // gamla kontakter utan användarnamn: knyts till en användare bara om namnet pekar ut exakt en person i listan
+    const byName={}; for(const x of DIRL){ for(const k of new Set([nn(x.card.name), nn(x.user)])) (byName[k]=byName[k]||new Set()).add(x.user); }
+    for(const id of Object.keys(contacts)){ const c=contacts[id]; if(c.user||c.bot||dirIds.has(id)||blocked.includes(id)) continue; const m=byName[nn(c.name)]||byName[nn(c.nick)]; if(m&&m.size===1){ c.user=[...m][0]; ch=true; } }
+    const by={}; for(const id of Object.keys(contacts)){ const u=contacts[id].user; if(u&&!blocked.includes(id)) (by[u]=by[u]||[]).push(id); }
+    let n=0; for(const u in by) if(by[u].length>1 && mergeUser(u,by[u])) n++;
+    if(ch||n){ saveC(); saveConvs(); if(vis()) refresh(); } return n; }
+  function mergeUser(u, ids){
+    const sc=id=>(dirIds.has(id)?1e6:0)+(contacts[id].vl||0)*1e4+(PRIM[u]===id?1e3:0)+(contacts[id].alias?0:100)+((convs['d:'+id]?.lastTs||0)/1e13);
+    const p=ids.slice().sort((a,b)=>sc(b)-sc(a))[0]; let ch=PRIM[u]!==p; PRIM[u]=p; sv('prim',PRIM);
+    if(contacts[p].alias){ delete contacts[p].alias; ch=true; }
+    for(const id of ids){ if(id===p) continue; if(!contacts[id].alias){ contacts[id].alias=true; ch=true; }
+      const c=convs['d:'+id]; if(!c) continue; const pc=conv('d:'+p), have=new Set(pc.msgs.map(m=>m.mid));
+      for(const m of c.msgs) if(!have.has(m.mid)) pc.msgs.push(m);
+      pc.msgs.sort((a,b)=>a.ts-b.ts); if(pc.msgs.length>600) pc.msgs=pc.msgs.slice(-600);
+      pc.unread=(pc.unread||0)+(c.unread||0); pc.lastTs=Math.max(pc.lastTs||0,c.lastTs||0); if(!pc.theme&&c.theme) pc.theme=c.theme; if(!pc.timer&&c.timer) pc.timer=c.timer;
+      delete convs['d:'+id]; if(openCid==='d:'+id) openCid='d:'+p; ch=true; }
+    return ch; }
+  setTimeout(()=>{ try{ mergeAll(); }catch(e){ console.warn('slå ihop chattar',e); } }, 1200);   // även vid start, med sparade uppgifter
   // en registrerad användare som hör av sig blir kontakt direkt (ingen förfrågan) – en ny enhet hos en befintlig kontakt kopplas till personen
   const dirAuto = id => { if(!dirIds.has(id) || blocked.includes(id) || contacts[id]) return !!contacts[id];
     const u=userOf(id); if(u && PRIM[u] && contacts[PRIM[u]]){ linkDevices(PRIM[u]); return !!contacts[id]; }
@@ -1537,7 +1563,7 @@ Skriv:
       ice:()=>{ const o=cpeer && cpeer.options && cpeer.options.config; return (o && Array.isArray(o.iceServers)) ? {iceServers:o.iceServers, ...(o.iceTransportPolicy?{iceTransportPolicy:o.iceTransportPolicy}:{})} : {iceServers:[{urls:'stun:stun.l.google.com:19302'}]}; }
     },
     // bara i testversionen: krokar för automatiska säkerhetstester
-    __test: DEV ? {mbPull, presPull, ping:id=>pingContact(id,true), pingSt:()=>pingSt, srvPres:()=>srvPres, outbox:()=>outbox, queueDirect, conns:()=>[...conns.keys()], typing:()=>({...typing}), groups:()=>GROUPS, convs:()=>convs, contacts:()=>contacts, scan:t=>onScanText(t),
+    __test: DEV ? {mergeAll, prim:()=>PRIM, mbPull, presPull, ping:id=>pingContact(id,true), pingSt:()=>pingSt, srvPres:()=>srvPres, outbox:()=>outbox, queueDirect, conns:()=>[...conns.keys()], typing:()=>({...typing}), groups:()=>GROUPS, convs:()=>convs, contacts:()=>contacts, scan:t=>onScanText(t),
       zombie:id=>{ const c=conns.get(id); if(c){ c.removeAllListeners('data'); c.on('data',()=>{}); } },   // anslutningen ser öppen ut men tar inte emot
       noNet:()=>{ testNoNet=true; try{ cpeer && cpeer.destroy() }catch(e){} cpeer=null; conns.clear(); }} : undefined
   };
