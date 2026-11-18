@@ -40,10 +40,20 @@ let fail=0; const ok=(c,m)=>{ console.log((c?'✓ ':'✗ ')+m); if(!c) fail++; }
   const won=await p.evaluate(async()=>{ const g={alive:G.alive.slice()}; const path=MJ.deal.order.slice(); const key=k=>k<34?k:k<38?'F':'S';
     for(const [i,j] of path){ if(MJ.blocked(G.pos,g.alive,i)||MJ.blocked(G.pos,g.alive,j)||key(G.tk[i])!==key(G.tk[j])) return {solvable:false}; g.alive[i]=g.alive[j]=false; }
     for(const [i,j] of path) doAct({type:'pair',i,j}); await new Promise(r=>setTimeout(r,500));
-    return {solvable:true, over:G.over, winner:G.winner, txt:(document.querySelector('.wd-end h3')||{}).textContent, lvl:lsGet('mj_lvl')}; });
+    return {solvable:true, over:G.over, winner:G.winner, txt:(document.querySelector('.mj-end h3')||{}).textContent, lvl:lsGet('mj_lvl')}; });
   ok(won.solvable, 'bordet går att lösa även efter blandning');
-  ok(won.over && won.winner===0 && /tomt/.test(won.txt) && won.lvl==='2', `bordet tömt → "${won.txt}", nästa nivå ${won.lvl}`);
+  const rw=await p.evaluate(()=>({stars:G.stars, saved:JSON.parse(lsGet('mj_stars')||'{}')[1], tot:MJ.totalStars(), shown:document.querySelectorAll('.mj-stars span.on').length}));
+  ok(rw.stars>=1 && rw.saved===rw.stars && rw.shown===rw.stars && rw.tot===rw.stars, `stjärnor: ${rw.stars} ★ sparade och visade (totalt ${rw.tot})`);
+  ok(won.over && won.winner===0 && /Bra jobbat|Snyggt|Perfekt/.test(won.txt) && won.lvl==='2', `bordet tömt → "${won.txt}", nästa nivå ${won.lvl}`);
   await p.screenshot({path:'tests/shots/mahjong-2.png'});
+  // utseende: låst tema går inte att välja, öppet går
+  const lk=await p.evaluate(async()=>{ const sl=ms=>new Promise(x=>setTimeout(x,ms)); document.querySelector('[data-mj=look]')?.click()||document.querySelector('[data-act=lobby]'); showGameMenu('mahjong'); document.querySelector('#modal [data-mj=look]').click(); await sl(200);
+    const n=document.querySelectorAll('#modal .mj-lo').length; document.querySelector('#modal [data-mj=pickl][data-id=sport]').click(); await sl(100); const sportLocked=lsGet('mj_set')!=='sport';
+    document.querySelector('#modal [data-mj=pickl][data-id=klassisk]').click(); await sl(100); const ok=lsGet('mj_set')==='klassisk'; lsSet('mj_set','djur'); return {n,sportLocked,ok,want:MJ.SETS.length+MJ.SKINS.length+MJ.TABLES.length}; });
+  ok(lk.n===lk.want && lk.sportLocked && lk.ok, `utseende: ${lk.n} val, låsta går inte att välja, öppna går`);
+  // nivåkarta: tidigare nivå går att spela om
+  const mp=await p.evaluate(async()=>{ closeModal&&closeModal(); showGameMenu('mahjong'); const b=document.querySelector('#modal .mj-lvb[data-lv="1"]'); const lockedN=document.querySelectorAll('#modal .mj-lvb.lk').length; b.click(); await new Promise(x=>setTimeout(x,300)); return {lvl:G.level, lockedN}; });
+  ok(mp.lvl===1 && mp.lockedN>0, `nivåkartan: nivå 1 kan spelas om, kommande nivåer är låsta (${mp.lockedN})`);
   // dagens bricka: samma bord två gånger
   const d=await p.evaluate(async()=>{ const r=[]; for(let k=0;k<2;k++){ closeModal&&closeModal(); showGameMenu('mahjong'); document.querySelector('#modal [data-mj=daily]').click(); await new Promise(x=>setTimeout(x,300)); r.push(G.tk.join()); } return {same:r[0]===r[1], daily:G.daily}; });
   ok(d.same && d.daily, 'dagens bricka är samma för alla');
