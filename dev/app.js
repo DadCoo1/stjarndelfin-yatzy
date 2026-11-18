@@ -21,7 +21,7 @@
   if(!same || !/[?&]bot=1/.test(location.search)){ document.documentElement.innerHTML=''; throw new Error('Inramning blockerad'); }
 })();
 /* ================= Version & utvecklingsläge ================= */
-const APP_VERSION='2026.11.18.3-dev';
+const APP_VERSION='2026.11.18.4-dev';
 const DEV = /\/dev(\/|$)/.test(location.pathname);      // testversionen ligger i mappen /dev/
 const BOT = /[?&]bot=1/.test(location.search) && window.parent!==window;   // osynlig ekokompis i en ram
 const LSP = DEV ? (BOT ? 'dev:bot:' : 'dev:') : (BOT ? 'bot:' : '');    // egen sparad data i testversionen
@@ -725,7 +725,7 @@ if(NET_SERVER){ setTimeout(()=>{ if(SRV_TOK) ensureIce(); }, 300); setInterval(e
 function peerOpts(){
   const b=netBase(), o={debug:0};
   if(b){ Object.assign(o,{host:b.host, port:b.port, secure:b.secure, path:'/peer', key:SRV_TOK||'x'});
-    o.config={iceServers:[...(NET_ICE||[]), {urls:'stun:stun.l.google.com:19302'}]};
+    o.config={iceServers:(NET_ICE&&NET_ICE.length)?NET_ICE:[{urls:'stun:'+b.host+':3478'}]};   // bara vår egen server – ingen STUN hos Google eller andra
     // "Dölj min IP-adress": all trafik går via servern, så andra telefoner ser aldrig din IP-adress
     if(window.__FORCE_RELAY || (lsGet('net_relay')==='1' && NET_ICE)) o.config.iceTransportPolicy='relay'; }
   return Object.assign(o, window.__PEER_OPTS||{});

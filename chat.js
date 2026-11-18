@@ -1560,7 +1560,7 @@ Skriv:
       pick:id=>{ const ds=devicesOf(id).filter(d=>contacts[d]); return ds.find(rawOnline) || id; },
       unread:id=>{ const c=conv('d:'+primaryOf(id)); c.unread=(c.unread||0)+1; saveConvs(); },
       openChat:id=>openChat('d:'+primaryOf(id)),
-      ice:()=>{ const o=cpeer && cpeer.options && cpeer.options.config; return (o && Array.isArray(o.iceServers)) ? {iceServers:o.iceServers, ...(o.iceTransportPolicy?{iceTransportPolicy:o.iceTransportPolicy}:{})} : {iceServers:[{urls:'stun:stun.l.google.com:19302'}]}; }
+      ice:()=>{ const o=cpeer && cpeer.options && cpeer.options.config; return (o && Array.isArray(o.iceServers)) ? {iceServers:o.iceServers, ...(o.iceTransportPolicy?{iceTransportPolicy:o.iceTransportPolicy}:{})} : {iceServers:(typeof netBase==='function'&&netBase())?[{urls:'stun:'+netBase().host+':3478'}]:[]}; }
     },
     // bara i testversionen: krokar för automatiska säkerhetstester
     __test: DEV ? {mergeAll, prim:()=>PRIM, mbPull, presPull, ping:id=>pingContact(id,true), pingSt:()=>pingSt, srvPres:()=>srvPres, outbox:()=>outbox, queueDirect, conns:()=>[...conns.keys()], typing:()=>({...typing}), groups:()=>GROUPS, convs:()=>convs, contacts:()=>contacts, scan:t=>onScanText(t),
