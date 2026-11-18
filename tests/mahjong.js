@@ -30,22 +30,42 @@ let fail=0; const ok=(c,m)=>{ console.log((c?'✓ ':'✗ ')+m); if(!c) fail++; }
   const lockedI=await p.evaluate(()=>{ const f=new Set(MJ.pairs(G).flat()); for(let i=0;i<G.pos.length;i++) if(G.alive[i]&&MJ.blocked(G.pos,G.alive,i)) return i; return -1; });
   if(lockedI>=0){ await p.evaluate(i=>document.querySelector(`.mj-t[data-i="${i}"]`).click(),lockedI); await sleep(100); ok(await p.evaluate(()=>G.left===G.pos.length), 'låst bricka går inte att ta'); }
   // ledtråd
-  await p.click('[data-mj=hint]'); await sleep(200); ok(await p.evaluate(()=>document.querySelectorAll('.mj-t.hint').length===2 && G.hints===1), 'ledtråd lyser upp två brickor');
+  await p.click('[data-mj=hint]'); await sleep(200); ok(await p.evaluate(()=>document.querySelectorAll('#mjB .mj-t.hint').length>=1 && G.hints===1), 'ledtråd lyser upp en bricka eller ett par');
   // ta ett par via klick
   const pr=await p.evaluate(()=>MJ.pairs(G)[0]); await p.evaluate(i=>document.querySelector(`.mj-t[data-i="${i}"]`).click(),pr[0]); await sleep(80); await p.evaluate(i=>document.querySelector(`.mj-t[data-i="${i}"]`).click(),pr[1]); await sleep(500);
   ok(await p.evaluate(()=>G.left===G.pos.length-2), 'två lika fria brickor försvinner');
   await p.click('[data-mj=undo]'); await sleep(200); ok(await p.evaluate(()=>G.left===G.pos.length), 'ångra lägger tillbaka paret');
   await p.click('[data-mj=shuffle]'); await sleep(600); ok(await p.evaluate(()=>G.shuf===1 && G.left===G.pos.length), 'blanda fungerar');
   // spela klart med sökning och se slutet
-  const won=await p.evaluate(async()=>{ const g={alive:G.alive.slice()}; const path=MJ.deal.order.slice(); const key=k=>k<34?k:k<38?'F':'S';
-    for(const [i,j] of path){ if(MJ.blocked(G.pos,g.alive,i)||MJ.blocked(G.pos,g.alive,j)||key(G.tk[i])!==key(G.tk[j])) return {solvable:false}; g.alive[i]=g.alive[j]=false; }
-    for(const [i,j] of path) doAct({type:'pair',i,j}); await new Promise(r=>setTimeout(r,500));
+  const won=await p.evaluate(async()=>{ const g={alive:G.alive.slice()}; const path=MJ.deal.order.slice(); const key=k=>k<34?k:k<38?'F':'S'; const tray=G.tray.map(j=>key(G.tk[j]));
+    for(const it of path){ if(it.some(i=>MJ.blocked(G.pos,g.alive,i))) return {solvable:false}; if(it.length===2&&key(G.tk[it[0]])!==key(G.tk[it[1]])) return {solvable:false}; if(it.length===1&&!tray.includes(key(G.tk[it[0]]))) return {solvable:false}; it.forEach(i=>g.alive[i]=false); }
+    for(const it of path){ if(it.length===1) doAct({type:'tap',i:it[0]}); else doAct({type:'pair',i:it[0],j:it[1]}); } await new Promise(r=>setTimeout(r,500));
     return {solvable:true, over:G.over, winner:G.winner, txt:(document.querySelector('.mj-end h3')||{}).textContent, lvl:lsGet('mj_lvl')}; });
   ok(won.solvable, 'bordet går att lösa även efter blandning');
   const rw=await p.evaluate(()=>({stars:G.stars, saved:JSON.parse(lsGet('mj_stars')||'{}')[1], tot:MJ.totalStars(), shown:document.querySelectorAll('.mj-stars span.on').length}));
   ok(rw.stars>=1 && rw.saved===rw.stars && rw.shown===rw.stars && rw.tot===rw.stars, `stjärnor: ${rw.stars} ★ sparade och visade (totalt ${rw.tot})`);
   ok(won.over && won.winner===0 && /Bra jobbat|Snyggt|Perfekt/.test(won.txt) && won.lvl==='2', `bordet tömt → "${won.txt}", nästa nivå ${won.lvl}`);
   await p.screenshot({path:'tests/shots/mahjong-2.png'});
+  // listen: en bricka hamnar på listen, två lika försvinner, full lista + bricka som inte passar = förlust, ångra räddar
+  const tr=await p.evaluate(async()=>{ const sl=ms=>new Promise(r=>setTimeout(r,ms)); closeModal&&closeModal(); showGameMenu('mahjong'); document.querySelector('#modal .mj-lvb[data-lv="1"]').click(); await sl(900);
+    const key=k=>k<34?k:k<38?'F':'S', free=()=>G.pos.map((_,i)=>i).filter(i=>G.alive[i]&&!MJ.blocked(G.pos,G.alive,i));
+    const f=free(), a=f[0]; document.querySelector(`.mj-t[data-i="${a}"]`).click(); await sl(450); const one=G.tray.length===1&&!G.alive[a]&&!!document.querySelector('#mjTray [data-ti]');
+    const b=free().find(i=>key(G.tk[i])===key(G.tk[a])); let paired=null; if(b!==undefined){ document.querySelector(`.mj-t[data-i="${b}"]`).click(); await sl(600); paired=G.tray.length===0&&G.left===G.pos.length-2; }
+    // fyll listen med fyra olika
+    let guard=0; while(G.tray.length<4&&guard++<40){ const tk=new Set(G.tray.map(j=>key(G.tk[j]))); const c=free().find(i=>!tk.has(key(G.tk[i]))); if(c===undefined) break; doAct({type:'tap',i:c}); }
+    const full=G.tray.length===4; await sl(200); const warn=document.getElementById('mjTray').classList.contains('full');
+    const tk=new Set(G.tray.map(j=>key(G.tk[j]))), bad=free().find(i=>!tk.has(key(G.tk[i])));
+    if(bad===undefined) return {one,paired,full,warn,dbg:'ingen fri bricka utan match: '+free().length+' fria, lista '+G.tray.length};
+    document.querySelector(`.mj-t[data-i="${bad}"]`).click(); await sl(500);
+    const h=document.querySelector('.mj-end h3'), lost=G.over&&G.lost!==undefined&&!!h&&/full/.test(h.textContent);
+    const u=document.querySelector('.mj-end [data-mj=undo]'); if(u) u.click(); await sl(300); const saved=!G.over&&G.saves===1&&G.tray.length===4;
+    return {one,paired,full,warn,lost,saved,dbg:JSON.stringify({over:G.over,lost:G.lost,h:h&&h.textContent})}; });
+  if(!tr.lost||!tr.saved) console.log(tr.dbg);
+  ok(tr.one, 'tryck på en fri bricka: den flyttas till listen');
+  ok(tr.paired!==false, 'två lika på listen försvinner'+(tr.paired===null?' (ingen fri partner i just den här given)':''));
+  ok(tr.full&&tr.warn, 'listen tar fyra brickor och lyser rött när den är full');
+  ok(tr.lost, 'femte brickan som inte passar ger förlust');
+  ok(tr.saved, 'ångra efter förlust räddar spelet (räknas som hjälp)');
   // utseende: låst tema går inte att välja, öppet går
   const lk=await p.evaluate(async()=>{ const sl=ms=>new Promise(x=>setTimeout(x,ms)); document.querySelector('[data-mj=look]')?.click()||document.querySelector('[data-act=lobby]'); showGameMenu('mahjong'); document.querySelector('#modal [data-mj=look]').click(); await sl(200);
     const n=document.querySelectorAll('#modal .mj-lo').length; document.querySelector('#modal [data-mj=pickl][data-id=sport]').click(); await sl(100); const sportLocked=lsGet('mj_set')!=='sport';

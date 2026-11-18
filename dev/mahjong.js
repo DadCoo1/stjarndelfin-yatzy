@@ -55,11 +55,16 @@
       if(c===z && Math.abs(b-y)<2){ if(a===x-2) Lf=true; else if(a===x+2) Rt=true; } }
     return Lf&&Rt; }
   const freeList=(pos,alive)=>pos.map((_,i)=>i).filter(i=>alive[i]&&!blocked(pos,alive,i));
+  const TRAY=4;
+  // drag som tömmer något: fria brickor som matchar en bricka på listen, och fria par på brädet
+  function moves(g){ const f=freeList(g.pos,g.alive), tk=new Set((g.tray||[]).map(j=>key(g.tk[j]))); return {single:f.filter(i=>tk.has(key(g.tk[i]))), pairs:pairs(g)}; }
+  const nMoves=g=>{ const m=moves(g); return m.single.length+m.pairs.length; };
   function pairs(g){ const f=freeList(g.pos,g.alive), by={}; for(const i of f){ const k=key(g.tk[i]); (by[k]=by[k]||[]).push(i); } const o=[]; for(const k in by){ const a=by[k]; for(let x=0;x<a.length;x++) for(let y=x+1;y<a.length;y++) o.push([a[x],a[y]]); } return o; }
   // lägg ut baklänges från en lösning: plocka två fria platser i taget och ge dem ett par. Ordningen sparas (= en lösning).
   function deal(pos, pairList, r, alive0){ const n=pos.length;
     for(let tries=0;tries<80;tries++){ const alive=alive0?alive0.slice():pos.map(()=>true), kind=new Array(n).fill(-1), pl=pairList.slice(), ord=[]; for(let i=pl.length-1;i>0;i--){ const j=Math.floor(r()*(i+1)); [pl[i],pl[j]]=[pl[j],pl[i]]; }
-      let ok=true; for(const pr of pl){ const f=freeList(pos,alive); if(f.length<2){ ok=false; break; }
+      let ok=true; for(const pr of pl){ const f=freeList(pos,alive); if(f.length<pr.length){ ok=false; break; }
+        if(pr.length===1){ const a=f[Math.floor(r()*f.length)%f.length]; kind[a]=pr[0]; alive[a]=false; ord.push([a]); continue; }
         const ia=Math.floor(r()*f.length)%f.length, a=f[ia], b=f[(ia+1+Math.floor(r()*(f.length-1)))%f.length];
         kind[a]=pr[0]; kind[b]=pr[1]; alive[a]=false; alive[b]=false; ord.push([a,b]); }
       if(ok){ deal.order=ord; return kind; } }
@@ -141,32 +146,35 @@
   function totalStars(){ const S=starsMap(); let t=0; for(const k in S) t+=S[k]; return t+Object.keys(J('mj_daily',{})).length; }
   function streak(){ const D=J('mj_daily',{}); let d=dayNo(); if(!D[d]) d--; let n=0; while(D[d]){ n++; d--; } return n; }
   const unlockables=()=>[...SETS.map(x=>({t:'set',x,lab:'brickor'})),...SKINS.map(x=>({t:'skin',x,lab:'brickfärg'})),...TABLES.map(x=>({t:'table',x,lab:'bord'}))].filter(u=>u.x.cost>0);
-  const starsFor=(g,par)=>{ const help=(g.hints||0)+(g.shuf||0); return help===0&&g.time<=par?3:help<=2&&g.time<=par*2?2:1; };
+  const starsFor=(g,par)=>{ const help=(g.hints||0)+(g.shuf||0)+(g.saves||0); return help===0&&g.time<=par?3:help<=2&&g.time<=par*2?2:1; };
 
   /* ---------- spelet ---------- */
-  let mjDaily=false, mjPick=0, mjSel=-1, mjHint=null, mjHintT=0, mjTick=0, mjLockMsg=0, mjIntro='', mjBack=null, mjCombo=0, mjLastT=0, mjEnd=0;
+  let mjDaily=false, mjPick=0, mjSel=-1, mjHint=null, mjHintT=0, mjTick=0, mjLockMsg=0, mjIntro='', mjBack=null, mjCombo=0, mjLastT=0, mjEnd=0, mjTrayFx=0, mjBusy=0;
   const showDim=()=>lsGet('mj_free')!=='0';
   GINFO.mahjong={name:'Vittangi', icon:'🀄', ai:'', max:1, desc:'Para ihop lika brickor', grad:'linear-gradient(135deg,#0f766e,#7c3aed)'};
   KIND.mahjong={
     init(){ const o={daily:mjDaily, level:mjPick||lvl()}; mjPick=0; return o; },
     start(g){ const daily=!!g.daily, n=dayNo(); g.day=daily?n:null; const seed=daily?n*7919+13:Math.floor(Math.random()*1e9), r=rng(seed);
       const d=daily?dailyDef(n):levelDef(g.level||1); g.lay=d.lay; g.par=d.par; g.pos=LAYS[d.lay].p();
-      g.tk=deal(g.pos, makePairs(g.pos.length/2, d.kinds, r), r)||[]; g.alive=g.pos.map(()=>true); g.hist=[]; g.hints=0; g.shuf=0; g.mix=0; g.t0=now(); g.time=0; g.cur=0; g.left=g.pos.length; },
-    valid(g){ return g.names.length===1 && Array.isArray(g.pos) && Array.isArray(g.tk) && g.tk.length===g.pos.length; },
+      g.tk=deal(g.pos, makePairs(g.pos.length/2, d.kinds, r), r)||[]; g.alive=g.pos.map(()=>true); g.tray=[]; g.hist=[]; g.hints=0; g.shuf=0; g.saves=0; g.mix=0; g.t0=now(); g.time=0; g.cur=0; g.left=g.pos.length; },
+    valid(g){ return g.names.length===1 && Array.isArray(g.pos) && Array.isArray(g.tk) && g.tk.length===g.pos.length && (!g.tray||Array.isArray(g.tray)&&g.tray.length<=TRAY); },
     waitingFor(){ return 0; }, scoreOf(g){ return fmt(g); },
     apply(g,a){
       if(a.type==='resign'){ if(g.over) return false; g.over=true; g.winner=-2; g.time=Math.round((now()-g.t0)/1000); return true; }
+      if(a.type==='undo'&&g.over&&g.lost!==undefined){ g.over=false; delete g.winner; delete g.lost; g.saves=(g.saves||0)+1; g.last={t:now(),type:'undo'}; return true; }   // rädda en förlust
       if(g.over) return false;
-      if(a.type==='pair'){ const {i,j}=a; if(!Number.isInteger(i)||!Number.isInteger(j)||i===j||!g.alive[i]||!g.alive[j]) return false;
+      if(!g.tray) g.tray=[];
+      if(a.type==='tap') return tap(g,a.i);
+      if(a.type==='pair'){ const {i,j}=a; if(!Number.isInteger(i)||!Number.isInteger(j)||i===j||!g.alive[i]||!g.alive[j]) return false;   // två tryck i rad
         if(key(g.tk[i])!==key(g.tk[j])||blocked(g.pos,g.alive,i)||blocked(g.pos,g.alive,j)) return false;
-        g.alive[i]=g.alive[j]=false; g.hist.push([i,j]); g.left-=2; g.last={t:now(),type:'pair',i,j};
-        if(!g.left) win(g);
-        return true; }
-      if(a.type==='undo'){ const h=g.hist.pop(); if(!h) return false; g.alive[h[0]]=g.alive[h[1]]=true; g.left+=2; g.last={t:now(),type:'undo',i:h[0],j:h[1]}; return true; }
+        return tap(g,i) && (g.over || tap(g,j)); }
+      if(a.type==='undo'){
+        const h=g.hist.pop(); if(!h) return false; g.alive[h.i]=true; if(h.p) g.left+=2; g.tray=h.prev; g.last={t:now(),type:'undo',i:h.i}; return true; }
       if(a.type==='hint'){ g.hints++; g.last={t:now(),type:'hint'}; return true; }
       if(a.type==='shuffle'){ // blanda kvarvarande brickor så att det fortfarande går att lösa – gratis när det inte finns några par
-        const stuck=!pairs(g).length, left=g.pos.map((_,i)=>i).filter(i=>g.alive[i]); const by={}; for(const i of left){ const k=key(g.tk[i]); (by[k]=by[k]||[]).push(g.tk[i]); }
-        const pl=[]; for(const k in by){ const a2=by[k]; for(let x=0;x+1<a2.length;x+=2) pl.push([a2[x],a2[x+1]]); }
+        const stuck=!nMoves(g), left=g.pos.map((_,i)=>i).filter(i=>g.alive[i]); const by={}; for(const i of left){ const k=key(g.tk[i]); (by[k]=by[k]||[]).push(g.tk[i]); }
+        // brickor vars partner redan ligger på listen läggs ut ensamma, resten parvis – då går det fortfarande att lösa
+        const pl=[]; for(const k in by){ const a2=by[k]; let x=0; if(a2.length%2){ pl.push([a2[0]]); x=1; } for(;x+1<a2.length;x+=2) pl.push([a2[x],a2[x+1]]); }
         const r=rng(Math.floor(Math.random()*1e9)), sub=deal(g.pos, pl, r, g.alive.slice());
         if(sub){ for(const i of left) g.tk[i]=sub[i]; } else { const ks=left.map(i=>g.tk[i]); for(let x=ks.length-1;x>0;x--){ const y=Math.floor(r()*(x+1)); [ks[x],ks[y]]=[ks[y],ks[x]]; } left.forEach((i,x)=>{ g.tk[i]=ks[x]; }); }
         if(!stuck) g.shuf++; g.mix=(g.mix||0)+1; g.hist=[]; g.last={t:now(),type:'shuffle',free:stuck}; return true; }
@@ -174,29 +182,41 @@
     effects(prev,d){ if(!d.last||(prev.last&&prev.last.t===d.last.t)) return;
       if(d.over&&d.winner===0){ sfx.win(); sparkles(70); [0,1,2].forEach(i=>{ if(i<(d.stars||0)) tone(784*Math.pow(1.26,i),.35,'triangle',.11,.55+i*.38); }); return; }
       if(d.last.type==='undo') sfx.unbubble(); },
-    html(){ const g=G, Lg=LAYS[g.lay], fr=new Set(freeList(g.pos,g.alive)), pr=g.over?[]:pairs(g), dim=showDim(), set=curSet(), skin=curSkin(), tab=curTable();
+    html(){ const g=G, Lg=LAYS[g.lay], fr=new Set(freeList(g.pos,g.alive)), nm=g.over?0:nMoves(g), tray=g.tray||[], dim=showDim(), set=curSet(), skin=curSkin(), tab=curTable();
       let mx=0,my=0,mz=0; for(const [x,y,z] of g.pos){ mx=Math.max(mx,x+2); my=Math.max(my,y+2); mz=Math.max(mz,z); }
       const introKey=g.t0+':'+(g.mix||0), intro=mjIntro!==introKey; mjIntro=introKey;
       const order=g.pos.map((p,i)=>i).filter(i=>g.alive[i]).sort((a,b)=>g.pos[a][2]-g.pos[b][2]||g.pos[a][1]-g.pos[b][1]||g.pos[a][0]-g.pos[b][0]);
       const back=mjBack; mjBack=null;
-      const tiles=order.map((i,n)=>{ const [x,y,z]=g.pos[i], f=fr.has(i), k=g.tk[i], cls=`${f?'fr':'bl'}${dim&&!f?' dim':''}${i===mjSel?' sel':''}${mjHint&&mjHint.includes(i)?' hint':''}${intro?' in':''}${back&&back.includes(i)?' back':''}`;
+      const tiles=order.map((i,n)=>{ const [x,y,z]=g.pos[i], f=fr.has(i), k=g.tk[i], cls=`${f?'fr':'bl'}${dim&&!f?' dim':''}${g.over&&g.lost===i?' lostt':''}${mjHint&&mjHint.includes(i)?' hint':''}${intro?' in':''}${back&&back.includes(i)?' back':''}`;
         return `<button class="mj-t ${cls}" data-mj="t" data-i="${i}" ${grp(k)?`data-g="${grp(k)}"`:''} style="--x:${x};--y:${y};--z:${z};--lb:${(1-(mz-z)*.045).toFixed(3)};z-index:${z*2000+y*40+x}${intro?`;animation-delay:${Math.round(n*Math.min(14,700/order.length))}ms`:''}" aria-label="${kname(k,set)}${f?'':' (låst)'}">${face(k,set)}</button>`; }).join('');
       const pct=Math.round((1-g.left/g.pos.length)*100);
       const head=`<div class="mj-head"><span class="mj-lv">${g.daily?'📅 Dagens':g.duel?'👥 Turas om':`Nivå ${g.level||1}`}</span><span class="mj-nm">${Lg.name}</span><span class="mj-tm">⏱️ <b id="mjTime">${fmt(g)}</b></span></div><div class="mj-prog"><i style="width:${pct}%"></i><span>${g.left} kvar</span></div>`;
-      const board=`<div class="mj-wrap" id="mjWrap"><div class="mj-b set-${set.id}" id="mjB" style="--mx:${mx};--my:${my};--mz:${mz};${skinVars(skin)}">${tiles}</div></div>`;
+      const fresh0=mjTrayFx!==(g.last&&g.last.t); mjTrayFx=g.last&&g.last.t;
+      const trayH=`<div class="mj-tray ${tray.length>=TRAY-1?'warn':''} ${tray.length>=TRAY?'full':''} ${g.over&&g.lost!==undefined?'boom':''} set-${set.id}" id="mjTray" style="${skinVars(skin)}">${[...Array(TRAY)].map((_,s)=>{ const i=tray[s];
+        return `<div class="mj-slot" data-s="${s}">${i!==undefined?`<span class="mj-t fr ${fresh0&&g.last&&g.last.type==='put'&&g.last.i===i?'land':''}" ${grp(g.tk[i])?`data-g="${grp(g.tk[i])}"`:''} data-ti="${i}">${face(g.tk[i],set)}</span>`:''}</div>`; }).join('')}</div>`;
+      const board=trayH+`<div class="mj-wrap" id="mjWrap"><div class="mj-b set-${set.id}" id="mjB" style="--mx:${mx};--my:${my};--mz:${mz};${skinVars(skin)}">${tiles}</div></div>`;
       const scene=c=>`<div class="mj-scene t-${tab.id}">${c}</div>`;
+      if(g.over&&g.lost!==undefined){ return scene(head+board+`<div class="mj-end lost"><h3>Listen blev full! 😮</h3><p>Brickan du tryckte på hade ingen likadan på listen.</p>
+        <div class="cbtns"><button class="pri" data-mj="undo">↶ Ångra senaste draget</button>${g.daily||g.duel?'':`<button data-mj="again">🔁 Börja om</button>`}<button data-act="lobby">🏠 Lobby</button></div><small style="opacity:.8">Att ångra räknas som hjälp.</small></div>`); }
       if(g.over){ const won=g.winner===0, S=g.stars||0, fresh=mjEnd!==g.t0; mjEnd=g.t0;
         return scene(head+board+`<div class="mj-end ${won?'won':''} ${fresh?'fresh':''}"><h3>${won?(g.duel||g.daily?'Bordet är tomt! 🎉':['','Bra jobbat!','Snyggt!','Perfekt! 🌟'][S]):'Avslutat'}</h3>
         ${won&&!g.duel&&!g.daily?`<div class="mj-stars">${[0,1,2].map(i=>`<span class="${i<S?'on':''}" style="animation-delay:${.5+i*.38}s">★</span>`).join('')}</div>`:''}
-        ${won?`<p>Tid <b>${fmt(g)}</b>${g.hints?` · 💡 ${g.hints}`:''}${g.shuf?` · 🔀 ${g.shuf}`:''}${!g.duel&&!g.daily&&S<3?`<br><small>3 ★ = utan ledtråd och blandning, under ${Math.floor(g.par/60)}:${String(g.par%60).padStart(2,'0')}</small>`:''}${g.daily?`<br>+1 ⭐ · 🔥 ${streak()} ${streak()===1?'dag':'dagar'} i rad`:''}</p>`:''}
+        ${won?`<p>Tid <b>${fmt(g)}</b>${g.hints?` · 💡 ${g.hints}`:''}${g.shuf?` · 🔀 ${g.shuf}`:''}${g.saves?` · ↶ ${g.saves}`:''}${!g.duel&&!g.daily&&S<3?`<br><small>3 ★ = utan hjälp, under ${Math.floor(g.par/60)}:${String(g.par%60).padStart(2,'0')}</small>`:''}${g.daily?`<br>+1 ⭐ · 🔥 ${streak()} ${streak()===1?'dag':'dagar'} i rad`:''}</p>`:''}
         ${(g.unl||[]).map(u=>`<div class="mj-new">🔓 Nytt: <b>${u.name}</b> (${u.lab}) <button data-mj="use" data-t="${u.t}" data-id="${u.id}">Använd</button></div>`).join('')}
         <div class="cbtns">${g.daily||g.duel?'':`<button class="pri" data-mj="next">▶️ ${won?'Nästa nivå':'Försök igen'}</button>`}${won&&!g.duel&&!g.daily?`<button data-mj="again">🔁 Spela igen</button>`:''}<button data-act="lobby">🏠 Lobby</button></div></div>`); }
-      const stuck=!pr.length;
-      return scene(head+board+(stuck?`<div class="mj-stuck">Inga par kvar att ta 🙈<br><button class="pri" data-mj="shuffle">🔀 Blanda – gratis</button></div>`:'')+
+      const stuck=!nm;
+      return scene(head+board+(stuck?`<div class="mj-stuck">${tray.length>=TRAY?'Listen är full och inget passar 🙈':'Inga brickor att para ihop just nu 🙈'}<br><button class="pri" data-mj="shuffle">🔀 Blanda – gratis</button></div>`:'')+
         `<div class="mj-tools"><button data-mj="undo" ${g.hist.length?'':'disabled'}><span>↶</span><small>Ångra</small></button><button data-mj="hint" ${stuck?'disabled':''}><span>💡</span><small>Ledtråd</small></button><button data-mj="shuffle"><span>🔀</span><small>Blanda</small></button><button data-mj="look"><span>🎨</span><small>Utseende</small></button></div>
-        <div class="ghint">${pr.length} par går att ta · tryck på två lika fria brickor ${KIT.resignHTML()}</div>`); },
-    mounted(){ fit(); clearInterval(mjTick); if(!G.over) mjTick=setInterval(()=>{ const el=document.getElementById('mjTime'); if(!el||!G||G.kind!=='mahjong'){ clearInterval(mjTick); return; } el.textContent=fmt(G); },1000); }
+        <div class="ghint">Tryck på en fri bricka – den hamnar på listen. Två lika försvinner. Max ${TRAY}! ${KIT.resignHTML()}</div>`); },
+    mounted(){ fit(); setTimeout(()=>document.querySelectorAll('#mjTray .land').forEach(e=>{ e.classList.remove('land'); if(e.animate) e.animate([{transform:'scale(.92)'},{transform:'scale(1.07)',offset:.6},{transform:'none'}],{duration:160,easing:'ease-out'}); }),185); clearInterval(mjTick); if(!G.over) mjTick=setInterval(()=>{ const el=document.getElementById('mjTime'); if(!el||!G||G.kind!=='mahjong'){ clearInterval(mjTick); return; } el.textContent=fmt(G); },1000); }
   };
+  function tap(g,i){ if(!Number.isInteger(i)||!g.alive[i]||blocked(g.pos,g.alive,i)) return false;
+    const m=g.tray.find(j=>key(g.tk[j])===key(g.tk[i]));
+    if(m===undefined&&g.tray.length>=TRAY){ g.over=true; g.winner=-1; g.lost=i; g.time=Math.round((now()-g.t0)/1000); g.last={t:now(),type:'full',i}; return true; }
+    const prev=g.tray.slice(); g.alive[i]=false;
+    if(m!==undefined){ g.tray=g.tray.filter(j=>j!==m); g.left-=2; g.hist.push({i,prev,p:1}); g.last={t:now(),type:'pair',i,j:m}; if(!g.left) win(g); }
+    else { g.tray=[...g.tray,i]; g.hist.push({i,prev}); g.last={t:now(),type:'put',i}; }
+    return true; }
   function win(g){ g.over=true; g.winner=0; g.time=Math.round((now()-g.t0)/1000);
     const T=J('mj_stats',{}); T.won=(T.won||0)+1; lsSet('mj_stats',JSON.stringify(T));
     if(g.duel) return;
@@ -237,7 +257,7 @@
   function setSel(i){ document.querySelectorAll('.mj-t.sel').forEach(e=>e.classList.remove('sel')); mjSel=i; if(i>=0){ const e=tileEl(i); if(e){ e.classList.remove('in','back'); e.classList.add('sel'); } } }
   function setHint(p){ document.querySelectorAll('.mj-t.hint').forEach(e=>e.classList.remove('hint')); mjHint=p; if(p) p.forEach(i=>{ const e=tileEl(i); if(e){ e.classList.remove('in','back'); e.classList.add('hint'); } }); }
   document.addEventListener('click',e=>{ const b=e.target.closest('[data-mj]'); if(!b) return; const a=b.dataset.mj;
-    if(a==='daily'||a==='play'){ mjDaily=a==='daily'; if(a==='play') mjPick=+b.dataset.lv||0; mjSel=-1; mjHint=null; mjCombo=0; unlockAudio(); KIT.startSolo('mahjong',lsGet('ry_name')||'Du'); return; }
+    if(a==='daily'||a==='play'){ mjDaily=a==='daily'; if(a==='play') mjPick=+b.dataset.lv||0; mjHint=null; mjCombo=0; unlockAudio(); KIT.startSolo('mahjong',lsGet('ry_name')||'Du'); return; }
     if(a==='free'){ lsSet('mj_free',showDim()?'0':'1'); if(G&&G.kind==='mahjong'&&view==='game') render(); return; }
     if(a==='look'){ showLook(); return; }
     if(a==='menu'){ showMahjongMenu(); return; }
@@ -245,21 +265,35 @@
       lsSet('mj_'+b.dataset.t,b.dataset.id); sfx.pick(); if(G&&G.kind==='mahjong'&&view==='game') render(); showLook(); return; }
     if(a==='use'){ lsSet('mj_'+b.dataset.t,b.dataset.id); sfx.pick(); b.textContent='✓ Vald'; b.disabled=true; if(G&&G.kind==='mahjong') setTimeout(()=>render(),250); return; }
     if(!G||G.kind!=='mahjong') return;
-    if(a==='next'){ mjDaily=false; mjSel=-1; mjHint=null; mjCombo=0; mjPick=G.winner===0?(G.level||1)+1:(G.level||1); KIT.startSolo('mahjong',G.names[0]); return; }
-    if(a==='again'){ mjDaily=!!G.daily; mjPick=G.level||1; mjSel=-1; mjHint=null; mjCombo=0; KIT.startSolo('mahjong',G.names[0]); return; }
-    if(a==='undo'){ const h=G.hist[G.hist.length-1]; setSel(-1); setHint(null); if(h) mjBack=h; doAct({type:'undo'}); return; }
-    if(a==='shuffle'){ setSel(-1); setHint(null); const bd=document.getElementById('mjB'); if(bd) bd.classList.add('shuf'); tone(300,.4,'sine',.08,0,900); hit(0,2400,.3,.2); setTimeout(()=>doAct({type:'shuffle'}),330); return; }
-    if(a==='hint'){ const p=pairs(G); if(!p.length) return; setSel(-1); setHint(p[Math.floor(Math.random()*p.length)]); clearTimeout(mjHintT); mjHintT=setTimeout(()=>setHint(null),3000); tone(880,.2,'sine',.08); tone(1320,.3,'sine',.06,.12); doAct({type:'hint'}); return; }
-    if(a==='t'){ if(G.over) return; const i=+b.dataset.i;
+    if(a==='next'){ mjDaily=false; mjHint=null; mjCombo=0; mjPick=G.winner===0?(G.level||1)+1:(G.level||1); KIT.startSolo('mahjong',G.names[0]); return; }
+    if(a==='again'){ mjDaily=!!G.daily; mjPick=G.level||1; mjHint=null; mjCombo=0; KIT.startSolo('mahjong',G.names[0]); return; }
+    if(a==='undo'){ const h=G.hist[G.hist.length-1]; setHint(null); if(h&&!G.over) mjBack=[h.i]; doAct({type:'undo'}); return; }
+    if(a==='shuffle'){ setHint(null); const bd=document.getElementById('mjB'); if(bd) bd.classList.add('shuf'); tone(300,.4,'sine',.08,0,900); hit(0,2400,.3,.2); setTimeout(()=>doAct({type:'shuffle'}),330); return; }
+    if(a==='hint'){ const m=moves(G); const p=m.single.length?[m.single[Math.floor(Math.random()*m.single.length)]]:m.pairs.length?m.pairs[Math.floor(Math.random()*m.pairs.length)]:null; if(!p) return; setHint(p); clearTimeout(mjHintT); mjHintT=setTimeout(()=>setHint(null),3000); tone(880,.2,'sine',.08); tone(1320,.3,'sine',.06,.12); doAct({type:'hint'}); return; }
+    if(a==='t'){ if(G.over||now()<mjBusy) return; const i=+b.dataset.i;
       if(blocked(G.pos,G.alive,i)){ flash(b,'no'); buzz(20); tone(150,.12,'triangle',.12); if(mjLockMsg++<2) toast('Låst – en bricka är fri när inget ligger ovanpå och vänster eller höger sida är fri'); return; }
-      clack();
-      if(mjSel===i){ setSel(-1); return; }
-      if(mjSel>=0 && key(G.tk[mjSel])===key(G.tk[i])){ const j=mjSel; setSel(-1); setHint(null);
-        const t=now(); mjCombo=t-mjLastT<3200?mjCombo+1:1; mjLastT=t; chime(mjCombo); buzz(12);
-        const m=flyPair(tileEl(j),b); if(m&&mjCombo>=3) floatText(m[0],m[1]-30,`Kombo ×${mjCombo}!`);
-        setTimeout(()=>doAct({type:'pair',i:j,j:i}),140); return; }
-      if(mjSel>=0) flash(tileEl(mjSel),'no');
-      setSel(i); } });
+      const tray=G.tray||[], m=tray.find(j=>key(G.tk[j])===key(G.tk[i]));
+      if(m===undefined&&tray.length>=TRAY){ clack(); buzz([40,60,80]); tone(220,.25,'sawtooth',.07); tone(150,.4,'triangle',.1,.18); flash(document.getElementById('mjTray'),'no'); setHint(null); setTimeout(()=>doAct({type:'tap',i}),180); return; }
+      clack(); setHint(null);
+      const slot=document.querySelector(`.mj-slot[data-s="${m!==undefined?tray.indexOf(m):tray.length}"]`);
+      if(m!==undefined){ const t=now(); mjCombo=t-mjLastT<3200?mjCombo+1:1; mjLastT=t; buzz(12); const r=slot&&slot.getBoundingClientRect();
+        ghost(document.querySelector(`.mj-slot [data-ti="${m}"]`)); flyTo(b,slot,true);
+        setTimeout(()=>{ chime(mjCombo); if(r){ burst(r.left+r.width/2,r.top+r.height/2,16,['#fde047','#fff','#f472b6','#67e8f9']); if(mjCombo>=3) floatText(r.left+r.width/2,r.top+r.height+18,`Kombo ×${mjCombo}!`); } },190); }
+      else flyTo(b,slot,false);
+      doAct({type:'tap',i}); } });
+  // kopia av en bricka på listen som ligger kvar en stund och poppar när paret är klart (spelet har redan tagit bort den)
+  function ghost(o){ const tr=document.getElementById('mjTray'); if(!o||!tr||!o.animate||still()) return; const r=o.getBoundingClientRect(), host=document.createElement('div');
+    host.className='mj-fly '+tr.className.replace(/\b(warn|full|boom|no)\b/g,''); host.setAttribute('style',tr.getAttribute('style')); host.style.cssText+=';position:fixed;left:0;top:0;width:0;height:0;padding:0;border:0;background:none;box-shadow:none;margin:0';
+    const c=o.cloneNode(true); c.classList.remove('land'); c.style.cssText=`position:fixed;left:${r.left}px;top:${r.top}px;z-index:1;margin:0`; host.appendChild(c); document.body.appendChild(host);
+    c.animate([{transform:'none',opacity:1,offset:0},{transform:'none',opacity:1,offset:.6},{transform:'scale(1.3)',opacity:0}],{duration:330,easing:'ease-out'}).onfinish=()=>host.remove(); }
+  // brickan flyger från brädet upp till sin plats på listen
+  const still=()=>document.body.classList.contains('mo-av');
+  function flyTo(el,slot,pop){ const bd=document.getElementById('mjB'); if(!el||!slot||!bd||!el.animate||still()) return; const r=el.getBoundingClientRect(), q=slot.getBoundingClientRect();
+    const host=document.createElement('div'); host.className='mj-fly '+bd.className; host.setAttribute('style',bd.getAttribute('style')); host.style.width=host.style.height='0';
+    const c=el.cloneNode(true); c.classList.remove('hint','in','dim','back','lostt'); c.style.cssText+=`;left:${r.left}px;top:${r.top}px;z-index:1;animation:none;transform-origin:0 0`; host.appendChild(c); document.body.appendChild(host);
+    const sc=Math.min(q.width/r.width,(q.height)/r.height)*.98, tx=q.left+(q.width-r.width*sc)/2-r.left, ty=q.top+(q.height-r.height*sc)/2-r.top;
+    c.animate([{transform:'none'},{transform:`translate(${tx*.5}px,${ty*.5-18}px) scale(${(1+sc)/2+.08})`,offset:.5},{transform:`translate(${tx}px,${ty}px) scale(${sc})`}],{duration:200,easing:'cubic-bezier(.3,.7,.4,1)'}).onfinish=()=>{ if(!pop){ host.remove(); return; } c.animate([{transform:`translate(${tx}px,${ty}px) scale(${sc})`,opacity:1},{transform:`translate(${tx}px,${ty}px) scale(${sc*1.3})`,opacity:0}],{duration:150,easing:'ease-out'}).onfinish=()=>host.remove(); };
+    el.style.visibility='hidden'; }
 
   /* ---------- menyer ---------- */
   function calendar(){ const D=J('mj_daily',{}), t=new Date(new Date().toLocaleString('en-US',{timeZone:'Europe/Stockholm'})), y=t.getFullYear(), m=t.getMonth(), days=new Date(y,m+1,0).getDate(), off=(new Date(y,m,1).getDay()+6)%7, d0=Math.floor(Date.UTC(y,m,1)/864e5);
@@ -290,7 +324,7 @@
       <h4>Bord</h4><div class="mj-looks">${TABLES.map(t=>opt('table',t,t.id===tab.id,`<div class="mj-tb t-${t.id}"></div>`)).join('')}</div>
       <div class="btns" style="flex-direction:column">${inGame?'<button class="pri" data-act="close">▶️ Tillbaka till spelet</button>':'<button class="pri" data-mj="menu">← Tillbaka</button>'}</div></div>`,'mjlook'); }
   GINFO.mahjong.menu=()=>showMahjongMenu();
-  GINFO.mahjong.duel=n=>{ mjDaily=false; mjPick=lvl(); mjSel=-1; mjHint=null; KIT.startSolo('mahjong',n); };
+  GINFO.mahjong.duel=n=>{ mjDaily=false; mjPick=lvl(); mjHint=null; KIT.startSolo('mahjong',n); };
   window.MJ={LAYS, SETS, SKINS, TABLES, blocked, pairs, deal, makePairs, levelDef, face, totalStars, starsFor};
 
   /* ---------- utseende ---------- */
@@ -335,6 +369,17 @@
 .mj-spark{position:fixed;z-index:51;pointer-events:none;font-style:normal;text-shadow:0 0 8px currentColor}
 .mj-float{position:fixed;z-index:52;transform:translate(-50%,-50%);pointer-events:none;font:800 22px 'Fredoka',system-ui,sans-serif;color:#fde047;text-shadow:0 2px 0 #b45309,0 0 14px rgba(253,224,71,.8);animation:mjfl 1.1s ease-out forwards;white-space:nowrap}
 @keyframes mjfl{0%{transform:translate(-50%,-30%) scale(.6);opacity:0}20%{transform:translate(-50%,-50%) scale(1.15);opacity:1}100%{transform:translate(-50%,-160%) scale(1);opacity:0}}
+.mj-tray{--tw:min(13vw,52px);--th:calc(var(--tw)*1.3);--dz:2px;--mz:0;--z:0;--x:0;--y:0;--lb:1;display:flex;gap:8px;justify-content:center;align-items:center;margin:2px auto 4px;padding:7px 10px;width:max-content;border-radius:18px;background:rgba(8,14,34,.45);border:1px solid rgba(255,255,255,.22);box-shadow:inset 0 2px 8px rgba(0,0,0,.35);-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px);transition:box-shadow .25s,border-color .25s}
+.mj-tray.warn{border-color:rgba(245,158,11,.75);box-shadow:inset 0 2px 8px rgba(0,0,0,.35),0 0 12px rgba(245,158,11,.35)}
+.mj-tray.full{border-color:#ef4444;box-shadow:inset 0 2px 8px rgba(0,0,0,.35),0 0 16px rgba(239,68,68,.55);animation:mjtf 1.2s ease-in-out infinite}@keyframes mjtf{50%{box-shadow:inset 0 2px 8px rgba(0,0,0,.35),0 0 26px rgba(239,68,68,.85)}}
+.mj-tray.boom{border-color:#ef4444;background:rgba(127,29,29,.55)}
+.mj-tray.no{animation:mjn .4s}
+.mj-slot{width:calc(var(--tw) + 4px);height:calc(var(--th) + 4px);border-radius:calc(var(--tw)*.16);border:2px dashed rgba(255,255,255,.22);display:flex;align-items:flex-start;justify-content:flex-start}
+.mj-slot .mj-t{position:relative;left:auto;top:auto;display:block;cursor:default}
+.mj-slot .mj-t.land{opacity:0}
+.mj-slot .mj-t.pop{transition:transform .16s,opacity .16s;transform:scale(1.25);opacity:0}
+.mj-t.lostt{animation:mjn .4s 3;box-shadow:0 0 0 3px #ef4444,0 0 18px 4px rgba(239,68,68,.7)}
+.mj-end.lost{border-color:rgba(239,68,68,.55);background:rgba(60,10,20,.72)}
 .mj-tools{display:flex;gap:8px;justify-content:center;margin:6px 0 2px}
 .mj-scene>.ghint{text-shadow:0 1px 3px rgba(0,0,0,.9);color:#fff;opacity:.92}.mj-head,.mj-tools{text-shadow:0 1px 3px rgba(0,0,0,.6)}
 .mj-tools button{display:flex;flex-direction:column;align-items:center;gap:1px;min-width:68px;padding:7px 8px 6px;border-radius:16px;background:rgba(8,14,34,.38);color:#fff!important;border:1px solid rgba(255,255,255,.22);-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px);color:inherit}
