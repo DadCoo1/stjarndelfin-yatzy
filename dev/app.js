@@ -21,7 +21,7 @@
   if(!same || !/[?&]bot=1/.test(location.search)){ document.documentElement.innerHTML=''; throw new Error('Inramning blockerad'); }
 })();
 /* ================= Version & utvecklingsläge ================= */
-const APP_VERSION='2026.11.17.1-dev';
+const APP_VERSION='2026.11.18.1-dev';
 const DEV = /\/dev(\/|$)/.test(location.pathname);      // testversionen ligger i mappen /dev/
 const BOT = /[?&]bot=1/.test(location.search) && window.parent!==window;   // osynlig ekokompis i en ram
 const LSP = DEV ? (BOT ? 'dev:bot:' : 'dev:') : (BOT ? 'bot:' : '');    // egen sparad data i testversionen
@@ -2479,7 +2479,7 @@ const LOBBY_CATS=[
   ['🃏','Kortspel',['sol','vandtia','fisk','hjarter']],
   ['♟️','Strategi & brädspel',['kina','othello','c4','gomoku','ships','mm']],
   ['🔤','Ordspel',['ordfajt','wordle','hang']],
-  ['🧩','Pussel & minne',['sudoku','memory']],
+  ['🧩','Pussel & minne',['sudoku','memory','mahjong']],
   ['⛷️','Sport & arkad',['race','slalom','skidskytte','pong','inv']]
 ];
 const TILE_DESC={ships:'Mot datorn eller en kompis', mm:'Knäck den hemliga färgkoden', hang:'Gissa ordet innan gubben hängs', kina:'2–6 spelare · online eller mot datorn',

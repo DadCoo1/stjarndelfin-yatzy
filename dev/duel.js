@@ -15,6 +15,7 @@ const DUEL = (()=>{
     skidskytte:{name:'Skidskytte', icon:'🎯', how:'Samma lopp och samma vind för alla – snabbast vinner.', start(n){ GINFO.skidskytte.duel(n); }, keys:['seed','fmt','wind']},
     wordle:{name:'Wordle', icon:'🟩', how:'Samma hemliga ord för alla – färst gissningar vinner.', start(n){ GINFO.wordle.duel(n); }, keys:['ans','lang']},
     sudoku:{name:'Sudoku', icon:'🔢', how:'Samma pussel för alla – snabbast vinner (ledtrådar och fel ger tillägg).', start(n){ GINFO.sudoku.duel(n); }, keys:['puz','sol','level']},
+    mahjong:{name:'Vittangi', icon:'🀄', how:'Samma bord och samma brickor för alla – snabbast vinner (ledtråd +15 s, blandning +30 s).', start(n){ GINFO.mahjong.duel(n); }, keys:['lay','pos','tk','level']},
     sol:{name:'Patiens', icon:'🃏', how:'Samma giv för alla. Flest kort upplagda vinner, sedan snabbast. Tryck ✋ Klar när du inte kommer längre.', start(){ solDuelStart(); }}
   };
   const where=()=>(typeof isDesk==='function'&&isDesk())?'skärm':'enhet';
@@ -59,12 +60,14 @@ const DUEL = (()=>{
   // ett ensamspel startar: samma bana, ord eller pussel för alla
   function prep(g){ if(!active(g.kind)) return; g.duel=1; const ks=AD[g.kind].keys||[];
     if(!D.keep){ D.keep={}; for(const k of ks) if(g[k]!==undefined) D.keep[k]=JSON.parse(JSON.stringify(g[k])); }
-    else { for(const k of ks) if(D.keep[k]!==undefined) g[k]=JSON.parse(JSON.stringify(D.keep[k])); if(g.kind==='sudoku'){ g.val=g.puz.slice(); g.notes=new Array(81).fill(0); g.mist=0; g.hints=0; g.t0=(typeof now==='function'?now():Date.now()); g.time=0; } } }
+    else { for(const k of ks) if(D.keep[k]!==undefined) g[k]=JSON.parse(JSON.stringify(D.keep[k])); if(g.kind==='sudoku'){ g.val=g.puz.slice(); g.notes=new Array(81).fill(0); g.mist=0; g.hints=0; g.t0=(typeof now==='function'?now():Date.now()); g.time=0; }
+      if(g.kind==='mahjong'){ g.alive=g.pos.map(()=>true); g.left=g.pos.length; g.hist=[]; g.hints=0; g.shuf=0; g.t0=Date.now(); g.time=0; g.daily=false; g.day=null; } } }
   // resultat från spelen som går via spelmotorn
   function over(g){ if(!g||!g.duel||!active(g.kind)) return; const k=g.kind; let r=null;
     if(k==='slalom'){ const x=(g.res&&g.res[0])||[], ok=x.length&&x.every(t=>Number.isFinite(t)&&t>0), t=ok?x.reduce((s,v)=>s+v,0):Infinity; r={v:t, hi:false, txt:ok?`${(t/1000).toFixed(2).replace('.',',')} s`:'körde ur'}; }
     else if(k==='skidskytte'){ const x=g.res&&g.res[0]; if(g.fmt==='tr'){ const h=x?x.sh.length*5-x.sh.reduce((s,v)=>s+v,0):0; r={v:h, hi:true, txt:`${h} träffar`}; } else { const ok=x&&Number.isFinite(x.ms)&&x.ms>0; r={v:ok?x.ms:Infinity, hi:false, txt:ok?`${sec(x.ms/1000)} · ${x.sh.reduce((s,v)=>s+v,0)} bom`:'bröt'}; } }
     else if(k==='wordle'){ const won=g.winner===0; r={v:won?g.guesses.length:7, hi:false, txt:won?`${g.guesses.length} gissningar`:`inte hittat (${String(g.ans).toUpperCase()})`}; }
+    else if(k==='mahjong'){ const t=(g.time||0)+(g.hints||0)*15+(g.shuf||0)*30, ok=g.winner===0; r={v:ok?t:Infinity, hi:false, txt:ok?`${sec(t)}${g.hints||g.shuf?' (med tillägg)':''}`:'inte klart'}; }
     else if(k==='sudoku'){ const t=(g.time||0)+(g.hints||0)*30+(g.mist||0)*10, ok=g.winner===0; r={v:ok?t:Infinity, hi:false, txt:ok?`${sec(t)}${g.hints||g.mist?` (med tillägg)`:''}`:'inte klart'}; }
     if(r) report(k,r); }
   function quit(){ if(D) D.wait=null; D=null; closeModal(); if(typeof backToLobby==='function') backToLobby(); else { view='lobby'; render(); } }
