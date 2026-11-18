@@ -16,6 +16,7 @@
   /* ---------- borden: positioner i halva brickbredder (x, y) och lager (z) ---------- */
   const M=(rows,dx=0,dy=0,z=0)=>{ const o=[]; rows.forEach((s,j)=>[...s].forEach((ch,i)=>{ if(ch==='#') o.push([dx+i*2,dy+j*2,z]); })); return o; };
   const R=(c,r,dx,dy,z)=>M(Array(r).fill('#'.repeat(c)),dx,dy,z);
+  const P=(x,y,z0,h)=>[...Array(h)].map((_,k)=>[x,y,z0+k]);   // hög: h brickor rakt ovanpå varandra
   const C=(lens,m,dy,z)=>{ const o=[]; lens.forEach((n,j)=>{ for(let i=0;i<n;i++) o.push([(m-n)+i*2,dy+j*2,z]); }); return o; };
   // jämnt antal brickor: blir det udda läggs en "krona" överst i mitten
   function L(...parts){ const seen=new Set(), o=[]; for(const p of parts.flat()){ const k=p.join(); if(!seen.has(k)){ seen.add(k); o.push(p); } }
@@ -23,28 +24,41 @@
       top.sort((a,b)=>Math.hypot(a[0]-cx,a[1]-cy)-Math.hypot(b[0]-cx,b[1]-cy)); o.push([top[0][0],top[0][1],mz+1]); }
     return o; }
   const LAYS=[
-    {id:'torn',   name:'Lilla tornet',   p:()=>L(R(4,5,0,0,0),R(2,2,2,3,1))},
-    {id:'diamant',name:'Diamanten',      p:()=>L(C([2,3,4,5,4,3,2],5,0,0),[[5,6,1]])},
-    {id:'mane',   name:'Månen',          p:()=>L(M(['..#####','.###...','###....','##.....','###....','.###...','..#####']),M(['.##..','##...','#....','##...','.##..'],1,1,1),M(['#','#','#'],1,3,2))},
-    {id:'hjarta', name:'Hjärtat',        p:()=>L(M(['.##.##.','#######','#######','.#####.','..###..','...#...']),M(['######'],1,2,1),M(['####'],3,5,1),M(['###'],4,3,2))},
-    {id:'gran',   name:'Granen',         p:()=>L(C([1,2,3,4,5,6,1,1],6,0,0),C([2,3,4],6,6,1),C([1,2],6,8,2))},
-    {id:'kors',   name:'Snöflingan',     p:()=>L(M(['#..#..#','.#.#.#.','..###..','#######','..###..','.#.#.#.','#..#..#']),[[6,4,1],[4,6,1],[6,6,1],[8,6,1],[6,8,1],[6,6,2]])},
-    {id:'stjarna',name:'Stjärnan',       p:()=>L(M(['...#...','..###..','#######','.#####.','..###..','.##.##.','##...##']),M(['.#.','###','.#.'],4,4,1),[[6,6,2]])},
+    {id:'torn',   name:'Lilla tornet',   p:()=>L(R(4,5,0,0,0),R(2,2,2,3,1),P(3,4,2,2))},
+    {id:'diamant',name:'Diamanten',      p:()=>L(C([2,3,4,5,4,3,2],5,0,0),P(5,6,1,3),P(3,2,1,2),P(7,10,1,2))},
+    {id:'mane',   name:'Månen',          p:()=>L(M(['..#####','.###...','###....','##.....','###....','.###...','..#####']),M(['.##..','##...','#....','##...','.##..'],1,1,1),M(['#','#','#'],1,3,2),P(12,0,1,3),P(12,12,1,3),P(1,5,3,2))},
+    {id:'hjarta', name:'Hjärtat',        p:()=>L(M(['.##.##.','#######','#######','.#####.','..###..','...#...']),M(['######'],1,2,1),M(['####'],3,5,1),M(['###'],4,3,2),P(6,4,3,3),P(2,0,1,2),P(10,0,1,2))},
+    {id:'gran',   name:'Granen',         p:()=>L(C([1,2,3,4,5,6,1,1],6,0,0),C([2,3,4],6,6,1),C([1,2],6,8,2),P(6,0,1,3),P(6,8,3,3),P(1,10,1,2),P(11,10,1,2))},
+    {id:'kors',   name:'Snöflingan',     p:()=>L(M(['#..#..#','.#.#.#.','..###..','#######','..###..','.#.#.#.','#..#..#']),[[6,4,1],[4,6,1],[8,6,1],[6,8,1]],P(6,6,1,4),P(0,0,1,3),P(12,0,1,3),P(0,12,1,3),P(12,12,1,3))},
+    {id:'stjarna',name:'Stjärnan',       p:()=>L(M(['...#...','..###..','#######','.#####.','..###..','.##.##.','##...##']),M(['.#.','###','.#.'],4,4,1),P(6,6,2,3),P(6,0,1,3),P(0,4,1,2),P(12,4,1,2),P(0,12,1,2),P(12,12,1,2))},
     {id:'fisk',   name:'Fisken',         p:()=>L(M(['#..####.','##.#####','########','##.#####','#..####.']),R(3,3,7,1,1),M(['##'],8,2,2))},
-    {id:'pyramid',name:'Pyramiden',      p:()=>L(R(6,6,0,0,0),R(4,4,2,2,1),R(2,2,4,4,2))},
-    {id:'fjaril', name:'Fjärilen',       p:()=>L(M(['##..##','######','######','.####.','######','######','##..##']),R(4,2,2,2,1),R(4,2,2,8,1),R(2,2,4,5,2))},
+    {id:'pyramid',name:'Pyramiden',      p:()=>L(R(6,6,0,0,0),R(4,4,2,2,1),R(2,2,4,4,2),P(5,5,3,3),P(0,0,1,2),P(10,0,1,2),P(0,10,1,2),P(10,10,1,2))},
+    {id:'fjaril', name:'Fjärilen',       p:()=>L(M(['##..##','######','######','.####.','######','######','##..##']),R(4,2,2,2,1),R(4,2,2,8,1),R(2,2,4,5,2),P(5,6,3,3),P(0,0,1,3),P(10,0,1,3),P(0,12,1,3),P(10,12,1,3))},
     {id:'bro',    name:'Bron',           p:()=>L(M(['########','########','##....##','##....##','##....##']),M(['#######'],1,1,1),M(['#','#'],1,5,1),M(['#','#'],13,5,1),M(['######'],2,1,2),M(['#####'],3,1,3))},
     {id:'kyrka',  name:'Kyrkan',         p:()=>L(M(['...#...','..###..','..###..','#######','#######','#######','#######']),M(['#','#'],6,2,1),R(5,3,2,8,1),R(3,2,4,9,2),M(['##'],5,10,3))},
-    {id:'borg',   name:'Borgen',         p:()=>L(R(6,8,0,0,0),R(4,6,2,2,1),[[0,0,1],[10,0,1],[0,14,1],[10,14,1],[0,0,2],[10,0,2],[0,14,2],[10,14,2]])},
+    {id:'borg',   name:'Borgen',         p:()=>L(R(6,8,0,0,0),R(4,6,2,2,1),P(0,0,1,4),P(10,0,1,4),P(0,14,1,4),P(10,14,1,4),P(5,7,2,3))},
     {id:'stor',   name:'Stora pyramiden',p:()=>L(R(7,8,0,0,0),R(5,6,2,2,1),R(3,4,4,4,2),R(1,2,6,6,3))},
-    {id:'trappan',name:'Trappan',        p:()=>L(R(7,6,0,0,0),R(6,5,1,1,1),R(5,4,2,2,2),R(4,3,3,3,3))}
-  ].map(l=>(l.n=l.p().length,l)).sort((a,b)=>a.n-b.n);
+    {id:'trappan',name:'Trappan',        p:()=>L(R(7,6,0,0,0),R(6,5,1,1,1),R(5,4,2,2,2),R(4,3,3,3,3))},
+    // högar och torn: det mesta ligger dolt under andra brickor
+    {id:'hogar',  name:'Högarna',        p:()=>L(...[[0,0],[5,0],[10,0],[0,6],[5,6],[10,6],[0,12],[5,12],[10,12]].map(([x,y])=>P(x,y,0,6)))},
+    {id:'tornen', name:'Tornen',         p:()=>L(R(6,6,0,0,0),P(2,2,1,3),P(8,2,1,3),P(2,8,1,3),P(8,8,1,3),P(5,5,1,5))},
+    {id:'skorsten',name:'Skorstenarna',  p:()=>L(R(7,5,0,0,0),P(0,0,1,4),P(4,0,1,6),P(8,0,1,6),P(12,0,1,4),P(6,6,1,3),P(2,8,1,2),P(10,8,1,2))},
+    {id:'fjallet',name:'Fjället',        p:()=>L([1,2,3,5,3,2,1].flatMap((h,i)=>[0,1,2,3,4].flatMap(j=>P(i*2,j*2,0,h))))},
+    {id:'pagod',  name:'Pagoden',        p:()=>L(R(7,7,0,0,0),R(5,5,2,2,1),R(3,3,4,4,2),P(6,6,3,4))},
+    {id:'mur',    name:'Muren',          p:()=>L(R(7,4,0,0,0),R(6,4,1,0,1),R(5,4,2,0,2),R(4,4,3,0,3))}
+  ].map(l=>(l.n=l.p().length,l));
+  // ordning efter uppmätt svårighet (simulerad spelare med listen), små bord först
+  const ORDER=['torn','diamant','stjarna','kors','gran','mane','hjarta','fisk','tornen','stor','pagod','pyramid','fjallet','skorsten','fjaril','kyrka','borg','bro','hogar','mur','trappan'];
+  LAYS.sort((a,b)=>ORDER.indexOf(a.id)-ORDER.indexOf(b.id));
   // nivå → bord, antal olika symboler och måltid för tre stjärnor
   const NLV=LAYS.length*2;
   function levelDef(n){ n=Math.max(1,n|0);
-    if(n<=NLV){ const li=Math.floor((n-1)/2), P=LAYS[li].n/2; return {lay:li, kinds:Math.max(4,Math.min(36,Math.round(P*((n-1)%2?.62:.42)))), par:LAYS[li].n*3}; }
-    const r=rng(n*131), li=Math.min(LAYS.length-1,Math.floor(LAYS.length/2)+Math.floor(r()*Math.ceil(LAYS.length/2))); return {lay:li, kinds:36, par:LAYS[li].n*3}; }
-  const dailyDef=d=>{ const big=LAYS.map((l,i)=>i).filter(i=>LAYS[i].n>=44), li=big[d%big.length]; return {lay:li, kinds:Math.round(LAYS[li].n/2*.7), par:LAYS[li].n*3}; };
+    // svårare för varje nivå: fler olika symboler och paren delas ut längre isär (ena högt upp, andra djupt ner)
+    // open = hur många brickor lösningen låter vänta på listen, close = hur gärna ett par stängs direkt (lägre = svårare)
+    const open=n<=2?1:n<=6?2:3, close=Math.max(.15,.75-n*.022);
+    if(n<=NLV){ const li=Math.floor((n-1)/2), Pn=LAYS[li].n/2; return {lay:li, kinds:Math.max(5,Math.min(36,Math.round(Pn*(n<=2?.7:1)))), par:LAYS[li].n*3, open, close}; }
+    const r=rng(n*131), li=Math.min(LAYS.length-1,Math.floor(LAYS.length/2)+Math.floor(r()*Math.ceil(LAYS.length/2))); return {lay:li, kinds:36, par:LAYS[li].n*3, open:3, close:.15}; }
+  const dailyDef=d=>{ const big=LAYS.map((l,i)=>i).filter(i=>LAYS[i].n>=44), li=big[d%big.length]; return {lay:li, kinds:Math.round(LAYS[li].n/2*.85), par:LAYS[li].n*3, open:3, close:.45}; };
 
   /* ---------- regler ---------- */
   // 0–33: 34 olika symboler. 34–37 och 38–41: två grupper där alla fyra passar ihop med varandra.
@@ -54,6 +68,8 @@
       if(c===z+1 && Math.abs(a-x)<2 && Math.abs(b-y)<2) return true;
       if(c===z && Math.abs(b-y)<2){ if(a===x-2) Lf=true; else if(a===x+2) Rt=true; } }
     return Lf&&Rt; }
+  // ligger något rakt ovanpå? (då syns bara kanten – den mörkas inte extra)
+  const covered=(g,i)=>{ const [x,y,z]=g.pos[i]; return g.pos.some((q,j)=>j!==i&&g.alive[j]&&q[2]===z+1&&Math.abs(q[0]-x)<2&&Math.abs(q[1]-y)<2); };
   const freeList=(pos,alive)=>pos.map((_,i)=>i).filter(i=>alive[i]&&!blocked(pos,alive,i));
   const TRAY=4;
   // drag som tömmer något: fria brickor som matchar en bricka på listen, och fria par på brädet
@@ -61,14 +77,31 @@
   const nMoves=g=>{ const m=moves(g); return m.single.length+m.pairs.length; };
   function pairs(g){ const f=freeList(g.pos,g.alive), by={}; for(const i of f){ const k=key(g.tk[i]); (by[k]=by[k]||[]).push(i); } const o=[]; for(const k in by){ const a=by[k]; for(let x=0;x<a.length;x++) for(let y=x+1;y<a.length;y++) o.push([a[x],a[y]]); } return o; }
   // lägg ut baklänges från en lösning: plocka två fria platser i taget och ge dem ett par. Ordningen sparas (= en lösning).
-  function deal(pos, pairList, r, alive0){ const n=pos.length;
+  function deal(pos, pairList, r, alive0, spread){ const n=pos.length; spread=spread||0;
     for(let tries=0;tries<80;tries++){ const alive=alive0?alive0.slice():pos.map(()=>true), kind=new Array(n).fill(-1), pl=pairList.slice(), ord=[]; for(let i=pl.length-1;i>0;i--){ const j=Math.floor(r()*(i+1)); [pl[i],pl[j]]=[pl[j],pl[i]]; }
       let ok=true; for(const pr of pl){ const f=freeList(pos,alive); if(f.length<pr.length){ ok=false; break; }
         if(pr.length===1){ const a=f[Math.floor(r()*f.length)%f.length]; kind[a]=pr[0]; alive[a]=false; ord.push([a]); continue; }
-        const ia=Math.floor(r()*f.length)%f.length, a=f[ia], b=f[(ia+1+Math.floor(r()*(f.length-1)))%f.length];
+        const ia=Math.floor(r()*f.length)%f.length, a=f[ia]; let b=f[(ia+1+Math.floor(r()*(f.length-1)))%f.length];
+        if(r()<spread){ // välj partner långt bort, helst i ett annat lager – svårare att hitta
+          const [ax,ay,az]=pos[a], c=f.filter(x=>x!==a).map(x=>[x,Math.abs(pos[x][2]-az)*4+Math.abs(pos[x][0]-ax)+Math.abs(pos[x][1]-ay)+r()*3]).sort((p,q)=>q[1]-p[1]); b=c[Math.floor(r()*Math.min(3,c.length))][0]; }
         kind[a]=pr[0]; kind[b]=pr[1]; alive[a]=false; alive[b]=false; ord.push([a,b]); }
       if(ok){ deal.order=ord; return kind; } }
     return null; }
+  // utdelning för listen: en lösning byggs tryck för tryck. Upp till maxOpen brickor får vänta på listen innan partnern
+  // blir åtkomlig – då måste man gräva och planera, men det går alltid att lösa (listen har en plats mer än lösningen behöver).
+  function dealTray(pos, pairList, r, maxOpen, pClose){ const n=pos.length;
+    for(let tries=0;tries<60;tries++){ const alive=pos.map(()=>true), open=[], pairsAt=[], seq=[]; let left=n, ok=true;
+      while(left>0){ const f=freeList(pos,alive); if(!f.length){ ok=false; break; }
+        // gräv gärna uppifrån i höga högar, så att partnern hamnar djupt ner
+        const t=f[Math.floor(r()*f.length)]; alive[t]=false; left--; seq.push([t]);
+        const mustClose=open.length>=maxOpen||left<open.length+1;
+        if(open.length&&(mustClose||r()<pClose)){ const k=Math.floor(r()*open.length), a=open.splice(k,1)[0]; pairsAt.push([a,t]); }
+        else open.push(t); }
+      if(!ok||open.length) continue;
+      const pl=pairList.slice(); for(let i=pl.length-1;i>0;i--){ const j=Math.floor(r()*(i+1)); [pl[i],pl[j]]=[pl[j],pl[i]]; }
+      const kind=new Array(n).fill(-1); pairsAt.forEach(([a,b],i)=>{ kind[a]=pl[i][0]; kind[b]=pl[i][1]; });
+      deal.order=seq; return kind; }
+    return deal(pos,pairList,r); }
   // välj slumpvis vilka symboler som är med, så att varje giv ser olika ut
   function makePairs(nPairs, nKinds, r){ const all=[...Array(34).keys(),'F','S']; for(let i=all.length-1;i>0;i--){ const j=Math.floor(r()*(i+1)); [all[i],all[j]]=[all[j],all[i]]; }
     const ks=all.slice(0,Math.max(3,Math.min(36,nKinds))), o=[]; let fl=Math.floor(r()*4), se=Math.floor(r()*4);
@@ -156,7 +189,7 @@
     init(){ const o={daily:mjDaily, level:mjPick||lvl()}; mjPick=0; return o; },
     start(g){ const daily=!!g.daily, n=dayNo(); g.day=daily?n:null; const seed=daily?n*7919+13:Math.floor(Math.random()*1e9), r=rng(seed);
       const d=daily?dailyDef(n):levelDef(g.level||1); g.lay=d.lay; g.par=d.par; g.pos=LAYS[d.lay].p();
-      g.tk=deal(g.pos, makePairs(g.pos.length/2, d.kinds, r), r)||[]; g.alive=g.pos.map(()=>true); g.tray=[]; g.hist=[]; g.hints=0; g.shuf=0; g.saves=0; g.mix=0; g.t0=now(); g.time=0; g.cur=0; g.left=g.pos.length; },
+      g.spread=.6; g.tk=dealTray(g.pos, makePairs(g.pos.length/2, d.kinds, r), r, d.open, d.close)||[]; g.alive=g.pos.map(()=>true); g.tray=[]; g.hist=[]; g.hints=0; g.shuf=0; g.saves=0; g.mix=0; g.t0=now(); g.time=0; g.cur=0; g.left=g.pos.length; },
     valid(g){ return g.names.length===1 && Array.isArray(g.pos) && Array.isArray(g.tk) && g.tk.length===g.pos.length && (!g.tray||Array.isArray(g.tray)&&g.tray.length<=TRAY); },
     waitingFor(){ return 0; }, scoreOf(g){ return fmt(g); },
     apply(g,a){
@@ -175,7 +208,7 @@
         const stuck=!nMoves(g), left=g.pos.map((_,i)=>i).filter(i=>g.alive[i]); const by={}; for(const i of left){ const k=key(g.tk[i]); (by[k]=by[k]||[]).push(g.tk[i]); }
         // brickor vars partner redan ligger på listen läggs ut ensamma, resten parvis – då går det fortfarande att lösa
         const pl=[]; for(const k in by){ const a2=by[k]; let x=0; if(a2.length%2){ pl.push([a2[0]]); x=1; } for(;x+1<a2.length;x+=2) pl.push([a2[x],a2[x+1]]); }
-        const r=rng(Math.floor(Math.random()*1e9)), sub=deal(g.pos, pl, r, g.alive.slice());
+        const r=rng(Math.floor(Math.random()*1e9)), sub=deal(g.pos, pl, r, g.alive.slice(), g.spread||0);
         if(sub){ for(const i of left) g.tk[i]=sub[i]; } else { const ks=left.map(i=>g.tk[i]); for(let x=ks.length-1;x>0;x--){ const y=Math.floor(r()*(x+1)); [ks[x],ks[y]]=[ks[y],ks[x]]; } left.forEach((i,x)=>{ g.tk[i]=ks[x]; }); }
         if(!stuck) g.shuf++; g.mix=(g.mix||0)+1; g.hist=[]; g.last={t:now(),type:'shuffle',free:stuck}; return true; }
       return false; },
@@ -187,8 +220,8 @@
       const introKey=g.t0+':'+(g.mix||0), intro=mjIntro!==introKey; mjIntro=introKey;
       const order=g.pos.map((p,i)=>i).filter(i=>g.alive[i]).sort((a,b)=>g.pos[a][2]-g.pos[b][2]||g.pos[a][1]-g.pos[b][1]||g.pos[a][0]-g.pos[b][0]);
       const back=mjBack; mjBack=null;
-      const tiles=order.map((i,n)=>{ const [x,y,z]=g.pos[i], f=fr.has(i), k=g.tk[i], cls=`${f?'fr':'bl'}${dim&&!f?' dim':''}${g.over&&g.lost===i?' lostt':''}${mjHint&&mjHint.includes(i)?' hint':''}${intro?' in':''}${back&&back.includes(i)?' back':''}`;
-        return `<button class="mj-t ${cls}" data-mj="t" data-i="${i}" ${grp(k)?`data-g="${grp(k)}"`:''} style="--x:${x};--y:${y};--z:${z};--lb:${(1-(mz-z)*.045).toFixed(3)};z-index:${z*2000+y*40+x}${intro?`;animation-delay:${Math.round(n*Math.min(14,700/order.length))}ms`:''}" aria-label="${kname(k,set)}${f?'':' (låst)'}">${face(k,set)}</button>`; }).join('');
+      const tiles=order.map((i,n)=>{ const [x,y,z]=g.pos[i], f=fr.has(i), k=g.tk[i], cls=`${f?'fr':'bl'}${!f?(covered(g,i)?' cov':dim?' dim':''):''}${g.over&&g.lost===i?' lostt':''}${mjHint&&mjHint.includes(i)?' hint':''}${intro?' in':''}${back&&back.includes(i)?' back':''}`;
+        return `<button class="mj-t ${cls}" data-mj="t" data-i="${i}" ${grp(k)?`data-g="${grp(k)}"`:''} style="--x:${x};--y:${y};--z:${z};--lb:${(1-(mz-z)*Math.min(.045,.2/Math.max(1,mz))).toFixed(3)};z-index:${z*2000+y*40+x}${intro?`;animation-delay:${Math.round(n*Math.min(14,700/order.length))}ms`:''}" aria-label="${kname(k,set)}${f?'':' (låst)'}">${face(k,set)}</button>`; }).join('');
       const pct=Math.round((1-g.left/g.pos.length)*100);
       const head=`<div class="mj-head"><span class="mj-lv">${g.daily?'📅 Dagens':g.duel?'👥 Turas om':`Nivå ${g.level||1}`}</span><span class="mj-nm">${Lg.name}</span><span class="mj-tm">⏱️ <b id="mjTime">${fmt(g)}</b></span></div><div class="mj-prog"><i style="width:${pct}%"></i><span>${g.left} kvar</span></div>`;
       const fresh0=mjTrayFx!==(g.last&&g.last.t); mjTrayFx=g.last&&g.last.t;
@@ -325,7 +358,7 @@
       <div class="btns" style="flex-direction:column">${inGame?'<button class="pri" data-act="close">▶️ Tillbaka till spelet</button>':'<button class="pri" data-mj="menu">← Tillbaka</button>'}</div></div>`,'mjlook'); }
   GINFO.mahjong.menu=()=>showMahjongMenu();
   GINFO.mahjong.duel=n=>{ mjDaily=false; mjPick=lvl(); mjHint=null; KIT.startSolo('mahjong',n); };
-  window.MJ={LAYS, SETS, SKINS, TABLES, blocked, pairs, deal, makePairs, levelDef, face, totalStars, starsFor};
+  window.MJ={dealTray, LAYS, SETS, SKINS, TABLES, blocked, pairs, deal, makePairs, levelDef, face, totalStars, starsFor};
 
   /* ---------- utseende ---------- */
   st.textContent=`
@@ -351,7 +384,7 @@
 .mj-t{position:absolute;left:calc(var(--x)*var(--tw)/2 + (var(--mz) - var(--z))*var(--dz));top:calc(var(--y)*var(--th)/2 + (var(--mz) - var(--z))*var(--dz));width:var(--tw);height:var(--th);padding:0;border:0;
   border-radius:calc(var(--tw)*.13);color:#111;cursor:pointer;-webkit-tap-highlight-color:transparent;
   background:radial-gradient(120% 80% at 25% 10%,rgba(255,255,255,.95),transparent 55%),linear-gradient(155deg,var(--f1),var(--f2) 60%,var(--f3));
-  box-shadow:inset 0 0 0 1px rgba(0,0,0,.10),inset 0 calc(var(--tw)*-.03) 0 rgba(0,0,0,.06),calc(var(--tw)*.04) calc(var(--tw)*.045) 0 var(--e1),calc(var(--tw)*.08) calc(var(--tw)*.09) 0 var(--e2),calc(var(--tw)*(.1 + var(--z)*.04)) calc(var(--tw)*(.15 + var(--z)*.05)) calc(var(--tw)*(.14 + var(--z)*.06)) rgba(0,0,0,calc(.42 + var(--z)*.06));
+  box-shadow:inset 0 0 0 1px rgba(0,0,0,.10),inset 0 calc(var(--tw)*-.03) 0 rgba(0,0,0,.06),calc(var(--tw)*.04) calc(var(--tw)*.045) 0 var(--e1),calc(var(--tw)*.08) calc(var(--tw)*.09) 0 var(--e2),calc(var(--tw)*.1) calc(var(--tw)*.15) calc(var(--tw)*.16) rgba(0,0,0,.34);
   transition:filter .18s,transform .14s,box-shadow .18s}
 .mj-t:active{transform:scale(.97)}
 .mj-t svg{position:absolute;top:3%;left:3%;width:94%;height:94%}
