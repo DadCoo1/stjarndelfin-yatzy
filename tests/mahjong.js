@@ -9,16 +9,19 @@ let fail=0; const ok=(c,m)=>{ console.log((c?'✓ ':'✗ ')+m); if(!c) fail++; }
   const lay=await p.evaluate(()=>{ const out=[]; MJ.LAYS.forEach((L,li)=>{ const pos=L.p(), keys=new Set(pos.map(q=>q.join())); let solved=0;
       for(let t=0;t<20;t++){ let s=t*977+li+1; const r=()=>{ s=(s*16807)%2147483647; return s/2147483647; }; const kind=MJ.deal(pos, MJ.makePairs(pos.length/2, 12+t, r), r); if(!kind) continue;
         // utläggningens ordning är en lösning: spela upp den och kontrollera att varje par är fritt och lika
-        const g={pos,tk:kind,alive:pos.map(()=>true)}; const key=k=>k<34?k:k<38?'F':'S'; let good=true;
+        const g={pos,tk:kind,alive:pos.map(()=>true)}; const key=k=>k; let good=true;
         for(const [i,j] of MJ.deal.order){ if(MJ.blocked(pos,g.alive,i)||MJ.blocked(pos,g.alive,j)||key(kind[i])!==key(kind[j])) { good=false; break; } g.alive[i]=g.alive[j]=false; }
         if(good && g.alive.every(x=>!x)) solved++; }
       out.push({name:L.name, n:pos.length, even:pos.length%2===0, uniq:keys.size===pos.length, solved}); }); return out; });
   for(const L of lay) ok(L.even && L.uniq && L.solved>=18, `${L.name}: ${L.n} brickor, jämnt, inga dubbletter, ${L.solved}/20 givar lösta`);
   // utdelningen för listen: alla bord, svåraste inställningen – lösningen fungerar och listen svämmar aldrig över
-  const tl=await p.evaluate(()=>{ const key=k=>k<34?k:k<38?'F':'S'; return MJ.LAYS.map((L,li)=>{ let ok=0; for(let t=0;t<10;t++){ let s=t*7919+li+1; const r=()=>{ s=(s*16807)%2147483647; return s/2147483647; }; const pos=L.p(), tk=MJ.dealTray(pos,MJ.makePairs(pos.length/2,36,r),r,3,.15), alive=pos.map(()=>true); let tray=[], good=true;
-      for(const [i] of MJ.deal.order){ if(MJ.blocked(pos,alive,i)){ good=false; break; } alive[i]=false; const m=tray.findIndex(k=>key(k)===key(tk[i])); if(m>=0) tray.splice(m,1); else { if(tray.length>=4){ good=false; break; } tray.push(tk[i]); } }
+  const tl=await p.evaluate(()=>{ const key=k=>k; return MJ.LAYS.map((L,li)=>{ let ok=0; for(let t=0;t<10;t++){ let s=t*7919+li+1; const r=()=>{ s=(s*16807)%2147483647; return s/2147483647; }; const pos=L.p(), tk=MJ.dealTray(pos,MJ.makePairs(pos.length/2,36,r),r,3,.15), alive=pos.map(()=>true); let tray=[], good=true;
+      for(const [i] of MJ.deal.order){ if(MJ.blocked(pos,alive,i)){ good=false; break; } alive[i]=false; const m=tray.findIndex(k=>key(k)===key(tk[i])); if(m>=0) tray.splice(m,1); else { tray.push(tk[i]); if(tray.length>=4){ good=false; break; } } }
       if(good&&!tray.length&&alive.every(a=>!a)) ok++; } return ok; }); });
   ok(tl.every(x=>x===10), `listen-utdelning: alla ${tl.length} bord lösbara utan att listen svämmar över (${tl.join(',')})`);
+  // bara exakt likadana brickor bildar par (inga grupper med olika bilder)
+  const same=await p.evaluate(()=>{ let s=5; const r=()=>{ s=(s*16807)%2147483647; return s/2147483647; }; const pl=MJ.makePairs(52,42,r); return pl.every(([a,b])=>a===b) && MJ.SETS.filter(x=>x.sym).every(x=>new Set([...x.sym,...x.F,...x.S]).size===42); });
+  ok(same, 'bara exakt likadana brickor bildar par, 42 olika symboler per tema');
   // regler för låsta brickor
   const bl=await p.evaluate(()=>{ const pos=[[0,0,0],[2,0,0],[4,0,0],[2,0,1]], al=[true,true,true,true];
     return [MJ.blocked(pos,al,0), MJ.blocked(pos,al,1), MJ.blocked(pos,al,3), (al[3]=false, MJ.blocked(pos,al,1)), (al[0]=false, MJ.blocked(pos,al,1))]; });
@@ -42,9 +45,9 @@ let fail=0; const ok=(c,m)=>{ console.log((c?'✓ ':'✗ ')+m); if(!c) fail++; }
   await p.click('[data-mj=undo]'); await sleep(200); ok(await p.evaluate(()=>G.left===G.pos.length), 'ångra lägger tillbaka paret');
   await p.click('[data-mj=shuffle]'); await sleep(600); ok(await p.evaluate(()=>G.shuf===1 && G.left===G.pos.length), 'blanda fungerar');
   // spela klart med sökning och se slutet
-  const won=await p.evaluate(async()=>{ const key=k=>k<34?k:k<38?'F':'S'; const path=MJ.deal.order.slice(); const alive=G.alive.slice(); let tray=G.tray.map(j=>G.tk[j]);
+  const won=await p.evaluate(async()=>{ const key=k=>k; const path=MJ.deal.order.slice(); const alive=G.alive.slice(); let tray=G.tray.map(j=>G.tk[j]);
     // kontrollera lösningen med listens regler: varje tryck på en fri bricka, listen svämmar aldrig över
-    for(const it of path){ for(const i of it){ if(MJ.blocked(G.pos,alive,i)) return {solvable:false,why:'låst'}; alive[i]=false; const m=tray.findIndex(k=>key(k)===key(G.tk[i])); if(m>=0) tray.splice(m,1); else { if(tray.length>=4) return {solvable:false,why:'full'}; tray.push(G.tk[i]); } } }
+    for(const it of path){ for(const i of it){ if(MJ.blocked(G.pos,alive,i)) return {solvable:false,why:'låst'}; alive[i]=false; const m=tray.findIndex(k=>key(k)===key(G.tk[i])); if(m>=0) tray.splice(m,1); else { tray.push(G.tk[i]); if(tray.length>=4) return {solvable:false,why:'full'}; } } }
     for(const it of path){ if(it.length===1) doAct({type:'tap',i:it[0]}); else doAct({type:'pair',i:it[0],j:it[1]}); } await new Promise(r=>setTimeout(r,500));
     return {solvable:true, over:G.over, winner:G.winner, txt:(document.querySelector('.mj-end h3')||{}).textContent, lvl:lsGet('mj_lvl')}; });
   ok(won.solvable, 'bordet går att lösa även efter blandning');
@@ -54,24 +57,25 @@ let fail=0; const ok=(c,m)=>{ console.log((c?'✓ ':'✗ ')+m); if(!c) fail++; }
   await p.screenshot({path:'tests/shots/mahjong-2.png'});
   // listen: en bricka hamnar på listen, två lika försvinner, full lista + bricka som inte passar = förlust, ångra räddar
   const tr=await p.evaluate(async()=>{ const sl=ms=>new Promise(r=>setTimeout(r,ms)); closeModal&&closeModal(); showGameMenu('mahjong'); document.querySelector('#modal .mj-lvb[data-lv="1"]').click(); await sl(900);
-    const key=k=>k<34?k:k<38?'F':'S', free=()=>G.pos.map((_,i)=>i).filter(i=>G.alive[i]&&!MJ.blocked(G.pos,G.alive,i));
+    const key=k=>k, free=()=>G.pos.map((_,i)=>i).filter(i=>G.alive[i]&&!MJ.blocked(G.pos,G.alive,i));
     const f=free(), a=f[0]; document.querySelector(`.mj-t[data-i="${a}"]`).click(); await sl(450); const one=G.tray.length===1&&!G.alive[a]&&!!document.querySelector('#mjTray [data-ti]');
     const b=free().find(i=>key(G.tk[i])===key(G.tk[a])); let paired=null; if(b!==undefined){ document.querySelector(`.mj-t[data-i="${b}"]`).click(); await sl(600); paired=G.tray.length===0&&G.left===G.pos.length-2; }
-    // fyll listen med fyra olika
-    let guard=0; while(G.tray.length<4&&guard++<40){ const tk=new Set(G.tray.map(j=>key(G.tk[j]))); const c=free().find(i=>!tk.has(key(G.tk[i]))); if(c===undefined) break; doAct({type:'tap',i:c}); }
-    const full=G.tray.length===4; await sl(200); const warn=document.getElementById('mjTray').classList.contains('full');
+    // tre brickor utan par på listen: varning. Den fjärde = förlust
+    let guard=0; while(G.tray.length<3&&guard++<40){ const tk=new Set(G.tray.map(j=>key(G.tk[j]))); const c=free().find(i=>!tk.has(key(G.tk[i]))); if(c===undefined) break; doAct({type:'tap',i:c}); }
+    await sl(200); const warn=G.tray.length===3&&document.getElementById('mjTray').classList.contains('warn');
     const tk=new Set(G.tray.map(j=>key(G.tk[j]))), bad=free().find(i=>!tk.has(key(G.tk[i])));
-    if(bad===undefined) return {one,paired,full,warn,dbg:'ingen fri bricka utan match: '+free().length+' fria, lista '+G.tray.length};
+    if(bad===undefined) return {one,paired,warn,dbg:'ingen fri bricka utan match'};
     document.querySelector(`.mj-t[data-i="${bad}"]`).click(); await sl(500);
-    const h=document.querySelector('.mj-end h3'), lost=G.over&&G.lost!==undefined&&!!h&&/full/.test(h.textContent);
-    const u=document.querySelector('.mj-end [data-mj=undo]'); if(u) u.click(); await sl(300); const saved=!G.over&&G.saves===1&&G.tray.length===4;
-    return {one,paired,full,warn,lost,saved,dbg:JSON.stringify({over:G.over,lost:G.lost,h:h&&h.textContent})}; });
-  if(!tr.lost||!tr.saved) console.log(tr.dbg);
+    const h=document.querySelector('.mj-end h3'), lost=G.over&&G.lost!==undefined&&G.tray.length===4&&!!h&&/full/.test(h.textContent)&&!!document.querySelector('.mj-end [data-mj=again]');
+    const back=G.tray.slice(), leftBefore=G.left; const u=document.querySelector('.mj-end [data-mj=cont]'); if(u) u.click(); await sl(300);
+    const cont=!G.over&&G.saves===1&&G.tray.length===0&&back.every(j=>G.alive[j])&&G.left===leftBefore&&!!document.querySelector(`#mjB .mj-t[data-i="${back[0]}"]`);
+    return {one,paired,warn,lost,cont,dbg:JSON.stringify({over:G.over,lost:G.lost,h:h&&h.textContent})}; });
+  if(!tr.lost||!tr.cont) console.log(tr.dbg);
   ok(tr.one, 'tryck på en fri bricka: den flyttas till listen');
   ok(tr.paired!==false, 'två lika på listen försvinner'+(tr.paired===null?' (ingen fri partner i just den här given)':''));
-  ok(tr.full&&tr.warn, 'listen tar fyra brickor och lyser rött när den är full');
-  ok(tr.lost, 'femte brickan som inte passar ger förlust');
-  ok(tr.saved, 'ångra efter förlust räddar spelet (räknas som hjälp)');
+  ok(tr.warn, 'tre brickor utan par på listen: listen varnar');
+  ok(tr.lost, 'fjärde brickan utan par = förlust, med val att börja om');
+  ok(tr.cont, 'fortsätt: brickorna på listen tillbaka till brädet, tom list, räknas som hjälp');
   // utseende: låst tema går inte att välja, öppet går
   const lk=await p.evaluate(async()=>{ const sl=ms=>new Promise(x=>setTimeout(x,ms)); document.querySelector('[data-mj=look]')?.click()||document.querySelector('[data-act=lobby]'); showGameMenu('mahjong'); document.querySelector('#modal [data-mj=look]').click(); await sl(200);
     const n=document.querySelectorAll('#modal .mj-lo').length; document.querySelector('#modal [data-mj=pickl][data-id=sport]').click(); await sl(100); const sportLocked=lsGet('mj_set')!=='sport';
