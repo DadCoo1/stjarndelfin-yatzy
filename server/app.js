@@ -1,4 +1,4 @@
-/* Spelservern för Fröknarna Leins game board
+/* Spelservern för FrauLeins game board
    - /auth   : inloggning med användarnamn + engångskod från en TOTP-app (t.ex. Google Authenticator, 2FAS, Aegis)
    - /peer   : kopplingsserver (PeerJS) – bara för inloggade
    - /turn   : tillfälliga inloggningar till reservservern (coturn) – bara för inloggade

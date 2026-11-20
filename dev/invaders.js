@@ -225,7 +225,7 @@ const INV = (()=>{
     o.className='inv-ov show';
     if(overlay==='menu'){
       const cps=[]; for(let l=1;l<=ck;l+=5) cps.push(l);
-      o.innerHTML=`<div class="iv-card"><div class="iv-title">SPACE<br>INVADERS</div><div class="iv-sub">Försvara Fröknarnas galax! 👾</div>
+      o.innerHTML=`<div class="iv-card"><div class="iv-title">SPACE<br>ATTACK</div><div class="iv-sub">Försvara FrauLeins galax! 👾</div>
         <div class="iv-stats"><span>🏆 Rekord <b>${sv.best}</b></span><span>🚀 Högsta nivå <b>${sv.maxLevel}</b></span></div>
         <button class="iv-btn" data-iv="go" data-l="1">▶ Starta nivå 1</button>
         <button class="iv-btn alt" data-duel="names" data-k="inv">👥 Turas om på samma enhet</button>

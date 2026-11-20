@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # =====================================================================
-#  harden.sh – härdning av en ny Ubuntu 24.04-server för Fröknarnas spelserver
+#  harden.sh – härdning av en ny Ubuntu 24.04-server för FrauLeins spelserver
 #
 #  Kör EN gång som root på en nyinstallerad server:
 #     curl -fsSLO https://raw.githubusercontent.com/DadCoo1/stjarndelfin-yatzy/main/server/harden.sh
@@ -90,7 +90,7 @@ KbdInteractiveAuthentication no
 PermitRootLogin no'; else AUTH='# Ingen SSH-nyckel hittades – lösenordsinloggning är KVAR tills du lagt in en och kör skriptet igen
 PermitRootLogin prohibit-password'; warn "Ingen SSH-nyckel för $ADMIN_USER – lösenordsinloggning är kvar. Lägg in nyckeln och kör skriptet igen."; fi
 cat > "$SSHD" <<EOF
-# Fröknarnas spelserver – härdad SSH (genererad av harden.sh)
+# FrauLeins spelserver – härdad SSH (genererad av harden.sh)
 $AUTH
 PubkeyAuthentication yes
 AuthenticationMethods publickey

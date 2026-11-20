@@ -1,7 +1,7 @@
 {
-  "name": "Stjärndelfin Yatzy",
-  "short_name": "Yatzy 🐬",
-  "description": "Svensk Yatzy i rymden och havet – spela mot varandra, mot Blixt eller ensam.",
+  "name": "FrauLeins game board",
+  "short_name": "FrauLeins",
+  "description": "Spel, chatt och mys i rymden och havet – spela mot varandra, mot datorn eller ensam.",
   "lang": "sv",
   "start_url": "./",
   "scope": "./",

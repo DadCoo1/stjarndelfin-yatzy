@@ -1,5 +1,5 @@
 /* =====================================================================
-   chat.js – Fröknarnas chatt
+   chat.js – FrauLeins chatt
    End-to-end-krypterad med samma byggstenar som Signal:
      • identitetsnycklar (X25519, reserv P-256)
      • X3DH-liknande nyckelöverenskommelse utan server
@@ -827,7 +827,7 @@ const CHAT = (()=>{
     return `<div id="chatRoot" class="wa t-${theme} ${openCid?'has-open':''} ${wide()?'wide':''}"><aside class="wa-side" id="waSide">${sideHTML()}</aside><main class="wa-main" id="waMain">${mainHTML()}</main></div>`;
   }
   function setupHTML(){
-    return `<div class="wa-card"><div style="font-size:54px">💬🔒</div><h2>Fröknarnas chatt</h2>
+    return `<div class="wa-card"><div style="font-size:54px">💬🔒</div><h2>FrauLeins chatt</h2>
       <p>Allt du skriver krypteras på din enhet innan det skickas. Bara mottagaren kan läsa det – ingen server, ingen annan.</p>
       <label>Ditt namn i chatten</label><input id="waName" maxlength="20" value="${esc(lsGet('ry_name')||'')}" placeholder="Ditt namn">
       <label>Välj en profilbild</label><div class="wa-emos">${EMO.map((e,i)=>`<button data-c="emo" data-e="${e}" class="${i===0?'sel':''}">${e}</button>`).join('')}</div>
@@ -886,7 +886,7 @@ const CHAT = (()=>{
     return lastSeen[id] ? `senast online ${dayLabel(lastSeen[id]).toLowerCase()} ${fmtT(lastSeen[id])}` : '🔒 end-to-end-krypterad';
   }
   function mainHTML(){
-    if(!openCid || !convs[openCid]) return `<div class="wa-welcome"><div style="font-size:64px">💬</div><h2>Fröknarnas chatt</h2><p>Välj en chatt till vänster eller starta en ny.</p><p class="wa-lock">🔒 End-to-end-krypterad</p></div>`;
+    if(!openCid || !convs[openCid]) return `<div class="wa-welcome"><div style="font-size:64px">💬</div><h2>FrauLeins chatt</h2><p>Välj en chatt till vänster eller starta en ny.</p><p class="wa-lock">🔒 End-to-end-krypterad</p></div>`;
     const c=convs[openCid], th=c.theme||theme;
     return `<div class="wa-convwrap t-${th}">
       <div class="wa-head conv"><button class="wa-ib back" data-c="close" aria-label="Tillbaka">‹</button>${convAvatar(openCid,'sm')}
@@ -1005,7 +1005,7 @@ const CHAT = (()=>{
   async function onScanText(txt){
     stopScan();
     const card=parseCardLink(txt);
-    if(!card || !(await okCard(card))){ closeModal(); toast('Det där är ingen chattkod från Fröknarnas game board 🤔',3500); return; }
+    if(!card || !(await okCard(card))){ closeModal(); toast('Det där är ingen chattkod från FrauLeins game board 🤔',3500); return; }
     if(card.id===ME.id){ closeModal(); toast('Det där är din egen kod 😄'); return; }
     await remember(card);
     addContact(card.id,3); contacts[card.id].vl=3; contacts[card.id].vAt=Date.now(); saveC();
@@ -1265,7 +1265,7 @@ Skriv:
     tab.innerHTML='💬<i class="cbadge" data-cbadge></i>';
     const pn=document.createElement('aside'); pn.id='chatPanel'; pn.className='chat-panel'; pn.setAttribute('aria-label','Chatt');
     document.body.append(tab,pn);
-    if(CHATWIN){ document.body.classList.add('chatwin'); document.title='💬 Chatt · Fröknarna Leins'; panelOpen=true; pn.classList.add('open'); pn.innerHTML=safeHTML(); mount(); }
+    if(CHATWIN){ document.body.classList.add('chatwin'); document.title='💬 Chatt · FrauLeins'; panelOpen=true; pn.classList.add('open'); pn.innerHTML=safeHTML(); mount(); }
     updateBadges();
   }
   function setDock(){
@@ -1388,7 +1388,7 @@ Skriv:
     const g=gid?GROUPS[gid]:null, sel=new Set(g?g.members:[]);
     const cs=Object.values(contacts).filter(c=>!isAlias(c.id));
     if(!cs.length){ toast('Lägg till kontakter först – spela med någon eller dela din kontaktlänk 👥',4000); return; }
-    openModal(`<h3>👥 ${g?'Ändra medlemmar':'Ny grupp'}</h3>${g?'':`<label>Gruppnamn</label><input id="gName" maxlength="40" placeholder="t.ex. Fröknarna 💖">
+    openModal(`<h3>👥 ${g?'Ändra medlemmar':'Ny grupp'}</h3>${g?'':`<label>Gruppnamn</label><input id="gName" maxlength="40" placeholder="t.ex. FrauLeins 💖">
       <label>Gruppbild</label><div class="wa-emos" id="gEmos">${['👥','💖','🐬','🐆','⛷️','🎮','🌈','🚀','🦄','⭐'].map((e,i)=>`<button data-c="gemo" data-e="${e}" class="${i===0?'sel':''}">${e}</button>`).join('')}</div>`}
       <label>Välj medlemmar</label><div class="wa-pick">${cs.map(c=>`<label class="wa-chk"><input type="checkbox" value="${c.id}" ${sel.has(c.id)?'checked':''}>${avatar(c.emoji,c.id,'sm')} ${esc(nameOf(c.id))}</label>`).join('')}</div>
       <div class="btns"><button data-act="close">Avbryt</button><button class="pri" data-c="${g?'savemembers':'mkgroup'}" data-gid="${gid||''}">${g?'Spara':'Skapa grupp'}</button></div>`,'chatgroup');
@@ -1403,7 +1403,7 @@ Skriv:
     try{ const j=JSON.parse(decodeURIComponent(escape(atob(m[1].replace(/-/g,'+').replace(/_/g,'/'))))); return j && typeof j==='object' ? j : null; }catch(e){ return null; } }
   async function shareCard(){
     const link=cardLink(myCard());
-    const text=`Lägg till mig i Fröknarnas chatt! ${ME.emoji}`;
+    const text=`Lägg till mig i FrauLeins chatt! ${ME.emoji}`;
     try{ if(navigator.share){ await navigator.share({title:'Min chattkontakt', text, url:link}); return; } }catch(e){ if(e && e.name==='AbortError') return; }
     try{ await navigator.clipboard.writeText(text+' '+link); toast('Länken är kopierad – skicka den till din kompis 📋',3500); }catch(e){ toast(link,8000); }
   }

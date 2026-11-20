@@ -21,7 +21,7 @@
   if(!same || !/[?&]bot=1/.test(location.search)){ document.documentElement.innerHTML=''; throw new Error('Inramning blockerad'); }
 })();
 /* ================= Version & utvecklingsläge ================= */
-const APP_VERSION='2026.11.20.1';
+const APP_VERSION='2026.11.20.2';
 const DEV = /\/dev(\/|$)/.test(location.pathname);      // testversionen ligger i mappen /dev/
 const BOT = /[?&]bot=1/.test(location.search) && window.parent!==window;   // osynlig ekokompis i en ram
 const LSP = DEV ? (BOT ? 'dev:bot:' : 'dev:') : (BOT ? 'bot:' : '');    // egen sparad data i testversionen
@@ -488,8 +488,8 @@ function showNotifySettings(){
 function systemNotify(msg){
   if(BOT) return; if(!ntfGet().t) return;
   if(!('Notification' in window) || Notification.permission!=='granted') return;
-  if(SWREG && SWREG.showNotification){ SWREG.showNotification('Stjärndelfin Yatzy 🐬',{body:msg, tag:'yatzy-tur', renotify:true, icon:'icon-192.png', badge:'icon-192.png', vibrate:[180,90,180]}).catch(()=>{}); return; }
-  try{ const n=new Notification('Stjärndelfin Yatzy 🐬',{body:msg, tag:'yatzy-tur', renotify:true}); n.onclick=()=>{ try{ window.focus(); }catch(e){} n.close(); }; }catch(e){}
+  if(SWREG && SWREG.showNotification){ SWREG.showNotification('FrauLeins · Yatzy 🐬',{body:msg, tag:'yatzy-tur', renotify:true, icon:'icon-192.png', badge:'icon-192.png', vibrate:[180,90,180]}).catch(()=>{}); return; }
+  try{ const n=new Notification('FrauLeins · Yatzy 🐬',{body:msg, tag:'yatzy-tur', renotify:true}); n.onclick=()=>{ try{ window.focus(); }catch(e){} n.close(); }; }catch(e){}
 }
 function notifyTurn(msg){
   if(!G || G.over) return;
@@ -591,7 +591,7 @@ function appLocked(){ return !BOT && !!netBase() && !SRV_TOK; }
 function lockHTML(){
   return `<div class="lockwrap"><div class="lockcard">
     <div class="lockdol">${typeof DOLPHIN==='function'?DOLPHIN('lk','#c4b5fd','#3ee6ff'):'🐬'}</div>
-    <h1>Fröknarna Leins<br><small>game board</small></h1>
+    <h1>FrauLeins<br><small>game board</small></h1>
     <p>Det här är ett privat spel för inbjudna. 🔐</p>
     <button class="bigbtn" data-act="srvin" style="margin:16px auto;max-width:260px">🔑 Logga in</button>
     <p class="sub">Har du fått en inbjudningslänk? Öppna länken så skapas ditt konto.<br>Har du ingen? Be den som har bjudit in dig om en.</p>
@@ -1242,7 +1242,7 @@ function trayHTML(){
 async function invite(){
   const url=location.origin+location.pathname+'#'+gameId;
   const text=`Kom och spela ${gName()} med mig! 🐬 Kod: ${gameId}`;
-  try{ if(navigator.share){ await navigator.share({title:'Stjärndelfin Yatzy',text,url}); return; } }catch(e){ if(e&&e.name==='AbortError') return; }
+  try{ if(navigator.share){ await navigator.share({title:'FrauLeins game board',text,url}); return; } }catch(e){ if(e&&e.name==='AbortError') return; }
   try{ await navigator.clipboard.writeText(text+' '+url); toast('Länken är kopierad – klistra in den i Messenger 📋',3500); }
   catch(e){ toast('Länk: '+url,6000); }
 }
@@ -1685,7 +1685,7 @@ function spLoadSdk(){
   sdkState='loading';
   window.onSpotifyWebPlaybackSDKReady=()=>{
     try{
-      sdkPlayer=new Spotify.Player({name:'Stjärndelfin Yatzy 🐬', getOAuthToken:cb=>{ spToken().then(cb).catch(()=>{}); }, volume:+(lsGet('ry_spvol')||0.7)});
+      sdkPlayer=new Spotify.Player({name:'FrauLeins game board 🐬', getOAuthToken:cb=>{ spToken().then(cb).catch(()=>{}); }, volume:+(lsGet('ry_spvol')||0.7)});
       sdkPlayer.addListener('ready',({device_id})=>{ sdkDevice=device_id; sdkState='ready'; spRefreshChrome(); });
       sdkPlayer.addListener('not_ready',()=>{ sdkDevice=null; });
       sdkPlayer.addListener('initialization_error',()=>{ sdkState='failed'; spMode='app'; spRefreshChrome(); });
@@ -2477,7 +2477,7 @@ function techInfo(){
   let errs=[]; try{ errs=JSON.parse(lsGet('errlog')||'[]'); }catch(e){}
   const st=(typeof STYLE!=='undefined')?STYLE.get():{};
   return [
-    'Fröknarna Leins game board '+APP_VERSION+(DEV?' (test)':''),
+    'FrauLeins game board '+APP_VERSION+(DEV?' (test)':''),
     'Enhet: '+navigator.userAgent,
     'Skärm: '+screen.width+'×'+screen.height+' @'+(window.devicePixelRatio||1)+' · fönster '+innerWidth+'×'+innerHeight,
     'Kärnor: '+(navigator.hardwareConcurrency||'?')+' · minne: '+(navigator.deviceMemory||'?')+' GB · hemskärmsapp: '+(!!(window.matchMedia&&matchMedia('(display-mode: standalone)').matches)||!!navigator.standalone),
@@ -2570,7 +2570,7 @@ function lobbyTilesHTML(svSol, invS){
 function lobbyHTML(){
   const devbar = DEV ? `<div class="devbar">🧪 <b>Testversion</b> · egen data och egna spelkoder · <a href="../">Öppna releaseversionen ›</a></div>` : '';
   let h = topbarLobby() + devbar + `<div class="lobby"><div class="lob-hero"><div class="logo brand">${DOLPHIN('lg','#a5f3ff','#7c6cff').replace('<svg','<svg class="big"')}
-    <h1>Fröknarna Leins</h1><div class="gb">GAME BOARD</div><div class="leoband"></div></div>
+    <h1>FrauLeins</h1><div class="gb">GAME BOARD</div><div class="leoband"></div></div>
     <div class="tag">Rymden · Havet · Leopard · Spel för stjärnor</div>
     ${safeHTML(()=>TODAY.heroHTML(),'hälsning')}</div><div class="lob-menu">`;
   if(mode==='online' && G){
