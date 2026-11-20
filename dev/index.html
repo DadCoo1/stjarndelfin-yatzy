@@ -8,7 +8,7 @@
 <title>Stjärndelfin Yatzy</title>
 <meta name="theme-color" content="#071a45">
 <meta name="description" content="Svensk Yatzy i rymden och havet">
-<script src="boot.js?v=2026.11.20.1-dev"></script>
+<script src="boot.js?v=2026.11.20.2-dev"></script>
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="icon-192.png">
 <link rel="apple-touch-icon" href="icon-180.png">
@@ -226,6 +226,16 @@ body:not(.desk):not(.ingame) #app .lob-menu{pointer-events:none}
 /* hjärtbubblan: själva bubblan osynlig, hjärtat är formen */
 .pbub.heart{border:0;background:none;box-shadow:none;border-radius:0;filter:drop-shadow(0 0 10px rgba(255,92,122,.45))}
 .pbub.heart svg{width:100%;height:100%;overflow:visible;animation:hbeat 1.3s ease-in-out infinite}
+.pbub.leo{border:0;background:none;box-shadow:none;filter:drop-shadow(0 0 12px rgba(251,191,36,.55))}
+.pbub.leo svg{width:100%;height:100%;overflow:visible;animation:leowob 2.4s ease-in-out infinite}
+@keyframes leowob{0%,100%{transform:rotate(-5deg) scale(1)}50%{transform:rotate(5deg) scale(1.04)}}
+.pst-top{display:flex;gap:8px;margin:6px 0 10px}.pst-top>div{flex:1;text-align:center;padding:8px 4px;border-radius:14px;background:rgba(255,255,255,.07)}.pst-top b{display:block;font-size:22px}.pst-top small{font-size:11px;opacity:.8}
+.pst-bars{display:flex;gap:5px;align-items:flex-end;height:120px;padding:4px 2px}.pst-b{flex:1;height:100%;display:flex;flex-direction:column;justify-content:flex-end;align-items:center;gap:2px;font-size:10px}
+.pst-b i{display:block;width:100%;border-radius:6px 6px 3px 3px;background:linear-gradient(180deg,#67e8f9,#3b82f6);min-height:3px}.pst-b.cur i{background:linear-gradient(180deg,#fde047,#f59e0b)}.pst-b.rec i{box-shadow:0 0 0 2px #fde047}
+.pst-b span{font-weight:700;font-size:10px}.pst-b small{opacity:.7}
+button.popc{color:inherit;font:inherit;font-weight:600;cursor:pointer}
+.pst-auto{display:flex;width:100%;align-items:center;justify-content:space-between;gap:10px;margin:10px 0;padding:11px 14px;border-radius:14px;background:rgba(255,255,255,.07);border:1px solid var(--line);color:inherit;font:inherit;text-align:left}
+.pst-auto b{min-width:44px;padding:3px 10px;border-radius:999px;background:rgba(255,255,255,.14);text-align:center}.pst-auto.on b{background:linear-gradient(135deg,#22d3ee,#3b82f6);color:#fff}
 @keyframes hbeat{0%,100%{transform:scale(1)}12%{transform:scale(1.08)}24%{transform:scale(1)}36%{transform:scale(1.05)}}
 .hrain{position:fixed;transform:translate(-50%,-50%);pointer-events:none;z-index:60;animation:hrain ease-out forwards}
 @keyframes hrain{0%{transform:translate(-50%,-50%) scale(.4);opacity:1}35%{transform:translate(calc(-50% + var(--dx)),calc(-50% + var(--dy))) scale(1) rotate(calc(var(--rot)*.5));opacity:1}
@@ -866,36 +876,36 @@ body.mo-av svg.dolph .dtl{animation:none}
 <div id="party"></div>
 <div id="modal"></div>
 
-<script src="dolphin.js?v=2026.11.20.1-dev"></script>
-<script src="app.js?v=2026.11.20.1-dev"></script>
-<script src="games.js?v=2026.11.20.1-dev"></script>
-<script src="kina.js?v=2026.11.20.1-dev"></script>
-<script src="ordfajt.js?v=2026.11.20.1-dev"></script>
-<script src="pong.js?v=2026.11.20.1-dev"></script>
-<script src="duel.js?v=2026.11.20.1-dev"></script>
-<script src="kit.js?v=2026.11.20.1-dev"></script>
-<script src="strat.js?v=2026.11.20.1-dev"></script>
-<script src="family.js?v=2026.11.20.1-dev"></script>
-<script src="cards.js?v=2026.11.20.1-dev"></script>
-<script src="puzzle.js?v=2026.11.20.1-dev"></script>
-<script src="mahjong.js?v=2026.11.20.1-dev"></script>
-<script src="drone.js?v=2026.11.20.1-dev"></script>
-<script src="replay.js?v=2026.11.20.1-dev"></script>
-<script src="weather.js?v=2026.11.20.1-dev"></script>
-<script src="mountain.js?v=2026.11.20.1-dev"></script>
-<script src="slalomgl.js?v=2026.11.20.1-dev"></script>
-<script src="slalom.js?v=2026.11.20.1-dev"></script>
-<script src="biathlon.js?v=2026.11.20.1-dev"></script>
-<script src="invaders.js?v=2026.11.20.1-dev"></script>
-<script src="cars3d.js?v=2026.11.20.1-dev"></script>
-<script src="race.js?v=2026.11.20.1-dev"></script>
-<script src="chat.js?v=2026.11.20.1-dev"></script>
-<script src="call.js?v=2026.11.20.1-dev"></script>
-<script src="backup.js?v=2026.11.20.1-dev"></script>
-<script src="today.js?v=2026.11.20.1-dev"></script>
-<script src="style.js?v=2026.11.20.1-dev"></script>
-<script src="welcome.js?v=2026.11.20.1-dev"></script>
-<script src="pins.js?v=2026.11.20.1-dev"></script>
-<script src="fr.js?v=2026.11.20.1-dev"></script>
+<script src="dolphin.js?v=2026.11.20.2-dev"></script>
+<script src="app.js?v=2026.11.20.2-dev"></script>
+<script src="games.js?v=2026.11.20.2-dev"></script>
+<script src="kina.js?v=2026.11.20.2-dev"></script>
+<script src="ordfajt.js?v=2026.11.20.2-dev"></script>
+<script src="pong.js?v=2026.11.20.2-dev"></script>
+<script src="duel.js?v=2026.11.20.2-dev"></script>
+<script src="kit.js?v=2026.11.20.2-dev"></script>
+<script src="strat.js?v=2026.11.20.2-dev"></script>
+<script src="family.js?v=2026.11.20.2-dev"></script>
+<script src="cards.js?v=2026.11.20.2-dev"></script>
+<script src="puzzle.js?v=2026.11.20.2-dev"></script>
+<script src="mahjong.js?v=2026.11.20.2-dev"></script>
+<script src="drone.js?v=2026.11.20.2-dev"></script>
+<script src="replay.js?v=2026.11.20.2-dev"></script>
+<script src="weather.js?v=2026.11.20.2-dev"></script>
+<script src="mountain.js?v=2026.11.20.2-dev"></script>
+<script src="slalomgl.js?v=2026.11.20.2-dev"></script>
+<script src="slalom.js?v=2026.11.20.2-dev"></script>
+<script src="biathlon.js?v=2026.11.20.2-dev"></script>
+<script src="invaders.js?v=2026.11.20.2-dev"></script>
+<script src="cars3d.js?v=2026.11.20.2-dev"></script>
+<script src="race.js?v=2026.11.20.2-dev"></script>
+<script src="chat.js?v=2026.11.20.2-dev"></script>
+<script src="call.js?v=2026.11.20.2-dev"></script>
+<script src="backup.js?v=2026.11.20.2-dev"></script>
+<script src="today.js?v=2026.11.20.2-dev"></script>
+<script src="style.js?v=2026.11.20.2-dev"></script>
+<script src="welcome.js?v=2026.11.20.2-dev"></script>
+<script src="pins.js?v=2026.11.20.2-dev"></script>
+<script src="fr.js?v=2026.11.20.2-dev"></script>
 </body>
 </html>
