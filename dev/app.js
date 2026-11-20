@@ -21,7 +21,7 @@
   if(!same || !/[?&]bot=1/.test(location.search)){ document.documentElement.innerHTML=''; throw new Error('Inramning blockerad'); }
 })();
 /* ================= Version & utvecklingsläge ================= */
-const APP_VERSION='2026.11.19.2-dev';
+const APP_VERSION='2026.11.20.1-dev';
 const DEV = /\/dev(\/|$)/.test(location.pathname);      // testversionen ligger i mappen /dev/
 const BOT = /[?&]bot=1/.test(location.search) && window.parent!==window;   // osynlig ekokompis i en ram
 const LSP = DEV ? (BOT ? 'dev:bot:' : 'dev:') : (BOT ? 'bot:' : '');    // egen sparad data i testversionen
@@ -1182,7 +1182,7 @@ function resumeNet(){
 }
 
 /* ================= Emojis & puffar ================= */
-const EMOJIS=['❤️','😂','😎','😭','😏'];
+const EMOJIS=['❤️','😂','😎','😭','😏','😠','👏','😛'];   // + arg, applåd, räcker ut tungan
 const EMOJI_OK=[...EMOJIS,'😢'];   // tar emot äldre versioners gråtemoji också
 const AI_REPLY={'❤️':'😎','😂':'😂','😎':'😏','😭':'❤️','😏':'😎'};
 let trayOpen=false, lastPoke=0;

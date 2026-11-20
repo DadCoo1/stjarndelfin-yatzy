@@ -32,7 +32,7 @@ const CHAT = (()=>{
   const cleanText=(x,max)=>String(x??'').replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f\u202a-\u202e\u2066-\u2069]/g,'').slice(0,max);
   const cleanName=(x,max)=>cleanText(x,200).replace(/[\n\r\t]/g,' ').trim().slice(0,max);
   const cleanEmoji=(x,def)=>{ x=String(x??''); return x.length && x.length<=16 && /^[\p{Extended_Pictographic}\p{Emoji_Component}\u200d\ufe0f\u20e3]+$/u.test(x) ? x : (def||'👤'); };
-  const REACTS=['❤️','😂','😮','😭','🙏','👍'];
+  const REACTS=['❤️','😂','😮','😭','🙏','👍','😠','👏','😛'];   // arg, applåd, räcker ut tungan
 
   /* ---------- kryptografi ---------- */
   const alg = c => c==='X25519' ? {name:'X25519'} : {name:'ECDH', namedCurve:'P-256'};
@@ -916,7 +916,7 @@ const CHAT = (()=>{
         <div class="wa-bub">${!m.out && c.type==='grp' && first?`<span class="wa-from" style="--h:${hue(m.from)}">${esc(nameOf(m.from))}</span>`:''}${body}
           <span class="wa-meta">${m.exp?'<i>⏱</i>':''}${m.edited?'<i class="wa-ed">redigerat</i>':''}${fmtT(m.ts)}${m.out && !isNote(cid)?' '+tickHTML(aggStatus(m,cid)):''}</span></div>
         ${reacts.length?`<div class="wa-reacts">${esc(Object.entries(rc).map(([e,n])=>e+(n>1?n:'')).join(' '))}</div>`:''}
-        ${menuFor===m.mid?`<div class="wa-menu">${m.revoked?'':`<div class="wa-rbar">${['❤️','😂','😮','😭','🙏','👍'].map(e=>`<button data-c="react" data-mid="${m.mid}" data-e="${e}">${e}</button>`).join('')}</div>`}
+        ${menuFor===m.mid?`<div class="wa-menu">${m.revoked?'':`<div class="wa-rbar">${REACTS.map(e=>`<button data-c="react" data-mid="${m.mid}" data-e="${e}">${e}</button>`).join('')}</div>`}
           <button data-c="minfo" data-mid="${m.mid}">ℹ️ Info</button>
           ${m.out && !m.revoked && !m.invite && m.text ? `<button data-c="edit" data-mid="${m.mid}">✏️ Redigera</button>`:''}
           ${!m.revoked && m.text ? `<button data-c="copy" data-mid="${m.mid}">📋 Kopiera</button>`:''}
@@ -1641,7 +1641,7 @@ function openChatView(){ CHAT.open(); }
 .wa-reacts{margin:-6px 8px 0;padding:1px 6px;border-radius:999px;background:var(--chead);font-size:14px;box-shadow:0 1px 3px rgba(0,0,0,.25);z-index:1}
 .wa-menu{position:relative;z-index:5;margin:6px 0 4px;padding:6px;border-radius:14px;background:var(--chead);box-shadow:0 6px 20px rgba(0,0,0,.35);display:flex;flex-direction:column;gap:2px;min-width:200px}
 .wa-menu>button{text-align:left;padding:8px 10px;border-radius:8px;color:var(--ct)}.wa-menu>button:hover{background:rgba(127,127,127,.15)}
-.wa-rbar{display:flex;gap:2px;padding-bottom:4px;border-bottom:1px solid var(--cline);margin-bottom:2px}.wa-rbar button{font-size:24px;padding:4px;border-radius:50%}.wa-rbar button:hover{transform:scale(1.25)}
+.wa-rbar{display:flex;flex-wrap:wrap;justify-content:center;max-width:300px;gap:2px;padding-bottom:4px;border-bottom:1px solid var(--cline);margin-bottom:2px}.wa-rbar button{font-size:23px;padding:3px;border-radius:50%}.wa-rbar button:hover{transform:scale(1.25)}
 .wa-inv{display:flex;align-items:center;gap:10px;padding:8px;margin:2px 0 4px;border-radius:10px;background:rgba(0,0,0,.18);min-width:220px}
 .wa-inv .gi{font-size:34px}.wa-inv div{flex:1;display:flex;flex-direction:column}.wa-inv small{font-size:12px;color:var(--cs)}
 .wa-inv button{padding:8px 12px;border-radius:999px;background:var(--ca);color:#fff;font-weight:700}
