@@ -21,7 +21,7 @@
   if(!same || !/[?&]bot=1/.test(location.search)){ document.documentElement.innerHTML=''; throw new Error('Inramning blockerad'); }
 })();
 /* ================= Version & utvecklingsläge ================= */
-const APP_VERSION='2026.11.18.1';
+const APP_VERSION='2026.11.20.1';
 const DEV = /\/dev(\/|$)/.test(location.pathname);      // testversionen ligger i mappen /dev/
 const BOT = /[?&]bot=1/.test(location.search) && window.parent!==window;   // osynlig ekokompis i en ram
 const LSP = DEV ? (BOT ? 'dev:bot:' : 'dev:') : (BOT ? 'bot:' : '');    // egen sparad data i testversionen
@@ -1182,7 +1182,7 @@ function resumeNet(){
 }
 
 /* ================= Emojis & puffar ================= */
-const EMOJIS=['❤️','😂','😎','😭','😏'];
+const EMOJIS=['❤️','😂','😎','😭','😏','😠','👏','😛'];   // + arg, applåd, räcker ut tungan
 const EMOJI_OK=[...EMOJIS,'😢'];   // tar emot äldre versioners gråtemoji också
 const AI_REPLY={'❤️':'😎','😂':'😂','😎':'😏','😭':'❤️','😏':'😎'};
 let trayOpen=false, lastPoke=0;
@@ -1380,15 +1380,16 @@ function openStats(){ closeModal(); clearTimeout(aiTimer); if(mode!=='online'){ 
 let bubT=null, popCount=+(lsGet('ry_pops')||0);
 const BL = () => document.getElementById('bubbles');
 function startBubbles(){
-  if(bubT) return;
+  if(bubT) return; popWeekCheck();
   bubT=setInterval(spawnBubble, 850);
   for(let i=0;i<6;i++) setTimeout(spawnBubble, i*250);
 }
 function stopBubbles(){ clearInterval(bubT); bubT=null; const l=BL(); if(l) l.innerHTML=''; }
 function spawnBubble(){
   const L=BL(); if(!L || document.hidden || L.children.length>16) return;
-  const r=Math.random(), kind = r<1/30 ? 'heart' : r<.08 ? 'gold' : r<.13 ? 'pink' : '';   // hjärtbubbla: i snitt var 30:e
-  const b=document.createElement('div'), sz = kind==='heart' ? 76 : 30+Math.random()*46;
+  // leopardbubbla i snitt var 60:e (hälften så ofta som hjärtat), hjärtbubbla var 30:e
+  const r=Math.random(), LP=1/60, HT=LP+1/30, kind = r<LP ? 'leo' : r<HT ? 'heart' : r<HT+.0467 ? 'gold' : r<HT+.0967 ? 'pink' : '';
+  const b=document.createElement('div'), sz = kind==='leo' ? 92 : kind==='heart' ? 76 : 30+Math.random()*46;
   b.className='pbub '+kind; b.style.width=b.style.height=sz+'px';
   b.style.left=(Math.random()*92)+'%';
   const dur=7+Math.random()*7; b.style.animationDuration=dur+'s';
@@ -1400,6 +1401,7 @@ function spawnBubble(){
       <path d="M50 86 C47 83 6 56 6 29 C6 14 17 5 30 5 C39 5 46 10 50 17 C54 10 61 5 70 5 C83 5 94 14 94 29 C94 56 53 83 50 86 Z" fill="url(#${id})" stroke="#ff5c7a" stroke-opacity=".9" stroke-width="2.6" stroke-linejoin="round"/>
       <path d="M22 18 C27 13 35 13 39 18" fill="none" stroke="#fff" stroke-opacity=".75" stroke-width="4" stroke-linecap="round"/>
       <circle cx="73" cy="22" r="3.2" fill="#fff" opacity=".5"/></svg>`; }
+  else if(kind==='leo') b.innerHTML=leoBubbleSVG();
   b.addEventListener('pointerdown',e=>{ e.preventDefault(); e.stopPropagation(); popBubble(b,kind,sz); });
   L.appendChild(b); setTimeout(()=>b.remove(), dur*1000+200);
 }
@@ -1419,15 +1421,83 @@ function popBubble(b,kind,sz){
   tone(f,.07,'sine',.16,0,f*1.8); tone(f*2.2,.05,'triangle',.05,.02);
   buzz(8);
   if(kind==='heart') heartRain(cx,cy);
-  const pts = kind==='heart' ? 100 : kind==='gold' ? 10 : kind==='pink' ? 5 : 1;
-  popCount+=pts; lsSet('ry_pops',String(popCount));
-  if(kind==='heart'){ toast('Hjärtbubbla! +100 ❤️',2400); [784,988,1175,1568].forEach((f2,i)=>tone(f2,.22,'sine',.09,.05+i*.08)); buzz([15,40,15]); }
+  if(kind==='leo') leoRain(cx,cy);
+  const pts = kind==='leo' ? 500 : kind==='heart' ? 100 : kind==='gold' ? 10 : kind==='pink' ? 5 : 1;
+  popWeekCheck(); const before=popCount; popCount+=pts; lsSet('ry_pops',String(popCount)); popLog(pts);
+  if(kind==='leo'){ toast('Leopardbubbla! +500 🐆✨',2800); [523,659,784,1047,1319,1568,2093].forEach((f2,i)=>tone(f2,.26,i%2?'triangle':'sine',.09,.04+i*.07)); sparkles(30); buzz([20,40,20,40,30]); }
+  else if(kind==='heart'){ toast('Hjärtbubbla! +100 ❤️',2400); [784,988,1175,1568].forEach((f2,i)=>tone(f2,.22,'sine',.09,.05+i*.08)); buzz([15,40,15]); }
   else if(kind==='gold'){ toast('Guldbubbla! +10 ⭐'); sparkles(10); }
   else if(kind==='pink') toast('Delfinbubbla! +5 🐬');
-  if(pts===1 && popCount%100===0){ toast(`${popCount} poppade bubblor! 🫧🎉`); sparkles(16); }
+  if(Math.floor(popCount/100)>Math.floor(before/100) && pts<100){ toast(`${popCount} poppade bubblor! 🫧🎉`); sparkles(16); }
   const c=document.getElementById('popc'); if(c){ c.textContent='🫧 '+popCount; c.classList.remove('bump'); void c.offsetWidth; c.classList.add('bump'); }
 }
 
+// leopardbubbla: genomskinligt leopardhuvud framifrån, egen ritning
+function leoBubbleSVG(){ const u='lp'+Math.random().toString(36).slice(2,8);
+  // rosett: brutna ring av små mörka fläckar runt en varmare mitt – som riktiga leopardfläckar
+  const ros=(x,y,r,rot)=>{ let o=`<g transform="translate(${x} ${y}) rotate(${rot})"><ellipse rx="${r*.62}" ry="${r*.5}" fill="#b45309" opacity=".42"/>`;
+    [[0,1],[78,.8],[150,1.05],[228,.75],[300,.95]].forEach(([a,k])=>{ const t=a*Math.PI/180, px=Math.cos(t)*r, py=Math.sin(t)*r*.85; o+=`<ellipse cx="${px.toFixed(1)}" cy="${py.toFixed(1)}" rx="${(r*.42*k).toFixed(1)}" ry="${(r*.24*k).toFixed(1)}" transform="rotate(${a+90} ${px.toFixed(1)} ${py.toFixed(1)})" fill="#3b2208" opacity=".62"/>`; });
+    return o+'</g>'; };
+  const dot=(x,y,r)=>`<circle cx="${x}" cy="${y}" r="${r}" fill="#3b2208" opacity=".5"/>`;
+  return `<svg viewBox="0 0 120 120" aria-hidden="true"><defs>
+    <radialGradient id="${u}b" cx="38%" cy="30%" r="78%"><stop offset="0" stop-color="#fff7e0" stop-opacity=".7"/><stop offset=".35" stop-color="#fbbf24" stop-opacity=".32"/><stop offset=".85" stop-color="#d97706" stop-opacity=".22"/><stop offset="1" stop-color="#92400e" stop-opacity=".45"/></radialGradient>
+    <radialGradient id="${u}f" cx="50%" cy="40%" r="60%"><stop offset="0" stop-color="#fde68a" stop-opacity=".75"/><stop offset=".7" stop-color="#f59e0b" stop-opacity=".55"/><stop offset="1" stop-color="#b45309" stop-opacity=".6"/></radialGradient>
+    <radialGradient id="${u}m" cx="50%" cy="35%" r="70%"><stop offset="0" stop-color="#fffbeb" stop-opacity=".9"/><stop offset="1" stop-color="#fde68a" stop-opacity=".55"/></radialGradient>
+    <radialGradient id="${u}e" cx="45%" cy="40%" r="60%"><stop offset="0" stop-color="#d9f99d"/><stop offset=".6" stop-color="#84cc16"/><stop offset="1" stop-color="#3f6212"/></radialGradient></defs>
+    <circle cx="60" cy="60" r="57" fill="url(#${u}b)" stroke="#fcd34d" stroke-opacity=".85" stroke-width="2.2"/>
+    <g transform="translate(0 4)">
+      <path d="M28 40 C22 24 30 16 41 22 L47 30 Z" fill="url(#${u}f)" stroke="#92400e" stroke-opacity=".7" stroke-width="1.6"/><path d="M33 34 C31 27 35 24 40 27 Z" fill="#fda4af" opacity=".7"/>
+      <path d="M92 40 C98 24 90 16 79 22 L73 30 Z" fill="url(#${u}f)" stroke="#92400e" stroke-opacity=".7" stroke-width="1.6"/><path d="M87 34 C89 27 85 24 80 27 Z" fill="#fda4af" opacity=".7"/>
+      <path d="M60 22 C82 22 96 38 95 58 C94 78 80 92 60 93 C40 92 26 78 25 58 C24 38 38 22 60 22 Z" fill="url(#${u}f)" stroke="#92400e" stroke-opacity=".75" stroke-width="1.8"/>
+      ${ros(44,34,5,-20)}${ros(76,34,5,20)}${ros(60,30,4,0)}${ros(34,56,4.5,-40)}${ros(86,56,4.5,40)}${ros(38,74,4,-60)}${ros(82,74,4,60)}
+      ${dot(52,40,1.6)}${dot(68,40,1.6)}${dot(56,46,1.2)}${dot(64,46,1.2)}
+      <path d="M42 70 C44 60 52 57 60 60 C68 57 76 60 78 70 C78 82 70 88 60 88 C50 88 42 82 42 70 Z" fill="url(#${u}m)"/>
+      <path d="M38 47 C42 43 49 43 52 48" stroke="#3b2208" stroke-opacity=".7" stroke-width="2" fill="none" stroke-linecap="round"/><path d="M82 47 C78 43 71 43 68 48" stroke="#3b2208" stroke-opacity=".7" stroke-width="2" fill="none" stroke-linecap="round"/>
+      <ellipse cx="46" cy="53" rx="6.5" ry="5.5" fill="url(#${u}e)" stroke="#1c1917" stroke-width="1.4"/><ellipse cx="74" cy="53" rx="6.5" ry="5.5" fill="url(#${u}e)" stroke="#1c1917" stroke-width="1.4"/>
+      <ellipse cx="46" cy="53.5" rx="1.8" ry="4.2" fill="#111"/><ellipse cx="74" cy="53.5" rx="1.8" ry="4.2" fill="#111"/>
+      <circle cx="48" cy="51" r="1.5" fill="#fff"/><circle cx="76" cy="51" r="1.5" fill="#fff"/>
+      <path d="M41 58 C40 64 44 67 47 64" stroke="#3b2208" stroke-opacity=".45" stroke-width="1.6" fill="none"/><path d="M79 58 C80 64 76 67 73 64" stroke="#3b2208" stroke-opacity=".45" stroke-width="1.6" fill="none"/>
+      <path d="M54 64 C54 61 66 61 66 64 C66 67 62 70 60 70 C58 70 54 67 54 64 Z" fill="#f472b6" stroke="#9d174d" stroke-width="1.2"/><path d="M57 63 C58 62 60 62 61 63" stroke="#fff" stroke-opacity=".7" stroke-width="1.2" fill="none" stroke-linecap="round"/>
+      <path d="M60 70 L60 74 M60 74 C57 78 53 78 51 75 M60 74 C63 78 67 78 69 75" stroke="#3b2208" stroke-opacity=".8" stroke-width="1.6" fill="none" stroke-linecap="round"/>
+      ${dot(50,72,1)}${dot(47,75,1)}${dot(70,72,1)}${dot(73,75,1)}
+      <g stroke="#fff" stroke-opacity=".75" stroke-width="1" stroke-linecap="round"><path d="M48 73 L30 70 M48 76 L31 78 M72 73 L90 70 M72 76 L89 78"/></g>
+    </g>
+    <path d="M26 30 C33 20 44 15 54 15" fill="none" stroke="#fff" stroke-opacity=".8" stroke-width="4.5" stroke-linecap="round"/>
+    <circle cx="94" cy="28" r="3.6" fill="#fff" opacity=".55"/><ellipse cx="88" cy="96" rx="9" ry="3" fill="#fff" opacity=".18" transform="rotate(-35 88 96)"/></svg>`; }
+// stänk av leopardfläckar, tassar och gnistor
+function leoRain(cx,cy){
+  const party=document.getElementById('party'); if(!party) return;
+  for(let i=0;i<40;i++){
+    const h=document.createElement('div'); h.className='hrain'; h.textContent=['🐾','✨','🟡','🐾','⭐','🟠'][i%6];
+    const a=Math.random()*Math.PI*2, v=70+Math.random()*210;
+    h.style.left=cx+'px'; h.style.top=cy+'px'; h.style.fontSize=(9+Math.random()*15)+'px';
+    h.style.setProperty('--dx',Math.cos(a)*v+'px'); h.style.setProperty('--dy',Math.sin(a)*v-50+'px'); h.style.setProperty('--fall',(130+Math.random()*170)+'px');
+    h.style.setProperty('--rot',(Math.random()*160-80)+'deg'); h.style.animationDuration=(1.1+Math.random()*.8)+'s';
+    party.appendChild(h); setTimeout(()=>h.remove(),2000);
+  }
+}
+/* ---- bubbelpoäng: veckostatistik, rekord, nollställning (själv eller automatiskt varje måndag) ---- */
+function popMonday(t){ const d=new Date(new Date(t||Date.now()).toLocaleString('en-US',{timeZone:'Europe/Stockholm'})); d.setHours(12,0,0,0); d.setDate(d.getDate()-((d.getDay()+6)%7)); return d; }
+const popWk=t=>{ const d=popMonday(t); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; };
+function popWeekNo(key){ const d=new Date(key+'T12:00:00'); d.setDate(d.getDate()+3); const y=new Date(d.getFullYear(),0,4); return 1+Math.round(((d-y)/864e5-3+((y.getDay()+6)%7))/7); }
+function popWeeks(){ try{ return JSON.parse(lsGet('ry_popweeks')||'{}')||{}; }catch(e){ return {}; } }
+function popLog(pts){ const W=popWeeks(), k=popWk(); W[k]=(W[k]||0)+pts; const ks=Object.keys(W).sort(); while(ks.length>104) delete W[ks.shift()]; lsSet('ry_popweeks',JSON.stringify(W)); lsSet('ry_pops_all',String((+lsGet('ry_pops_all')||0)+pts)); }
+// automatisk nollställning: första gången bubblorna används en ny vecka (måndag) börjar räknaren om
+function popWeekCheck(){ const k=popWk(); if(!lsGet('ry_pops_all')) lsSet('ry_pops_all',String(popCount));   /* tidigare poäng räknas in i totalen */ if(lsGet('ry_pop_auto')==='1' && lsGet('ry_pop_wk') && lsGet('ry_pop_wk')!==k){ popCount=0; lsSet('ry_pops','0'); } lsSet('ry_pop_wk',k); const c=document.getElementById('popc'); if(c) c.textContent='🫧 '+popCount; }
+function showPopStats(){ popWeekCheck(); const W=popWeeks(), k=popWk(), ks=Object.keys(W).sort(), best=ks.reduce((b,x)=>W[x]>(W[b]||0)?x:b,''), auto=lsGet('ry_pop_auto')==='1', all=+lsGet('ry_pops_all')||popCount;
+  const last=[]; for(let i=7;i>=0;i--){ const d=popMonday(); d.setDate(d.getDate()-7*i); const key=popWk(d.getTime()); last.push([key,W[key]||0]); }
+  const mx=Math.max(1,...last.map(x=>x[1]));
+  openModal(`<h3>🫧 Bubbelpoäng</h3>
+    <div class="pst-top"><div><b>${popCount}</b><small>nu</small></div><div><b>${W[k]||0}</b><small>den här veckan</small></div><div><b>${best?W[best]:0}</b><small>🏆 bästa vecka${best?` (v. ${popWeekNo(best)})`:''}</small></div></div>
+    <div class="pst-bars">${last.map(([key,v])=>`<div class="pst-b ${key===k?'cur':''} ${key===best&&v?'rec':''}"><i style="height:${Math.max(3,Math.round(v/mx*100))}%"></i><span>${v||''}</span><small>v.${popWeekNo(key)}</small></div>`).join('')}</div>
+    <div class="setnote">Totalt sedan start: <b>${all}</b> · 🐆 500 · ❤️ 100 · ⭐ 10 · 🐬 5 · 🫧 1</div>
+    <button id="popAuto" class="pst-auto ${auto?'on':''}" aria-pressed="${auto}"><span>🗓️ Nollställ automatiskt varje måndag</span><b>${auto?'På':'Av'}</b></button>
+    <div class="btns" style="flex-direction:column"><button id="popReset">🔄 Nollställ nu</button><button class="pri" data-act="close">Klar</button></div>
+    <small style="opacity:.75">Veckostatistiken och rekordet sparas även när du nollställer.</small>`,'popstats');
+  document.getElementById('popAuto').onclick=()=>{ const on=lsGet('ry_pop_auto')!=='1'; lsSet('ry_pop_auto',on?'1':'0'); lsSet('ry_pop_wk',popWk()); sfx.bubble(); toast(on?'Räknaren börjar om varje måndag 🗓️':'Ingen automatisk nollställning'); showPopStats(); };
+  document.getElementById('popReset').onclick=e=>{ const b=e.target; if(!b.dataset.sure){ b.dataset.sure='1'; b.textContent='Säker? Tryck igen för att nollställa'; b.classList.add('danger'); return; }
+    popCount=0; lsSet('ry_pops','0'); sfx.unbubble(); toast('Bubbelpoängen nollställd 🫧'); showPopStats(); const c=document.getElementById('popc'); if(c) c.textContent='🫧 0'; }; }
+document.addEventListener('click',e=>{ if(e.target.closest('#popc')) showPopStats(); });
 // stänkregn av små hjärtan
 function heartRain(cx,cy){
   const party=document.getElementById('party'); if(!party) return;
@@ -2479,7 +2549,7 @@ const LOBBY_CATS=[
   ['🃏','Kortspel',['sol','vandtia','fisk','hjarter']],
   ['♟️','Strategi & brädspel',['kina','othello','c4','gomoku','ships','mm']],
   ['🔤','Ordspel',['ordfajt','wordle','hang']],
-  ['🧩','Pussel & minne',['sudoku','memory']],
+  ['🧩','Pussel & minne',['sudoku','memory','mahjong']],
   ['⛷️','Sport & arkad',['race','slalom','skidskytte','pong','inv']]
 ];
 const TILE_DESC={ships:'Mot datorn eller en kompis', mm:'Knäck den hemliga färgkoden', hang:'Gissa ordet innan gubben hängs', kina:'2–6 spelare · online eller mot datorn',
@@ -2530,7 +2600,7 @@ function lobbyHTML(){
 }
 function updateFrBadge(){ const n=(typeof FR!=='undefined')?FR.unread():0; document.querySelectorAll('[data-frbadge]').forEach(el=>{ el.textContent=n||''; el.classList.toggle('on',n>0); }); }
 function topbarLobby(){
-  return `<div class="topbar"><div class="popc" id="popc" title="Poppade bubblor">🫧 ${popCount}</div><div class="tb-title" style="font-size:12px">Poppa bubblorna! 🫧</div>
+  return `<div class="topbar"><button class="popc" id="popc" title="Bubbelpoäng – tryck för statistik">🫧 ${popCount}</button><div class="tb-title" style="font-size:12px">Poppa bubblorna! 🫧</div>
     ${netDotHTML()}<button class="iconbtn sgbtn" data-act="sgopen" aria-label="Pågående spel">🎮<i class="cbadge ${sgCount()?'on':''}" data-sgbadge>${sgCount()||''}</i></button><button class="iconbtn" data-act="settings" aria-label="Inställningar">⚙️</button></div>`;
 }
 function playersHTML(){
