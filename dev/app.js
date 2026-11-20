@@ -21,7 +21,7 @@
   if(!same || !/[?&]bot=1/.test(location.search)){ document.documentElement.innerHTML=''; throw new Error('Inramning blockerad'); }
 })();
 /* ================= Version & utvecklingsläge ================= */
-const APP_VERSION='2026.11.20.3-dev';
+const APP_VERSION='2026.11.20.4-dev';
 const DEV = /\/dev(\/|$)/.test(location.pathname);      // testversionen ligger i mappen /dev/
 const BOT = /[?&]bot=1/.test(location.search) && window.parent!==window;   // osynlig ekokompis i en ram
 const LSP = DEV ? (BOT ? 'dev:bot:' : 'dev:') : (BOT ? 'bot:' : '');    // egen sparad data i testversionen
@@ -488,8 +488,8 @@ function showNotifySettings(){
 function systemNotify(msg){
   if(BOT) return; if(!ntfGet().t) return;
   if(!('Notification' in window) || Notification.permission!=='granted') return;
-  if(SWREG && SWREG.showNotification){ SWREG.showNotification('FrauLeins · Yatzy 🐬',{body:msg, tag:'yatzy-tur', renotify:true, icon:'icon-192.png', badge:'icon-192.png', vibrate:[180,90,180]}).catch(()=>{}); return; }
-  try{ const n=new Notification('FrauLeins · Yatzy 🐬',{body:msg, tag:'yatzy-tur', renotify:true}); n.onclick=()=>{ try{ window.focus(); }catch(e){} n.close(); }; }catch(e){}
+  if(SWREG && SWREG.showNotification){ SWREG.showNotification('Stjärndelfin Yatzy 🐬',{body:msg, tag:'yatzy-tur', renotify:true, icon:'icon-192.png', badge:'icon-192.png', vibrate:[180,90,180]}).catch(()=>{}); return; }
+  try{ const n=new Notification('Stjärndelfin Yatzy 🐬',{body:msg, tag:'yatzy-tur', renotify:true}); n.onclick=()=>{ try{ window.focus(); }catch(e){} n.close(); }; }catch(e){}
 }
 function notifyTurn(msg){
   if(!G || G.over) return;
