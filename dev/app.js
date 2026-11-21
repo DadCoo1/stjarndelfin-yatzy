@@ -21,7 +21,7 @@
   if(!same || !/[?&]bot=1/.test(location.search)){ document.documentElement.innerHTML=''; throw new Error('Inramning blockerad'); }
 })();
 /* ================= Version & utvecklingsläge ================= */
-const APP_VERSION='2026.11.22.4-dev';
+const APP_VERSION='2026.11.22.5-dev';
 const DEV = /\/dev(\/|$)/.test(location.pathname);      // testversionen ligger i mappen /dev/
 const BOT = /[?&]bot=1/.test(location.search) && window.parent!==window;   // osynlig ekokompis i en ram
 const LSP = DEV ? (BOT ? 'dev:bot:' : 'dev:') : (BOT ? 'bot:' : '');    // egen sparad data i testversionen
@@ -2338,9 +2338,10 @@ function goLobby(){
 
 /* ================= Modaler ================= */
 const M = () => document.getElementById('modal');
-function closeModal(){ M().classList.remove('show'); M().innerHTML=''; }
+function closeModal(){ M().classList.remove('show'); M().innerHTML=''; document.body.classList.remove('mdl'); }
 // kind: samma ruta som redan är öppen byggs om på plats – utan att hoppa till toppen eller fälla upp tangentbordet
 function openModal(html, kind){
+  document.body.classList.add('mdl');
   const old=M().querySelector('.sheet');
   if(kind && old && M().classList.contains('show') && old.dataset.kind===kind){ const st=old.scrollTop; old.innerHTML=html; old.scrollTop=st; return; }
   M().innerHTML=`<div class="sheet" ${kind?`data-kind="${kind}"`:''}>${html}</div>`; M().classList.add('show');

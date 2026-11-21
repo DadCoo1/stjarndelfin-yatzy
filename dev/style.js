@@ -61,8 +61,9 @@ const STYLE = (() => {
       el.innerHTML = '';
       let ok = false; try { ok = WGL.mount(el, s.world, { few: s.decor === 'lite', still: mo !== 'full', paused: () => (document.body.classList.contains('ingame') && !document.body.classList.contains('w-glgame')) || !!document.querySelector('#modal.show, .pin-pop'),   // stilla bakom dialoger: inget flimmer genom suddningen
         onLost: () => { glBroken = true; skyKey = ''; apply(); } }); } catch (e) { console.warn('WGL', e); ok = false; }
-      if (ok) return;
+      document.body.classList.toggle('w-gl', !!ok); if (ok) return;
     }
+    document.body.classList.remove('w-gl');
     if (s.decor === 'ingen' || w.plain) { el.innerHTML = ''; return; }
     const few = s.decor === 'lite', R = Math.random; let h = '';
     if (w.scene && typeof SCENES !== 'undefined') { el.innerHTML = SCENES.build(s.world, { few, still: mo !== 'full' }); return; }

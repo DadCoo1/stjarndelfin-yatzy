@@ -8,7 +8,7 @@
 <title>FrauLeins game board</title>
 <meta name="theme-color" content="#071a45">
 <meta name="description" content="Svensk Yatzy i rymden och havet">
-<script src="boot.js?v=2026.11.22.4-dev"></script>
+<script src="boot.js?v=2026.11.22.5-dev"></script>
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="icon-192.png">
 <link rel="apple-touch-icon" href="icon-180.png">
@@ -62,6 +62,10 @@ input{font-family:inherit}
 @keyframes bob{0%,100%{transform:translateY(0) rotate(-3deg)}50%{transform:translateY(-10px) rotate(4deg)}}
 .waves{position:absolute;left:0;right:0;bottom:0;height:120px;opacity:.35}
 /* ---------- Bubbelvärldar (scenes.js) ---------- */
+/* inget som rör sig bakom eller i en öppen dialog: suddningen behöver då aldrig räknas om (flimmer på mobil) */
+#modal .bgw-th *, #modal .bgw-th{animation:none!important;transition:none!important}
+body.mdl #bubbles{visibility:hidden}
+body.w-gl #modal{-webkit-backdrop-filter:none;backdrop-filter:none;background:rgba(2,6,20,.8)}
 #sky canvas.wgl{position:absolute;top:0;left:0;width:100%;height:100%;display:block}
 .scn{position:absolute;top:0;right:0;bottom:0;left:0;overflow:hidden}
 .scn-land{position:absolute;left:0;right:0;bottom:0;width:100%;display:block}
@@ -1070,41 +1074,41 @@ body.mo-av svg.dolph .dtl{animation:none}
 <div id="party"></div>
 <div id="modal"></div>
 
-<script src="dolphin.js?v=2026.11.22.4-dev"></script>
-<script src="app.js?v=2026.11.22.4-dev"></script>
-<script src="games.js?v=2026.11.22.4-dev"></script>
-<script src="kina.js?v=2026.11.22.4-dev"></script>
-<script src="ordfajt.js?v=2026.11.22.4-dev"></script>
-<script src="pong.js?v=2026.11.22.4-dev"></script>
-<script src="duel.js?v=2026.11.22.4-dev"></script>
-<script src="kit.js?v=2026.11.22.4-dev"></script>
-<script src="strat.js?v=2026.11.22.4-dev"></script>
-<script src="family.js?v=2026.11.22.4-dev"></script>
-<script src="cards.js?v=2026.11.22.4-dev"></script>
-<script src="puzzle.js?v=2026.11.22.4-dev"></script>
-<script src="mahjong.js?v=2026.11.22.4-dev"></script>
-<script src="drone.js?v=2026.11.22.4-dev"></script>
-<script src="replay.js?v=2026.11.22.4-dev"></script>
-<script src="weather.js?v=2026.11.22.4-dev"></script>
-<script src="mountain.js?v=2026.11.22.4-dev"></script>
-<script src="slalomgl.js?v=2026.11.22.4-dev"></script>
-<script src="slalom.js?v=2026.11.22.4-dev"></script>
-<script src="biathlon.js?v=2026.11.22.4-dev"></script>
-<script src="invaders.js?v=2026.11.22.4-dev"></script>
-<script src="cars3d.js?v=2026.11.22.4-dev"></script>
-<script src="race.js?v=2026.11.22.4-dev"></script>
-<script src="chat.js?v=2026.11.22.4-dev"></script>
-<script src="call.js?v=2026.11.22.4-dev"></script>
-<script src="gcall.js?v=2026.11.22.4-dev"></script>
-<script src="backup.js?v=2026.11.22.4-dev"></script>
-<script src="today.js?v=2026.11.22.4-dev"></script>
-<script src="worldgl.js?v=2026.11.22.4-dev"></script>
-<script src="wglscenes.js?v=2026.11.22.4-dev"></script>
-<script src="amb.js?v=2026.11.22.4-dev"></script>
-<script src="scenes.js?v=2026.11.22.4-dev"></script>
-<script src="style.js?v=2026.11.22.4-dev"></script>
-<script src="welcome.js?v=2026.11.22.4-dev"></script>
-<script src="pins.js?v=2026.11.22.4-dev"></script>
-<script src="fr.js?v=2026.11.22.4-dev"></script>
+<script src="dolphin.js?v=2026.11.22.5-dev"></script>
+<script src="app.js?v=2026.11.22.5-dev"></script>
+<script src="games.js?v=2026.11.22.5-dev"></script>
+<script src="kina.js?v=2026.11.22.5-dev"></script>
+<script src="ordfajt.js?v=2026.11.22.5-dev"></script>
+<script src="pong.js?v=2026.11.22.5-dev"></script>
+<script src="duel.js?v=2026.11.22.5-dev"></script>
+<script src="kit.js?v=2026.11.22.5-dev"></script>
+<script src="strat.js?v=2026.11.22.5-dev"></script>
+<script src="family.js?v=2026.11.22.5-dev"></script>
+<script src="cards.js?v=2026.11.22.5-dev"></script>
+<script src="puzzle.js?v=2026.11.22.5-dev"></script>
+<script src="mahjong.js?v=2026.11.22.5-dev"></script>
+<script src="drone.js?v=2026.11.22.5-dev"></script>
+<script src="replay.js?v=2026.11.22.5-dev"></script>
+<script src="weather.js?v=2026.11.22.5-dev"></script>
+<script src="mountain.js?v=2026.11.22.5-dev"></script>
+<script src="slalomgl.js?v=2026.11.22.5-dev"></script>
+<script src="slalom.js?v=2026.11.22.5-dev"></script>
+<script src="biathlon.js?v=2026.11.22.5-dev"></script>
+<script src="invaders.js?v=2026.11.22.5-dev"></script>
+<script src="cars3d.js?v=2026.11.22.5-dev"></script>
+<script src="race.js?v=2026.11.22.5-dev"></script>
+<script src="chat.js?v=2026.11.22.5-dev"></script>
+<script src="call.js?v=2026.11.22.5-dev"></script>
+<script src="gcall.js?v=2026.11.22.5-dev"></script>
+<script src="backup.js?v=2026.11.22.5-dev"></script>
+<script src="today.js?v=2026.11.22.5-dev"></script>
+<script src="worldgl.js?v=2026.11.22.5-dev"></script>
+<script src="wglscenes.js?v=2026.11.22.5-dev"></script>
+<script src="amb.js?v=2026.11.22.5-dev"></script>
+<script src="scenes.js?v=2026.11.22.5-dev"></script>
+<script src="style.js?v=2026.11.22.5-dev"></script>
+<script src="welcome.js?v=2026.11.22.5-dev"></script>
+<script src="pins.js?v=2026.11.22.5-dev"></script>
+<script src="fr.js?v=2026.11.22.5-dev"></script>
 </body>
 </html>
