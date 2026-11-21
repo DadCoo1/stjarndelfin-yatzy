@@ -30,7 +30,7 @@ const STYLE = (() => {
   const set = (k, v) => { const s = get(); s[k] = v; lsSet('style', JSON.stringify(s)); apply(); };
 
   /* ---------- tillämpa ---------- */
-  let skyKey = '', curWorld = 'rymd', glBroken = false;
+  let skyKey = '', curWorld = 'rymd', glBroken = false, glLost = 0;
   function apply() {
     const s = get(); if (!WORLDS[s.world] || locked(s.world)) s.world = 'rymd'; const w = WORLDS[s.world], a = ACCENTS[s.acc], r = document.documentElement.style, b = document.body;
     r.setProperty('--deep', w.bg[0]); r.setProperty('--bg1', w.bg[0]); r.setProperty('--bg2', w.bg[1]); r.setProperty('--bg3', w.bg[2]);
@@ -60,7 +60,7 @@ const STYLE = (() => {
     if (s.decor !== 'ingen' && s.bg3d !== 'av' && !glBroken && typeof WGL !== 'undefined' && WGL.has(s.world) && WGL.supported()) {
       el.innerHTML = '';
       let ok = false; try { ok = WGL.mount(el, s.world, { few: s.decor === 'lite', still: mo !== 'full', paused: () => (document.body.classList.contains('ingame') && !document.body.classList.contains('w-glgame')) || !!document.querySelector('#modal.show, .pin-pop'),   // stilla bakom dialoger: inget flimmer genom suddningen
-        onLost: () => { glBroken = true; skyKey = ''; apply(); } }); } catch (e) { console.warn('WGL', e); ok = false; }
+        onLost: () => { if (++glLost >= 3) glBroken = true; skyKey = ''; setTimeout(apply, glBroken ? 0 : 1200); } }); } catch (e) { console.warn('WGL', e); ok = false; }
       document.body.classList.toggle('w-gl', !!ok); if (ok) return;
     }
     document.body.classList.remove('w-gl');

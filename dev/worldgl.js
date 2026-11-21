@@ -450,7 +450,8 @@ void main(){
     gl = cv.getContext('webgl2', ca); isGL2 = !!gl; if (!gl) gl = cv.getContext('webgl', ca) || cv.getContext('experimental-webgl', ca);
     if (!gl) { cv.remove(); cv = null; return false; }
     try { build(world, opt); } catch (e) { console.warn('WGL', e); unmount(); return false; }
-    cv.addEventListener('webglcontextlost', e => { e.preventDefault(); const cb = opt.onLost; unmount(); if (cb) cb(); });
+    const myCv = cv; myCv.addEventListener('webglcontextlost', e => { e.preventDefault(); if (myCv._bye || cv !== myCv) return;   // avsiktligt stängd (ombyggnad) räknas inte som fel
+      const cb = opt.onLost; unmount(); if (cb) cb(); });
     try { resize(); draw(performance.now()); const e = gl.getError(); if (e && e !== gl.CONTEXT_LOST_WEBGL) console.warn('WGL gl-fel', e); } catch (e) { console.warn('WGL', e); unmount(); return false; }
     if (opt.still) { state.still = true; } else loop();
     return true;
@@ -561,7 +562,7 @@ void main(){
     gl.depthMask(true); gl.disable(gl.BLEND);
   }
   function draw(now) {
-    if (!state || !gl) return; const S = state.S, t = state.still ? (S.cfg.stillT || 20) : (now - state.t0) / 1000; frameN++;
+    if (!state || !gl) return; const S = state.S, t = state.still ? (S.cfg.stillT || 20) : Math.max(0, (now - state.t0) / 1000);   // rAF:s tidsstämpel kan ligga före starten frameN++;
     const cam = camera(S.cfg, state.W, state.H);
     // rörliga delar
     const L = state.lights.slice(); state.dyn.reset(); let pn = 0, an = 0;
@@ -602,9 +603,9 @@ void main(){
     dp(state.aVbo, state.aN, true); gl.depthMask(true); gl.disable(gl.BLEND);
   }
   function unmount() {
-    cancelAnimationFrame(raf); raf = 0;
+    cancelAnimationFrame(raf); raf = 0; if (cv) cv._bye = true;
     if (gl && state) { try { ['rtScene', 'rtSky', 'rtRefl', 'rtReflSky', 'rtB0', 'rtB1', 'rtB2', 'rtB3'].forEach(k => freeRT(state[k])); const ext = gl.getExtension('WEBGL_lose_context'); if (ext) ext.loseContext(); } catch (e) {} }
-    if (cv) cv.remove(); cv = null; gl = null; state = null; scale = 1;
+    if (cv) { cv._bye = true; cv.remove(); } cv = null; gl = null; state = null; scale = 1;
   }
   window.addEventListener('resize', () => { if (state) { resize(); if (state.still) draw(performance.now()); } });
   document.addEventListener('visibilitychange', () => { if (!document.hidden && state && state.still) draw(performance.now()); });

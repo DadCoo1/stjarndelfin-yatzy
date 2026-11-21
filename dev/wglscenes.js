@@ -227,7 +227,7 @@
       },
       update(t, D, P, L) {
         const lf = this.lift; for (let i = 0; i < lf.length - 1; i++) for (const s of [-1.4, 1.4]) D.tube([lf[i][0], lf[i][1], lf[i][2] + s], [lf[i + 1][0], lf[i + 1][1], lf[i + 1][2] + s], .03, .03, '#2b2f3a', 0, 0, 3);
-        for (let k = 0; k < 14; k++) { const u = ((t * .018 + k / 14) % 1), f = u * (lf.length - 1), i = Math.floor(f), w = f - i, a = lf[i], b = lf[Math.min(lf.length - 1, i + 1)], p = V.lerp(a, b, w);
+        for (let k = 0; k < 14; k++) { const u = (((t * .018 + k / 14) % 1) + 1) % 1, f = u * (lf.length - 1), i = Math.min(lf.length - 2, Math.floor(f)), w = f - i, a = lf[i], b = lf[Math.min(lf.length - 1, i + 1)], p = V.lerp(a, b, w);
           const c = [p[0], p[1], p[2] + 1.4]; D.tube(c, [c[0], c[1] - 2.2, c[2]], .03, .03, '#2b2f3a', 0, 0, 3); D.box(c[0], c[1] - 2.5, c[2], .9, .12, 1.4, '#c92a2a', 5); D.box(c[0], c[1] - 2.5, c[2] - .7, .9, .9, .1, '#c92a2a', 5);
           const c2 = [p[0], p[1] - 2.2, p[2] - 1.4]; D.box(c2[0], c2[1] - .3, c2[2], .9, .12, 1.4, '#c92a2a', 5); }
         // skidåkare som svänger nedför backen mot kameran
