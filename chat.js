@@ -295,7 +295,7 @@ const CHAT = (()=>{
   }
   async function mbPush(id, items){
     if(!MB() || !items.length) return;
-    const send=items.filter(o=>!o.mbox && !NOMB.has(o.payload && o.payload.type)); if(!send.length) return;
+    const send=items.filter(o=>(!o.mbox || (o.mbox>0 && Date.now()-o.mbox>7*864e5 && !o.acked)) && !NOMB.has(o.payload && o.payload.type)); if(!send.length) return;   // utan leveranskvitto på 7 dygn: lägg i brevlådan igen (servern sparar 30)
     send.forEach(o=>o.mbox=-1);
     // notiskategori (bara en bokstav, inget innehåll): m = meddelande, i = spelinbjudan, t = din tur, c = missat samtal
     const catOf=o=>{ const p=o.payload||{}; if(p.type==='msg') return p.invite?'i':'m'; if(p.type==='nudge' && ['t','c'].includes(p.k)) return p.k; return undefined; };
@@ -924,6 +924,11 @@ const CHAT = (()=>{
           <button data-c="delme" data-mid="${m.mid}">🗑 Ta bort för mig</button></div>`:''}</div>`;
     });
     const t=typing[cid]; if(t && t.until>Date.now()) h+=`<div class="wa-msg in first"><div class="wa-bub typingdots"><i></i><i></i><i></i></div></div>`;
+    // leveransgaranti: berätta att det väntar och kommer fram
+    if(!isNote(cid)){ const last=[...c.msgs].reverse().find(m=>m.out&&!m.sys&&!m.revoked), stt=last&&aggStatus(last,cid);
+      if(last && (stt==='queued'||stt==='sent')){ const r=recipients(cid), off=r.filter(id=>!isOnline(id)), who=cid.startsWith('g:')?'De som är offline':esc(nameOf(cid.slice(2)));
+        if(stt==='queued') h+=`<div class="wa-sys wa-wait">🕓 Väntar på nät. Meddelandet ligger kvar i din telefon och skickas automatiskt så fort du har kontakt – även om du stänger appen.</div>`;
+        else if(off.length) h+=`<div class="wa-sys wa-wait">✓ Sparat krypterat i brevlådan. ${who} får ${cid.startsWith('g:')?'meddelandena':'det'} när ${cid.startsWith('g:')?'de':'hen'} är online igen – du ser ✓✓ när det har kommit fram.</div>`; } }
     return h;
   }
   const linkify = t => esc(t).replace(/(https?:\/\/[^\s<]+)/g,'<a href="$1" target="_blank" rel="noopener">$1</a>').replace(/\n/g,'<br>');
@@ -1563,7 +1568,7 @@ Skriv:
       ice:()=>{ const o=cpeer && cpeer.options && cpeer.options.config; return (o && Array.isArray(o.iceServers)) ? {iceServers:o.iceServers, ...(o.iceTransportPolicy?{iceTransportPolicy:o.iceTransportPolicy}:{})} : {iceServers:(typeof netBase==='function'&&netBase())?[{urls:'stun:'+netBase().host+':3478'}]:[]}; }
     },
     // bara i testversionen: krokar för automatiska säkerhetstester
-    __test: DEV ? {mergeAll, prim:()=>PRIM, mbPull, presPull, ping:id=>pingContact(id,true), pingSt:()=>pingSt, srvPres:()=>srvPres, outbox:()=>outbox, queueDirect, conns:()=>[...conns.keys()], typing:()=>({...typing}), groups:()=>GROUPS, convs:()=>convs, contacts:()=>contacts, scan:t=>onScanText(t),
+    __test: DEV ? {flushAll, mergeAll, prim:()=>PRIM, mbPull, presPull, ping:id=>pingContact(id,true), pingSt:()=>pingSt, srvPres:()=>srvPres, outbox:()=>outbox, queueDirect, conns:()=>[...conns.keys()], typing:()=>({...typing}), groups:()=>GROUPS, convs:()=>convs, contacts:()=>contacts, scan:t=>onScanText(t),
       zombie:id=>{ const c=conns.get(id); if(c){ c.removeAllListeners('data'); c.on('data',()=>{}); } },   // anslutningen ser öppen ut men tar inte emot
       noNet:()=>{ testNoNet=true; try{ cpeer && cpeer.destroy() }catch(e){} cpeer=null; conns.clear(); }} : undefined
   };
@@ -1620,6 +1625,7 @@ function openChatView(){ CHAT.open(); }
 .wa-req button{padding:6px 12px;border-radius:999px;background:var(--ca);color:#fff;font-weight:600}.wa-req button:last-child{background:#ef4444}
 .wa-msgs{flex:1;overflow-y:auto;padding:12px 4% 14px;background:var(--wall);background-size:auto,90px;background-color:var(--cbg)}
 .wa-day{text-align:center;margin:10px 0}.wa-day span{display:inline-block;padding:5px 12px;border-radius:8px;font-size:12.5px;background:var(--chead);color:var(--cs);box-shadow:0 1px 1px rgba(0,0,0,.15)}
+.wa-sys.wa-wait{background:rgba(34,197,94,.12);border:1px solid rgba(34,197,94,.35);color:inherit;line-height:1.4}
 .wa-sys{max-width:90%;margin:8px auto;text-align:center;font-size:12.5px;padding:6px 12px;border-radius:8px;background:var(--chead);color:var(--cs)}
 .wa-sys.lock{background:rgba(255,213,79,.18);color:var(--cstxt);cursor:pointer}
 .wa-msg{display:flex;flex-direction:column;margin:2px 0;position:relative}

@@ -2,8 +2,8 @@
 // Release och testversion (/dev/) har varsin cache och rör aldrig varandras.
 const DEV = /\/dev\//.test(self.location.pathname);
 const PFX = DEV ? 'fl-dev-' : 'stjarndelfin-';
-const CACHE = PFX + 'v126';
-const FILES = ['./', './index.html', './manifest.webmanifest', './icon-192.png', './icon-512.png', './icon-180.png', './games.js', './invaders.js', './cars3d.js', './race.js', './chat.js', './call.js', './dolphin.js', './app.js', './peerjs.min.js', './fonts/fredoka-400.woff2', './fonts/fredoka-500.woff2', './fonts/fredoka-600.woff2', './fonts/fredoka-700.woff2', './qr.js', './fr.js', './backup.js', './today.js', './snd/brook.m4a', './style.js', './boot.js', './welcome.js', './pins.js', './kina.js', './ordfajt.js', './pong.js', './duel.js', './kit.js', './strat.js', './family.js', './cards.js', './puzzle.js', './mahjong.js', './drone.js', './replay.js', './weather.js', './mountain.js', './slalomgl.js', './slalom.js', './biathlon.js'];
+const CACHE = PFX + 'v129';
+const FILES = ['./', './index.html', './manifest.webmanifest', './icon-192.png', './icon-512.png', './icon-180.png', './games.js', './invaders.js', './cars3d.js', './race.js', './chat.js', './call.js', './gcall.js', './dolphin.js', './app.js', './peerjs.min.js', './fonts/fredoka-400.woff2', './fonts/fredoka-500.woff2', './fonts/fredoka-600.woff2', './fonts/fredoka-700.woff2', './qr.js', './fr.js', './backup.js', './today.js', './snd/brook.m4a', './style.js', './boot.js', './welcome.js', './pins.js', './kina.js', './ordfajt.js', './pong.js', './duel.js', './kit.js', './strat.js', './family.js', './cards.js', './puzzle.js', './mahjong.js', './drone.js', './replay.js', './weather.js', './mountain.js', './slalomgl.js', './slalom.js', './biathlon.js'];
 self.addEventListener('install', e => { e.waitUntil(caches.open(CACHE).then(c => c.addAll(FILES.map(u => new Request(u, {cache: 'reload'})))).then(() => self.skipWaiting())); });
 self.addEventListener('activate', e => {
   // ta bort alla gamla cacher (även från äldre versioner med andra namn) – men releasen rör aldrig testversionens och tvärtom
