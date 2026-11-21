@@ -425,6 +425,7 @@ const AMB = (() => {
         setTimeout(() => { S.srcs.forEach(n => { try { n.stop(); } catch (e) {} }); try { S.out.disconnect(); } catch (e) {} }, d * 1000 + 200); }
     };
   }
+  TH.stilla = Object.assign({}, TH.ren, { room: 5, wet: 1.1 });   // stilla horisont: samma nästan tysta ljud
   const has = w => !!TH[w];
   return { start, has, _t: { TH, firework: () => 0 } };
 })();

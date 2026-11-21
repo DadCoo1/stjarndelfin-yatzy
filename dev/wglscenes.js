@@ -138,7 +138,8 @@
         [[-10, -42], [8, -40], [-2, -52], [16, -66], [-20, -74], [-7, -26], [2, -30]].forEach(([x, z]) => { const y = H(x, z); M.tube([x, y, z], [x, y + 3.6, z], .07, .05, '#1f2430', 5, 0, 5); M.ellip([x, y + 3.85, z], [.22, .3, .22], '#ffd894', 2, 0, 6); M.tube([x, y + 4.1, z], [x, y + 4.4, z], .25, .02, '#1f2430', 0, 0, 6); L.push([[x, y + 3.6, z], [1, .78, .48], 1.6, .14]); });
         this.chim = chim;
       },
-      update(t, D, P, L, cam) {
+      update(t, D, P, L, cam, st, clean) {
+        if (clean) return;
         // släden: en båge över byn från vänster till höger, går om var 34:e sekund
         const T = 40, u = ((t % T) / T), x = -95 + u * 190, z = -62 + Math.sin(u * PI) * 14, y = 13 + Math.sin(u * PI) * 5 + Math.sin(t * 1.3) * .6;
         const dx = 190 / T, dy = (5 * PI / T) * Math.cos(u * PI), yaw = Math.atan2(14 * PI / T * Math.cos(u * PI), dx), pitch = Math.atan2(dy, dx) * .8, s = 1.7;
@@ -225,11 +226,12 @@
         // liftstolpar
         this.lift = []; for (let i = 0; i <= 8; i++) { const z = 10 - i * 34, x = xc(z) - 32 - i * .8, y = Hs(x, z); M.tube([x, y, z], [x, y + 10, z], .22, .16, '#5c6370', 5, 0, 6); M.box(x, y + 10, z, .3, .3, 3.2, '#5c6370', 5); this.lift.push([x, y + 10.3, z]); }
       },
-      update(t, D, P, L) {
+      update(t, D, P, L, cam, st, clean) {
         const lf = this.lift; for (let i = 0; i < lf.length - 1; i++) for (const s of [-1.4, 1.4]) D.tube([lf[i][0], lf[i][1], lf[i][2] + s], [lf[i + 1][0], lf[i + 1][1], lf[i + 1][2] + s], .03, .03, '#2b2f3a', 0, 0, 3);
-        for (let k = 0; k < 14; k++) { const u = (((t * .018 + k / 14) % 1) + 1) % 1, f = u * (lf.length - 1), i = Math.min(lf.length - 2, Math.floor(f)), w = f - i, a = lf[i], b = lf[Math.min(lf.length - 1, i + 1)], p = V.lerp(a, b, w);
+        if (!clean) for (let k = 0; k < 14; k++) { const u = (((t * .018 + k / 14) % 1) + 1) % 1, f = u * (lf.length - 1), i = Math.min(lf.length - 2, Math.floor(f)), w = f - i, a = lf[i], b = lf[Math.min(lf.length - 1, i + 1)], p = V.lerp(a, b, w);
           const c = [p[0], p[1], p[2] + 1.4]; D.tube(c, [c[0], c[1] - 2.2, c[2]], .03, .03, '#2b2f3a', 0, 0, 3); D.box(c[0], c[1] - 2.5, c[2], .9, .12, 1.4, '#c92a2a', 5); D.box(c[0], c[1] - 2.5, c[2] - .7, .9, .9, .1, '#c92a2a', 5);
           const c2 = [p[0], p[1] - 2.2, p[2] - 1.4]; D.box(c2[0], c2[1] - .3, c2[2], .9, .12, 1.4, '#c92a2a', 5); }
+        if (clean) return;
         // skidåkare som svänger nedför backen mot kameran
         skiers.forEach(([jk, pants, helm, ski, off], i) => {
           const T = 17, u = (((t + off) % T) / T), z = -230 + u * 250, ph = z * .085 + i * 1.7, x = xc(z) + (i - 1) * 6 + Math.sin(ph) * 9, y = Hs(x, z);
@@ -263,7 +265,8 @@
         // brygga ut i sjön
         for (let i = 0; i < 9; i++) M.box(5, .25, -14 - i * 1.6, 1.8, .14, 1.4, '#5a4636', 8);
       },
-      update(t, D, P, L) {
+      update(t, D, P, L, cam, st, clean) {
+        if (clean) return;
         // renar som går längs stranden
         [[0, 1], [11, .85], [19, .92]].forEach(([off, s], i) => { const T = 70, u = (((t * .9 + off) % T) / T), x = -70 + u * 140, z = -128 + Math.sin(u * 6) * 4 + i * 3, y = H(x, z);
           const ph = t * 4 + i; TMP.reset(); reindeer(TMP, ph, '#6b4a35', true);
@@ -298,12 +301,13 @@
           M.tube([x, 44, z + 6.05], [x, 44, z + 6.4], 4.2, 4.2, '#fff0c2', 2, 0, 24); M.box(x, 44, z + 6.5, .5, 3.6, .2, '#1a1a1a'); M.box(x, 44, z + 6.55, .7, 2.6, .2, '#1a1a1a');
           for (const yy of [12, 22, 32]) M.box(x, yy, z + 6.1, 2, 3, .2, '#ffcf7a', 2); }
       },
-      update(t, D, P, L) {
+      update(t, D, P, L, cam, st, clean) {
         // pariserhjulet snurrar
         { const cx = 70, cy = 30, cz = -330, Rw = 24, a0 = t * .06; D.tube([cx - 6, 2, cz], [cx, cy, cz], .6, .5, '#3b3b48', 5, 0, 5); D.tube([cx + 6, 2, cz], [cx, cy, cz], .6, .5, '#3b3b48', 5, 0, 5);
           let pp = null; for (let i = 0; i <= 32; i++) { const a = a0 + i / 32 * PI * 2, q = [cx + Math.cos(a) * Rw, cy + Math.sin(a) * Rw, cz]; if (pp) D.tube(pp, q, .3, .3, '#c5b8ff', 6, (i % 4) / 4, 4); pp = q; }
           for (let i = 0; i < 16; i++) { const a = a0 + i / 16 * PI * 2, q = [cx + Math.cos(a) * Rw, cy + Math.sin(a) * Rw, cz]; D.tube([cx, cy, cz], q, .12, .12, '#8f86c9', 0, 0, 3); D.box(q[0], q[1] - 3, q[2], 2.2, 2.4, 2.2, ['#ff6b6b', '#ffd43b', '#4dabf7', '#69db7c'][i % 4], 6, i / 16); }
           L.push([[cx, cy, cz + 10], [.8, .6, 1], 1.5, .01]); }
+        if (clean) return;
         // fyrverkerier: raketer stiger och slår ut; gnistorna faller med luftmotstånd och tyngd, ljuset lyser upp stan och vattnet
         const nn = o.few ? 60 : 110;
         SH.forEach((s, k) => { const u = ((t + s.off) % s.P), cyc = Math.floor((t + s.off) / s.P), j = rng(k * 131 + cyc * 7); const x = s.x + (j() - .5) * 80, h = s.h + (j() - .5) * 30, z = s.z;
@@ -336,7 +340,8 @@
         [[-260, -700, 70, 30], [180, -900, 110, 45], [520, -800, 60, 22], [-620, -950, 90, 40]].forEach(([x, z, w, h], k) => { for (let i = 0; i < 6; i++) M.ellip([x + (r() - .5) * w, -2, z + (r() - .5) * 20], [w * (.4 + r() * .4), h * (.5 + r() * .6), 30], '#0c1324', 0); });
         M.tube([-250, 20, -690], [-250, 52, -690], 3, 2.2, '#d9d9e3', 0, 0, 8); M.sphere([-250, 54, -690], 2.6, '#fff1b8', 2, 0, 6);
       },
-      update(t, D, P, L) {
+      update(t, D, P, L, cam, st, clean) {
+        if (clean) return;
         // fyrens ljuskägla som sveper runt
         const ba = t * .9; for (let i = 0; i < 40; i++) { const d = i * 7; P.add([-250 + Math.cos(ba) * d, 54, -690 + Math.sin(ba) * d], [1, .95, .75, .5 * (1 - i / 40)], 6 + i * .6, true); }
         // två delfiner som hoppar i bågar i otakt
@@ -351,4 +356,21 @@
         const R = rng(6); for (let i = 0; i < (o.few ? 150 : 300); i++) { const x = (R() - .5) * 80, z = 15 - R() * 120; P.add([x, .05 + Math.sin(t + i) * .05, z], [.5, .9, 1, .5 * (.5 + .5 * Math.sin(t * 2.3 + i * 1.7))], .08, true); }
       } };
   };
+
+  /* =================================================================== Stilla horisont – ren, stilla och vackert renderad */
+  SC.stilla = (o) => {
+    const sun = dir(4, 8.4), N = mkNoise(91);
+    const cfg = { fov: 40, eye: [0, 9, 30], pitch: 2.5, light: sun, lightC: [.95, .62, .5], ambSky: [.16, .16, .26], ambGnd: [.05, .05, .08],
+      top: [.008, .014, .06], hor: [.36, .22, .32], gnd: [.06, .05, .09], glowC: [.62, .3, .2], stars: .45, moon: sun, moonC: [1, .84, .66], moonR: .04,
+      fogC: [.34, .22, .3], haze: [.62, .32, .18], fog: [.0017, .003, 0, 1], em: 1, glowK: 1, bloom: 1.1, grade: [.98, .97, 1.08, .6], skyRes: .6, stillT: 0, shadow: null };
+    return { cfg, defs: ['MOON', 'SUNDISC'], water: { y: 0, deep: [.015, .014, .035], wv: [.05, .25, .004, .03], ext: [-4000, 4000, -95, 40] },
+      statics(M) {
+        // horisontlinjer i lager: samma mörka ton, dimman ger gradienten
+        const layers = [[-100, 26, .011, 1], [-190, 44, .008, 2], [-340, 70, .006, 3], [-560, 110, .0045, 4], [-860, 150, .0034, 5], [-1300, 210, .0025, 6]];
+        layers.forEach(([z0, amp, fq, k]) => terrain(M, -2600, 2600, z0 - 60, z0, 900, 4, (x, z) => { const e = (z - (z0 - 60)) / 60; const h = (N.fbm(x * fq + k * 7, k * 3.1, 5) * 1.5 - .35) * amp + amp * .2, fall = Math.min(1, Math.max(0, (e - .55) / .45)); return h * (1 - fall * fall) - 3 * fall; },
+          () => [[.045, .045, .09], 0, 0]));
+      },
+      update() {} };
+  };
+  SC.stilla.alwaysStill = true;
 })();

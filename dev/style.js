@@ -13,13 +13,14 @@ const STYLE = (() => {
     skog:     { name: 'Skogsnatt', ic: '🌲', bg: ['#04140c', '#0b2a1a', '#14402a'], glow: ['rgba(74,222,128,.35)', 'rgba(250,204,21,.22)'], acc: '#86efac', acc2: '#fde047', txt: '#effff4', dim: '#9cc9a8', glass: 'rgba(134,239,172,.09)', line: 'rgba(134,239,172,.22)', planet: 0, stars: 1, flies: 1, sea: 0 },
     leopard:  { name: 'Leopard', ic: '🐆', bg: ['#1b120a', '#3a2614', '#5a3a1c'], glow: ['rgba(227,176,100,.45)', 'rgba(249,168,212,.30)'], acc: '#f5c27a', acc2: '#f9a8d4', txt: '#fff7ea', dim: '#d6b892', glass: 'rgba(245,194,122,.10)', line: 'rgba(245,194,122,.26)', planet: 0, stars: 0, leo: 1, sea: 0 },
     ljus:     { name: 'Molnljus', ic: '☁️', bg: ['#dbeafe', '#e9d5ff', '#fbcfe8'], glow: ['rgba(255,255,255,.7)', 'rgba(196,181,253,.5)'], acc: '#7c3aed', acc2: '#db2777', txt: '#1e1b4b', dim: '#5b5a86', glass: 'rgba(255,255,255,.55)', line: 'rgba(124,58,237,.22)', planet: 0, stars: 0, sea: 0, light: 1 },
+    stilla:   { name: 'Stilla horisont', ic: '🌄', bg: ['#0c0f22', '#2a2440', '#6b4a5c'], glow: ['rgba(255,170,140,.3)', 'rgba(120,110,200,.25)'], acc: '#fdba74', acc2: '#c4b5fd', txt: '#fff7f2', dim: '#cdb7c0', glass: 'rgba(255,220,210,.08)', line: 'rgba(255,210,200,.22)', planet: 0, stars: 1, sun: 1, sea: 0 },
     ren:      { name: 'Ren & enkel', ic: '◻️', bg: ['#0b0f1a', '#111827', '#111827'], glow: ['rgba(148,163,184,.12)', 'rgba(148,163,184,.08)'], acc: '#93c5fd', acc2: '#c4b5fd', txt: '#f1f5f9', dim: '#94a3b8', glass: 'rgba(148,163,184,.10)', line: 'rgba(148,163,184,.22)', planet: 0, stars: 0, sea: 0, plain: 1 }
   };
   // bubbelvärldar (scenes.js) som låses upp med bubbelpoäng
   if (typeof SCENES !== 'undefined') Object.assign(WORLDS, SCENES.worlds);
   const locked = k => !!(WORLDS[k] && (WORLDS[k].price || WORLDS[k].season)) && !(typeof SCENES !== 'undefined' && SCENES.owned(k));
   const ACCENTS = { auto: null, rosa: ['#f9a8d4', '#f472b6'], lila: ['#c4b5fd', '#a855f7'], turkos: ['#5eead4', '#22d3ee'], guld: ['#fde68a', '#f59e0b'], korall: ['#fda4af', '#fb7185'], mint: ['#bbf7d0', '#34d399'] };
-  const DEF = { world: 'rymd', acc: 'auto', size: 'normal', motion: 'auto', decor: 'lite', icons: 'ritade', dice: 'klassisk' };
+  const DEF = { world: 'rymd', bgmo: 'levande', acc: 'auto', size: 'normal', motion: 'auto', decor: 'lite', icons: 'ritade', dice: 'klassisk' };
   const DICE = { klassisk: 'Klassisk', parlemor: 'Pärlemor', hav: 'Havsglas', leopard: 'Leopard', neon: 'Neon', natt: 'Midnatt' };
   // Äldre eller svagare enheter (t.ex. iPad med iPadOS 15) får lugnare rörelser och mindre dekor från början –
   // spelaren kan alltid ändra själv. Påverkar bara den som inte har valt något.
@@ -50,7 +51,7 @@ const STYLE = (() => {
     const mc = document.querySelector('meta[name=theme-color]'); if (mc) mc.setAttribute('content', w.bg[0]);
     try { const v = {}; ['--deep', '--bg1', '--bg2', '--bg3', '--glow1', '--glow2', '--aqua', '--acc', '--acc2', '--txt', '--dim', '--glass', '--glass2', '--line'].forEach(k => v[k] = r.getPropertyValue(k)); lsSet('style_cache', JSON.stringify({ v, bg: w.bg[0] })); } catch (e) {}
     const wch = curWorld !== s.world; curWorld = s.world; if (wch) setTimeout(() => { try { if (typeof musicWorld === 'function') musicWorld(); } catch (e) {} }, 0);
-    const k = s.world + s.decor + mo + (s.bg3d || ''); if (k !== skyKey) { skyKey = k; sky(w, s, mo); b.classList.toggle('w-scene', !!w.scene); }
+    const k = s.world + s.decor + mo + (s.bg3d || '') + (s.bgmo || ''); if (k !== skyKey) { skyKey = k; sky(w, s, mo); b.classList.toggle('w-scene', !!w.scene); }
   }
   // himlen/havet bakom allt – byggs om bara när världen eller dekoren ändras
   function sky(w, s, mo) {
@@ -59,7 +60,7 @@ const STYLE = (() => {
     // 3D-bakgrund (WebGL) när världen har en sådan; annars de ritade scenerna
     if (s.decor !== 'ingen' && s.bg3d !== 'av' && !glBroken && typeof WGL !== 'undefined' && WGL.has(s.world) && WGL.supported()) {
       el.innerHTML = '';
-      let ok = false; try { ok = WGL.mount(el, s.world, { few: s.decor === 'lite', still: mo !== 'full', paused: () => (document.body.classList.contains('ingame') && !document.body.classList.contains('w-glgame')) || !!document.querySelector('#modal.show, .pin-pop'),   // stilla bakom dialoger: inget flimmer genom suddningen
+      let ok = false; try { ok = WGL.mount(el, s.world, { few: s.decor === 'lite', still: mo !== 'full' || s.bgmo === 'stilla', clean: s.bgmo === 'stilla', paused: () => (document.body.classList.contains('ingame') && !document.body.classList.contains('w-glgame')) || !!document.querySelector('#modal.show, .pin-pop'),   // stilla bakom dialoger: inget flimmer genom suddningen
         onLost: () => { if (++glLost >= 3) glBroken = true; skyKey = ''; setTimeout(apply, glBroken ? 0 : 1200); } }); } catch (e) { console.warn('WGL', e); ok = false; }
       document.body.classList.toggle('w-gl', !!ok); if (ok) return;
     }
@@ -163,6 +164,7 @@ const STYLE = (() => {
       <div class="setrow"><div class="lbl">Värld</div><div class="sty-ws">${worlds}</div></div>
       ${sw ? `<div class="setrow"><div class="lbl">🎁 Säsongsvärldar</div><div class="sty-ws">${sw}</div><div class="setnote">Gratis under sin tid på året – julen till 6 januari, nyåret till 10 januari.</div></div>` : ''}
       ${bw ? `<div class="setrow"><div class="lbl">✨ Bubbelvärldar <button class="sty-shop" data-act="bgshop">Visa alla</button></div><div class="sty-ws">${bw}</div><div class="setnote">Lås upp med bubbelpoäng – poppa bubblor i lobbyn.</div></div>` : ''}
+      ${typeof WGL !== 'undefined' ? `<div class="setrow"><div class="lbl">🖼️ Bakgrund</div>${seg('bgmo', [['levande', 'Levande'], ['stilla', 'Stilla']])}<div class="setnote">Stilla: världen som en ren stillbild – vackert renderad men utan något som rör sig.</div></div>` : ''}
       <div class="setrow"><div class="lbl">Accentfärg</div><div class="sty-as">${accs}</div></div>
       <div class="setrow"><div class="lbl">Dekor</div>${seg('decor', [['mycket', 'Mycket'], ['lite', 'Lite'], ['ingen', 'Ingen']])}<div class="setnote">Stjärnor, bubblor och simmande delfiner i bakgrunden.</div></div>
       <div class="setrow"><div class="lbl">Rörelse</div>${seg('motion', [['auto', 'Auto'], ['full', 'Full'], ['lugn', 'Lugn'], ['av', 'Av']])}</div>

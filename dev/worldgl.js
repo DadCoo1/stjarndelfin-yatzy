@@ -154,10 +154,18 @@ void main(){
 #ifdef MOON
   { vec3 m=normalize(uMoon); float d=acos(clamp(dot(rd,m),-1.,1.));
     vec3 t1=normalize(cross(m,vec3(0.,1.,0.))), t2=cross(t1,m); vec2 l=vec2(dot(rd,t1),dot(rd,t2))/uMoonR;
+#ifdef SUNDISC
+    float halo=exp(-d/uMoonR*1.6)*.3+exp(-d/uMoonR*.35)*.08;
+#else
     float halo=exp(-d/uMoonR*1.1)*.35+exp(-d/uMoonR*.25)*.12;
+#endif
     col+=uMoonC*halo*.55; glow+=halo*.9;
     if(d<uMoonR*1.02){ float rr=dot(l,l); vec3 n=vec3(l,sqrt(max(0.,1.-rr)));
+#ifdef SUNDISC
+      float mar=.3, cr=.4;
+#else
       float mar=fbm(l*2.3+1.7), cr=fbm(l*9.+4.);
+#endif
       vec3 mc=uMoonC*(.82-smoothstep(.45,.7,mar)*.3+cr*.15);
       float limb=.55+.45*n.z;
       float a=smoothstep(1.02,.98,sqrt(rr));
@@ -296,7 +304,7 @@ void main(){
   float l=dot(c,vec3(.299,.587,.114)); c=mix(vec3(l),c,uGr.z);
   c*=uTint;
   vec2 q=vUv-.5; c*=1.-dot(q,q)*uGr.w;        // vinjett
-  c+=(hash(vUv*913.+fract(uT*7.))-.5)*.018;    // filmkorn
+  c+=(hash(vUv*913.+fract(uT*7.))-.5)*.012;    // filmkorn
   gl_FragColor=vec4(clamp(c,0.,1.),1.);
 }`;
 
@@ -457,9 +465,10 @@ void main(){
     return true;
   }
   function build(world, opt) {
+    if (SC[world].alwaysStill) { opt.still = true; opt.clean = true; }
     const S = SC[world](opt), cfg = S.cfg, NL = 12;
     const D = (S.defs || []).map(d => '#define ' + d + '\n').join('') + `#define NL ${NL}\n`;
-    state = { world, S, cfg, NL, still: !!opt.still, t0: performance.now(), few: !!opt.few, paused: opt.paused, onLost: opt.onLost };
+    state = { world, S, cfg, NL, still: !!opt.still, t0: performance.now(), few: !!opt.few, paused: opt.paused, onLost: opt.onLost, clean: !!opt.clean || !!(SC[world].alwaysStill) };
     state.pSky = prog(QUAD_VS, SKY_FS(D), ['aP']);
     state.pSkyC = prog(QUAD_VS, SKYC_FS(D), ['aP']);
     state.pMesh = prog(MESH_VS, MESH_FS(D), ['aP', 'aN', 'aC', 'aM']);
@@ -488,7 +497,7 @@ void main(){
     gl.bindFramebuffer(gl.FRAMEBUFFER, null);
   }
   function resize() {
-    if (!cv) return; const dpr = Math.min(window.devicePixelRatio || 1, 1.5) * scale, w = Math.max(64, Math.round(cv.clientWidth * dpr)), h = Math.max(64, Math.round(cv.clientHeight * dpr));
+    if (!cv) return; const dpr = Math.min(window.devicePixelRatio || 1, state.still ? 2 : 1.5) * scale, w = Math.max(64, Math.round(cv.clientWidth * dpr)), h = Math.max(64, Math.round(cv.clientHeight * dpr));
     if (state.W === w && state.H === h) return; state.W = w; state.H = h; cv.width = w; cv.height = h;
     ['rtScene', 'rtSky', 'rtRefl', 'rtReflSky', 'rtB0', 'rtB1', 'rtB2', 'rtB3', 'rtB4'].forEach(k => { freeRT(state[k]); state[k] = null; });
     state.rtScene = rt(w, h, true); const sk = state.S.cfg.skyRes || .35; state.rtSky = rt(Math.max(32, Math.round(w * sk)), Math.max(32, Math.round(h * sk)));
@@ -567,7 +576,8 @@ void main(){
     // rörliga delar
     const L = state.lights.slice(); state.dyn.reset(); let pn = 0, an = 0;
     const PB = { n: 0, a: 0, add(p, c, s, glow) { const arr = glow ? state.addParts : state.parts, i = (glow ? this.a : this.n); if (i >= 6000) return; arr.set([p[0], p[1], p[2], c[0], c[1], c[2], c[3] == null ? 1 : c[3], s], i * 8); if (glow) this.a++; else this.n++; } };
-    if (S.update) S.update(t, state.dyn, PB, L, cam, state);
+    if (state.clean) PB.add = () => {};          // stilla bild: inga partiklar
+    if (S.update) S.update(t, state.dyn, PB, L, cam, state, state.clean);
     state.lightsNow = L.sort((a, b) => (b[2] / (1 + V.dot(V.sub(a[0], cam.E), V.sub(a[0], cam.E)) * .002)) - (a[2] / (1 + V.dot(V.sub(b[0], cam.E), V.sub(b[0], cam.E)) * .002))).slice(0, state.NL);
     state.dN = state.dyn.n; if (state.dN) { gl.bindBuffer(gl.ARRAY_BUFFER, state.dVbo); gl.bufferData(gl.ARRAY_BUFFER, state.dyn.f.subarray(0, state.dN * FL), gl.DYNAMIC_DRAW); }
     state.pN = PB.n; state.aN = PB.a;
