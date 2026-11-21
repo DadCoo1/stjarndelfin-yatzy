@@ -30,7 +30,7 @@ const STYLE = (() => {
   const set = (k, v) => { const s = get(); s[k] = v; lsSet('style', JSON.stringify(s)); apply(); };
 
   /* ---------- tillämpa ---------- */
-  let skyKey = '', curWorld = 'rymd';
+  let skyKey = '', curWorld = 'rymd', glBroken = false;
   function apply() {
     const s = get(); if (!WORLDS[s.world] || locked(s.world)) s.world = 'rymd'; const w = WORLDS[s.world], a = ACCENTS[s.acc], r = document.documentElement.style, b = document.body;
     r.setProperty('--deep', w.bg[0]); r.setProperty('--bg1', w.bg[0]); r.setProperty('--bg2', w.bg[1]); r.setProperty('--bg3', w.bg[2]);
@@ -50,11 +50,19 @@ const STYLE = (() => {
     const mc = document.querySelector('meta[name=theme-color]'); if (mc) mc.setAttribute('content', w.bg[0]);
     try { const v = {}; ['--deep', '--bg1', '--bg2', '--bg3', '--glow1', '--glow2', '--aqua', '--acc', '--acc2', '--txt', '--dim', '--glass', '--glass2', '--line'].forEach(k => v[k] = r.getPropertyValue(k)); lsSet('style_cache', JSON.stringify({ v, bg: w.bg[0] })); } catch (e) {}
     const wch = curWorld !== s.world; curWorld = s.world; if (wch) setTimeout(() => { try { if (typeof musicWorld === 'function') musicWorld(); } catch (e) {} }, 0);
-    const k = s.world + s.decor + mo; if (k !== skyKey) { skyKey = k; sky(w, s, mo); b.classList.toggle('w-scene', !!w.scene); }
+    const k = s.world + s.decor + mo + (s.bg3d || ''); if (k !== skyKey) { skyKey = k; sky(w, s, mo); b.classList.toggle('w-scene', !!w.scene); }
   }
   // himlen/havet bakom allt – byggs om bara när världen eller dekoren ändras
   function sky(w, s, mo) {
     const el = document.getElementById('sky'); if (!el) return;
+    if (typeof WGL !== 'undefined') WGL.unmount();
+    // 3D-bakgrund (WebGL) när världen har en sådan; annars de ritade scenerna
+    if (s.decor !== 'ingen' && s.bg3d !== 'av' && !glBroken && typeof WGL !== 'undefined' && WGL.has(s.world) && WGL.supported()) {
+      el.innerHTML = '';
+      let ok = false; try { ok = WGL.mount(el, s.world, { few: s.decor === 'lite', still: mo !== 'full', paused: () => document.body.classList.contains('ingame') && !document.body.classList.contains('w-glgame'),
+        onLost: () => { glBroken = true; skyKey = ''; apply(); } }); } catch (e) { console.warn('WGL', e); ok = false; }
+      if (ok) return;
+    }
     if (s.decor === 'ingen' || w.plain) { el.innerHTML = ''; return; }
     const few = s.decor === 'lite', R = Math.random; let h = '';
     if (w.scene && typeof SCENES !== 'undefined') { el.innerHTML = SCENES.build(s.world, { few, still: mo !== 'full' }); return; }
