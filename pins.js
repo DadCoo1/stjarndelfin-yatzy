@@ -165,7 +165,11 @@ const PINS = (() => {
   function points(g) { return Object.keys(g || got()).length; }
 
   let queue = [], showing = false, lastSig = '', checkT = 0;
-  const calmView = () => typeof view === 'undefined' || view === 'lobby' || view === 'stats' || (view === 'game' && typeof G !== 'undefined' && G && G.over);
+  const modalOpen = () => { const m = document.getElementById('modal'); return !!(m && m.classList.contains('show')); };
+  /* låt resultatrutan öppnas först (den kommer ~1,6 s efter slutet) – pins visas när den stängts */
+  let overG = null, overT = 0;
+  const overLongEnough = () => { if (overG !== G) { overG = G; overT = Date.now(); } return Date.now() - overT > 2200; };
+  const calmView = () => !modalOpen() && (typeof view === 'undefined' || view === 'lobby' || view === 'stats' || (view === 'game' && typeof G !== 'undefined' && G && G.over && overLongEnough()));
   function check(quiet) {
     if (typeof appLocked === 'function' && appLocked()) return [];
     let D; try { D = data(); } catch (e) { return []; }
@@ -187,7 +191,7 @@ const PINS = (() => {
   /* ---------- firande när en pin låses upp ---------- */
   function pump() {
     if (showing || !queue.length) return;
-    if (!calmView() || document.hidden) { setTimeout(pump, 2500); return; }
+    if (!calmView() || document.hidden) { setTimeout(pump, 1200); return; }
     const [id, t] = queue.shift(), d = BY[id]; showing = true;
     const w = document.createElement('div'); w.className = 'pin-pop'; w.setAttribute('role', 'status');
     w.innerHTML = `<div class="pin-pop-in"><div class="pin-pop-rays"></div><div class="pin-pop-pin">${svg(id, t, 150)}</div><small>Ny pin!</small><b>${E(d.name)}</b><span>${E(tierName(d, t))} · ${E(descOf(d, t))}</span></div>`;
