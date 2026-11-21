@@ -21,7 +21,7 @@
   if(!same || !/[?&]bot=1/.test(location.search)){ document.documentElement.innerHTML=''; throw new Error('Inramning blockerad'); }
 })();
 /* ================= Version & utvecklingsläge ================= */
-const APP_VERSION='2026.11.20.4-dev';
+const APP_VERSION='2026.11.21.1-dev';
 const DEV = /\/dev(\/|$)/.test(location.pathname);      // testversionen ligger i mappen /dev/
 const BOT = /[?&]bot=1/.test(location.search) && window.parent!==window;   // osynlig ekokompis i en ram
 const LSP = DEV ? (BOT ? 'dev:bot:' : 'dev:') : (BOT ? 'bot:' : '');    // egen sparad data i testversionen
@@ -877,7 +877,7 @@ function stopPeer(){
   try{ peer && peer.destroy() }catch(e){}
   peer=null; conn=null;
 }
-function stopNet(){ clearTimeout(retryT); stopPeer(); net='off'; }
+function stopNet(){ clearTimeout(retryT); stopPeer(); net='off'; if(typeof GCALL!=='undefined') GCALL.reset(); }
 function retry(fn,ms=4000){ clearTimeout(retryT); retryT=setTimeout(fn,ms); }
 function newCode(){ return Array.from({length:4},()=>'ABCDEFGHJKMNPQRSTUVWXYZ23456789'[rint(31)]).join(''); }   // kryptografisk slump
 function noPeerLib(){ toast('Nätverket laddades inte – har mobilen internet? 📡',4000); setNet('lost'); }
@@ -914,7 +914,7 @@ function updateHostNet(){
 function attachHost(c){
   c._seat=null; c._heard=Date.now(); hostConns.add(c);
   c.on('data',d=>{ const m=parseMsg(d); c._heard=Date.now(); if(m) onHostMsg(m,c); });
-  c.on('close',()=>{ const had=hostConns.delete(c); if(had && c._seat!=null && G && ready()) toast(`${pname(c._seat)} tappade kontakten 📡`); updateHostNet(); });
+  c.on('close',()=>{ const had=hostConns.delete(c); if(had && c._seat!=null && G && ready()) toast(`${pname(c._seat)} tappade kontakten 📡`); if(had && c._seat!=null && typeof GCALL!=='undefined' && ![...hostConns].some(o=>o._seat===c._seat)) GCALL.gone(c._seat); updateHostNet(); });
   c.on('error',()=>{});
 }
 function onHostMsg(m,c){
@@ -942,6 +942,7 @@ function onHostMsg(m,c){
     sendTo(c,{t:'welcome', seat, name:G.names[seat]});
     if(typeof FR!=='undefined') FR.onConnect(x=>sendTo(c,x));
     sendTo(c,{t:'state', state:G, force:true});          // värdens version gäller alltid efter återanslutning
+    if(typeof GCALL!=='undefined') GCALL.hello(c);       // pågående gruppsamtal
     hostBroadcast({t:'state', state:G}, c);
     updateHostNet(); render();
     return;
@@ -957,6 +958,7 @@ function onHostMsg(m,c){
   if(m.t==='sl'){ if(typeof SLALOM!=='undefined') SLALOM.net(m, c._seat); return; }   // Slalom: gästens åkare
   if(m.t==='bs'){ if(typeof BIATHLON!=='undefined'){ const mm={...m, s:c._seat}; BIATHLON.net(mm); hostBroadcast(mm,c); } return; }   // Skidskytte: gästens åkare, vidare till de andra
   if(typeof m.t==='string' && m.t.startsWith('fr') && typeof FR!=='undefined'){ FR.onMsg(m, x=>sendTo(c,x)); return; }   // önskelistan
+  if(m.t==='gc'){ if(typeof GCALL!=='undefined') GCALL.route(m,c); return; }   // gruppsamtal: uppringning via spelet
   if(m.t==='chat'){                                   // krypterat chattmeddelande via spelet: till mig eller vidare till en annan spelare
     if(typeof m.to!=='string' || !/^[0-9a-f]{16}$/.test(m.to) || !m.env || typeof m.env!=='object') return;
     const now=Date.now(); c._chatN=(now-(c._chatT||0)>10000)?1:(c._chatN||0)+1; if(c._chatN===1) c._chatT=now; if(c._chatN>60) return;   // ingen spam
@@ -1034,6 +1036,7 @@ function onGuestMsg(m){
   if(m.t==='pg'){ if(typeof PONG!=='undefined') PONG.net(m, 0); return; }   // Pong: bollen från värden
   if(m.t==='sl'){ if(typeof SLALOM!=='undefined') SLALOM.net(m, 0); return; }   // Slalom: värdens åkare
   if(m.t==='bs'){ if(typeof BIATHLON!=='undefined') BIATHLON.net(m); return; }   // Skidskytte: de andras åkare
+  if(m.t==='gc'){ if(typeof GCALL!=='undefined') GCALL.onMsg(m); return; }
   if(m.t==='chat'){ if(typeof CHAT!=='undefined' && m.env && typeof m.env==='object') CHAT.bridgeIn(m.env); return; }
   if(typeof m.t==='string' && m.t.startsWith('fr') && typeof FR!=='undefined'){ FR.onMsg(m, x=>sendTo(conn,x)); return; }
   if(m.t==='emoji' || m.t==='poke') onSocial(m);
