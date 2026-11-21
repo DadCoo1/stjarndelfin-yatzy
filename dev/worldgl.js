@@ -609,5 +609,5 @@ void main(){
   window.addEventListener('resize', () => { if (state) { resize(); if (state.still) draw(performance.now()); } });
   document.addEventListener('visibilitychange', () => { if (!document.hidden && state && state.still) draw(performance.now()); });
 
-  return { tris: () => state ? Math.round(state.sN / 3) : 0, mount, unmount, supported, has, SC, Mesh, terrain, fir, blobTree, house, mkNoise, rng, V, C, active: () => state && state.world, _draw: () => state && draw(performance.now()), _scale: () => scale };
+  return { frames: () => frameN, tris: () => state ? Math.round(state.sN / 3) : 0, mount, unmount, supported, has, SC, Mesh, terrain, fir, blobTree, house, mkNoise, rng, V, C, active: () => state && state.world, _draw: () => state && draw(performance.now()), _scale: () => scale };
 })();

@@ -59,7 +59,7 @@ const STYLE = (() => {
     // 3D-bakgrund (WebGL) när världen har en sådan; annars de ritade scenerna
     if (s.decor !== 'ingen' && s.bg3d !== 'av' && !glBroken && typeof WGL !== 'undefined' && WGL.has(s.world) && WGL.supported()) {
       el.innerHTML = '';
-      let ok = false; try { ok = WGL.mount(el, s.world, { few: s.decor === 'lite', still: mo !== 'full', paused: () => document.body.classList.contains('ingame') && !document.body.classList.contains('w-glgame'),
+      let ok = false; try { ok = WGL.mount(el, s.world, { few: s.decor === 'lite', still: mo !== 'full', paused: () => (document.body.classList.contains('ingame') && !document.body.classList.contains('w-glgame')) || !!document.querySelector('#modal.show, .pin-pop'),   // stilla bakom dialoger: inget flimmer genom suddningen
         onLost: () => { glBroken = true; skyKey = ''; apply(); } }); } catch (e) { console.warn('WGL', e); ok = false; }
       if (ok) return;
     }
