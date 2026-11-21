@@ -15,6 +15,9 @@ const STYLE = (() => {
     ljus:     { name: 'Molnljus', ic: '☁️', bg: ['#dbeafe', '#e9d5ff', '#fbcfe8'], glow: ['rgba(255,255,255,.7)', 'rgba(196,181,253,.5)'], acc: '#7c3aed', acc2: '#db2777', txt: '#1e1b4b', dim: '#5b5a86', glass: 'rgba(255,255,255,.55)', line: 'rgba(124,58,237,.22)', planet: 0, stars: 0, sea: 0, light: 1 },
     ren:      { name: 'Ren & enkel', ic: '◻️', bg: ['#0b0f1a', '#111827', '#111827'], glow: ['rgba(148,163,184,.12)', 'rgba(148,163,184,.08)'], acc: '#93c5fd', acc2: '#c4b5fd', txt: '#f1f5f9', dim: '#94a3b8', glass: 'rgba(148,163,184,.10)', line: 'rgba(148,163,184,.22)', planet: 0, stars: 0, sea: 0, plain: 1 }
   };
+  // bubbelvärldar (scenes.js) som låses upp med bubbelpoäng
+  if (typeof SCENES !== 'undefined') Object.assign(WORLDS, SCENES.worlds);
+  const locked = k => !!(WORLDS[k] && WORLDS[k].price) && !(typeof SCENES !== 'undefined' && SCENES.owned(k));
   const ACCENTS = { auto: null, rosa: ['#f9a8d4', '#f472b6'], lila: ['#c4b5fd', '#a855f7'], turkos: ['#5eead4', '#22d3ee'], guld: ['#fde68a', '#f59e0b'], korall: ['#fda4af', '#fb7185'], mint: ['#bbf7d0', '#34d399'] };
   const DEF = { world: 'rymd', acc: 'auto', size: 'normal', motion: 'auto', decor: 'lite', icons: 'ritade', dice: 'klassisk' };
   const DICE = { klassisk: 'Klassisk', parlemor: 'Pärlemor', hav: 'Havsglas', leopard: 'Leopard', neon: 'Neon', natt: 'Midnatt' };
@@ -29,12 +32,12 @@ const STYLE = (() => {
   /* ---------- tillämpa ---------- */
   let skyKey = '';
   function apply() {
-    const s = get(), w = WORLDS[s.world] || WORLDS.rymd, a = ACCENTS[s.acc], r = document.documentElement.style, b = document.body;
+    const s = get(); if (!WORLDS[s.world] || locked(s.world)) s.world = 'rymd'; const w = WORLDS[s.world], a = ACCENTS[s.acc], r = document.documentElement.style, b = document.body;
     r.setProperty('--deep', w.bg[0]); r.setProperty('--bg1', w.bg[0]); r.setProperty('--bg2', w.bg[1]); r.setProperty('--bg3', w.bg[2]);
     r.setProperty('--glow1', w.glow[0]); r.setProperty('--glow2', w.glow[1]);
     r.setProperty('--aqua', a ? a[1] : w.acc); r.setProperty('--acc', a ? a[1] : w.acc); r.setProperty('--acc2', a ? a[0] : w.acc2);
     r.setProperty('--txt', w.txt); r.setProperty('--dim', w.dim); r.setProperty('--glass', w.glass); r.setProperty('--glass2', w.glass.replace(/[\d.]+\)$/, m => (parseFloat(m) * 1.6).toFixed(2) + ')')); r.setProperty('--line', w.line);
-    ['rymd', 'hav', 'sol', 'skog', 'leopard', 'ljus', 'ren'].forEach(k => b.classList.toggle('w-' + k, s.world === k));
+    Object.keys(WORLDS).forEach(k => b.classList.toggle('w-' + k, s.world === k));
     b.classList.toggle('w-light', !!w.light);
     const reduce = window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
     const mo = s.motion === 'auto' ? (reduce ? 'lugn' : 'full') : s.motion;
@@ -46,13 +49,14 @@ const STYLE = (() => {
     const z = s.size === 'stor' ? 1.1 : s.size === 'xstor' ? 1.22 : 1; b.style.zoom = z === 1 ? '' : z;
     const mc = document.querySelector('meta[name=theme-color]'); if (mc) mc.setAttribute('content', w.bg[0]);
     try { const v = {}; ['--deep', '--bg1', '--bg2', '--bg3', '--glow1', '--glow2', '--aqua', '--acc', '--acc2', '--txt', '--dim', '--glass', '--glass2', '--line'].forEach(k => v[k] = r.getPropertyValue(k)); lsSet('style_cache', JSON.stringify({ v, bg: w.bg[0] })); } catch (e) {}
-    const k = s.world + s.decor + mo; if (k !== skyKey) { skyKey = k; sky(w, s, mo); }
+    const k = s.world + s.decor + mo; if (k !== skyKey) { skyKey = k; sky(w, s, mo); b.classList.toggle('w-scene', !!w.scene); }
   }
   // himlen/havet bakom allt – byggs om bara när världen eller dekoren ändras
   function sky(w, s, mo) {
     const el = document.getElementById('sky'); if (!el) return;
     if (s.decor === 'ingen' || w.plain) { el.innerHTML = ''; return; }
     const few = s.decor === 'lite', R = Math.random; let h = '';
+    if (w.scene && typeof SCENES !== 'undefined') { el.innerHTML = SCENES.build(s.world, { few, still: mo !== 'full' }); return; }
     if (w.planet) h += '<div class="planet"></div><div class="ring"></div><div class="moon"></div>';
     if (w.sun) h += '<div class="sundisc"></div>';
     if (w.leo) h += '<div class="leosky"></div>';
@@ -139,12 +143,14 @@ const STYLE = (() => {
   /* ---------- inställningsfönstret med förhandsvisning ---------- */
   function show() {
     const s = get(), seg = (k, opts) => `<div class="seg">${opts.map(([v, l]) => `<button data-act="styset" data-k="${k}" data-v="${v}" class="${s[k] === v ? 'sel' : ''}">${l}</button>`).join('')}</div>`;
-    const worlds = Object.entries(WORLDS).map(([k, w]) => `<button class="sty-w ${s.world === k ? 'on' : ''}" data-act="styset" data-k="world" data-v="${k}" style="--a:${w.bg[0]};--b:${w.bg[1]};--c:${w.bg[2]};--g:${w.glow[0]};--t:${w.txt}"><i>${w.ic}</i><b>${w.name}</b></button>`).join('');
+    const worlds = Object.entries(WORLDS).filter(([k, w]) => !w.price).map(([k, w]) => `<button class="sty-w ${s.world === k ? 'on' : ''}" data-act="styset" data-k="world" data-v="${k}" style="--a:${w.bg[0]};--b:${w.bg[1]};--c:${w.bg[2]};--g:${w.glow[0]};--t:${w.txt}"><i>${w.ic}</i><b>${w.name}</b></button>`).join('');
+    const bw = typeof SCENES === 'undefined' ? '' : Object.entries(WORLDS).filter(([k, w]) => w.price).map(([k, w]) => { const lk = locked(k); return `<button class="sty-w bgx ${s.world === k ? 'on' : ''} ${lk ? 'lk' : ''}" data-act="${lk ? 'bgshop' : 'styset'}" data-k="${lk ? '' : 'world'}" data-v="${k}" ${lk ? `data-kk="${k}"` : ''} style="--a:${w.bg[0]};--b:${w.bg[1]};--c:${w.bg[2]};--g:${w.glow[0]};--t:${w.txt}"><i>${w.ic}</i><b>${w.name}</b>${lk ? `<small>🔒 ${w.price} 🫧</small>` : ''}</button>`; }).join('');
     const accs = Object.entries(ACCENTS).map(([k, a]) => `<button class="sty-a ${s.acc === k ? 'on' : ''}" data-act="styset" data-k="acc" data-v="${k}" title="${k}" style="--c:${a ? `linear-gradient(135deg,${a[0]},${a[1]})` : 'conic-gradient(#f9a8d4,#c4b5fd,#5eead4,#fde68a,#f9a8d4)'}">${k === 'auto' ? '<span>auto</span>' : ''}</button>`).join('');
     const prev = ['yatzy', 'sol', 'race', 'kina'].map(k => { const gi = typeof GINFO !== 'undefined' && GINFO[k]; const grad = { yatzy: 'linear-gradient(135deg,#22d3ee,#6366f1 60%,#a855f7)', race: 'linear-gradient(135deg,#f97316,#e11d48 45%,#4c1d95)', sol: 'linear-gradient(135deg,#e3b064,#9a6a2f)' }[k] || (gi && gi.grad); return `<div class="tile mini" style="--tg:${grad};--motif:${motif(k).replace(/"/g, '&quot;')}">${icon(k, '🎲')}</div>`; }).join('');
     openModal(`<h3>🎨 Utseende</h3>
       <div class="sty-prev">${prev}</div>
       <div class="setrow"><div class="lbl">Värld</div><div class="sty-ws">${worlds}</div></div>
+      ${bw ? `<div class="setrow"><div class="lbl">✨ Bubbelvärldar <button class="sty-shop" data-act="bgshop">Visa alla</button></div><div class="sty-ws">${bw}</div><div class="setnote">Lås upp med bubbelpoäng – poppa bubblor i lobbyn.</div></div>` : ''}
       <div class="setrow"><div class="lbl">Accentfärg</div><div class="sty-as">${accs}</div></div>
       <div class="setrow"><div class="lbl">Dekor</div>${seg('decor', [['mycket', 'Mycket'], ['lite', 'Lite'], ['ingen', 'Ingen']])}<div class="setnote">Stjärnor, bubblor och simmande delfiner i bakgrunden.</div></div>
       <div class="setrow"><div class="lbl">Rörelse</div>${seg('motion', [['auto', 'Auto'], ['full', 'Full'], ['lugn', 'Lugn'], ['av', 'Av']])}</div>
@@ -158,7 +164,7 @@ const STYLE = (() => {
     if (a === 'styopen') { show(); return true; }
     if (a === 'styset') { set(b.dataset.k, b.dataset.v); if (typeof render === 'function') render(); show(); buzz(6); return true; }
     if (a === 'stydeck') { try { solTheme = b.dataset.v; lsSet('ry_soltheme', solTheme); if (typeof solRetheme === 'function' && typeof S !== 'undefined' && S) solRetheme(); } catch (e) {} apply(); show(); buzz(6); return true; }
-    if (a === 'styrnd') { const ws = Object.keys(WORLDS), as = Object.keys(ACCENTS); const s = get(); s.world = ws[Math.floor(Math.random() * ws.length)]; s.acc = as[Math.floor(Math.random() * as.length)]; lsSet('style', JSON.stringify(s)); apply(); if (typeof render === 'function') render(); show(); return true; }
+    if (a === 'styrnd') { const ws = Object.keys(WORLDS).filter(k => !locked(k)), as = Object.keys(ACCENTS); const s = get(); s.world = ws[Math.floor(Math.random() * ws.length)]; s.acc = as[Math.floor(Math.random() * as.length)]; lsSet('style', JSON.stringify(s)); apply(); if (typeof render === 'function') render(); show(); return true; }
     return false;
   }
   apply();

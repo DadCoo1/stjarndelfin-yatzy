@@ -21,7 +21,7 @@
   if(!same || !/[?&]bot=1/.test(location.search)){ document.documentElement.innerHTML=''; throw new Error('Inramning blockerad'); }
 })();
 /* ================= Version & utvecklingsläge ================= */
-const APP_VERSION='2026.11.21.3-dev';
+const APP_VERSION='2026.11.22.1-dev';
 const DEV = /\/dev(\/|$)/.test(location.pathname);      // testversionen ligger i mappen /dev/
 const BOT = /[?&]bot=1/.test(location.search) && window.parent!==window;   // osynlig ekokompis i en ram
 const LSP = DEV ? (BOT ? 'dev:bot:' : 'dev:') : (BOT ? 'bot:' : '');    // egen sparad data i testversionen
@@ -1397,7 +1397,9 @@ function spawnBubble(){
   b.style.left=(Math.random()*92)+'%';
   const dur=7+Math.random()*7; b.style.animationDuration=dur+'s';
   b.style.setProperty('--sway',(Math.random()*70-35)+'px');
-  if(kind==='gold') b.innerHTML='<i>⭐</i>'; else if(kind==='pink') b.innerHTML='<i>🐬</i>';
+  const sk = typeof SCENES!=='undefined' ? SCENES.bubble(kind) : null;
+  if(sk){ b.classList.add('sk','sk-'+sk.w); b.innerHTML=sk.html; }
+  else if(kind==='gold') b.innerHTML='<i>⭐</i>'; else if(kind==='pink') b.innerHTML='<i>🐬</i>';
   else if(kind==='heart'){ const id='hg'+Math.random().toString(36).slice(2,8);   // rött, genomskinligt hjärta – lika bubbligt som de andra
     b.innerHTML=`<svg viewBox="0 0 100 90" aria-hidden="true"><defs>
       <radialGradient id="${id}" cx="35%" cy="30%" r="75%"><stop offset="0" stop-color="#ffd1da" stop-opacity=".75"/><stop offset=".3" stop-color="#ff4d6d" stop-opacity=".38"/><stop offset=".85" stop-color="#e11d48" stop-opacity=".26"/><stop offset="1" stop-color="#be123c" stop-opacity=".4"/></radialGradient></defs>
@@ -1412,11 +1414,11 @@ function popBubble(b,kind,sz){
   unlockAudio();
   const rc=b.getBoundingClientRect(), cx=rc.left+rc.width/2, cy=rc.top+rc.height/2;
   b.remove();
-  const party=document.getElementById('party');
-  const ring=document.createElement('div'); ring.className='popring'; ring.style.left=cx+'px'; ring.style.top=cy+'px'; ring.style.width=ring.style.height=sz+'px';
+  const party=document.getElementById('party'), dk = typeof SCENES!=='undefined' ? SCENES.dropCls() : '';
+  const ring=document.createElement('div'); ring.className='popring '+dk; ring.style.left=cx+'px'; ring.style.top=cy+'px'; ring.style.width=ring.style.height=sz+'px';
   party.appendChild(ring); setTimeout(()=>ring.remove(),450);
   for(let i=0;i<8;i++){
-    const d=document.createElement('div'); d.className='drop'; const a=i/8*Math.PI*2+Math.random()*.4, rr=sz*.6+Math.random()*24;
+    const d=document.createElement('div'); d.className='drop '+dk; if(dk==='dk-sprinkle') d.style.background=['#fde047','#f472b6','#60a5fa','#4ade80','#fb923c','#fff'][i%6]; const a=i/8*Math.PI*2+Math.random()*.4, rr=sz*.6+Math.random()*24;
     d.style.left=cx+'px'; d.style.top=cy+'px'; d.style.setProperty('--dx',Math.cos(a)*rr+'px'); d.style.setProperty('--dy',Math.sin(a)*rr+'px');
     party.appendChild(d); setTimeout(()=>d.remove(),550);
   }
@@ -1427,22 +1429,24 @@ function popBubble(b,kind,sz){
   if(kind==='leo') leoRain(cx,cy);
   const pts = kind==='leo' ? 500 : kind==='heart' ? 100 : kind==='gold' ? 10 : kind==='pink' ? 5 : 1;
   popWeekCheck(); const before=popCount; popCount+=pts; lsSet('ry_pops',String(popCount)); popLog(pts);
-  if(kind==='leo'){ toast('Leopardbubbla! +500 🐆✨',2800); [523,659,784,1047,1319,1568,2093].forEach((f2,i)=>tone(f2,.26,i%2?'triangle':'sine',.09,.04+i*.07)); sparkles(30); buzz([20,40,20,40,30]); }
-  else if(kind==='heart'){ toast('Hjärtbubbla! +100 ❤️',2400); [784,988,1175,1568].forEach((f2,i)=>tone(f2,.22,'sine',.09,.05+i*.08)); buzz([15,40,15]); }
-  else if(kind==='gold'){ toast('Guldbubbla! +10 ⭐'); sparkles(10); }
-  else if(kind==='pink') toast('Delfinbubbla! +5 🐬');
+  const lb = typeof SCENES!=='undefined' ? SCENES.label(kind) : null;
+  if(kind==='leo'){ toast((lb||'Leopardbubbla')+'! +500 🐆✨',2800); [523,659,784,1047,1319,1568,2093].forEach((f2,i)=>tone(f2,.26,i%2?'triangle':'sine',.09,.04+i*.07)); sparkles(30); buzz([20,40,20,40,30]); }
+  else if(kind==='heart'){ toast((lb||'Hjärtbubbla')+'! +100 ❤️',2400); [784,988,1175,1568].forEach((f2,i)=>tone(f2,.22,'sine',.09,.05+i*.08)); buzz([15,40,15]); }
+  else if(kind==='gold'){ toast((lb||'Guldbubbla')+'! +10 ⭐'); sparkles(10); }
+  else if(kind==='pink') toast((lb||'Delfinbubbla')+'! +5 🐬');
   if(Math.floor(popCount/100)>Math.floor(before/100) && pts<100){ toast(`${popCount} poppade bubblor! 🫧🎉`); sparkles(16); }
   const c=document.getElementById('popc'); if(c){ c.textContent='🫧 '+popCount; c.classList.remove('bump'); void c.offsetWidth; c.classList.add('bump'); }
+  if(typeof SCENES!=='undefined'){ SCENES.check(); if(c) c.classList.toggle('canbuy',SCENES.affordable()); }
 }
 
 // leopardbubbla: genomskinligt leopardhuvud framifrån, egen ritning
-function leoBubbleSVG(){ const u='lp'+Math.random().toString(36).slice(2,8);
+function leoBubbleSVG(map,extra){ const u='lp'+Math.random().toString(36).slice(2,8);
   // rosett: brutna ring av små mörka fläckar runt en varmare mitt – som riktiga leopardfläckar
   const ros=(x,y,r,rot)=>{ let o=`<g transform="translate(${x} ${y}) rotate(${rot})"><ellipse rx="${r*.62}" ry="${r*.5}" fill="#b45309" opacity=".42"/>`;
     [[0,1],[78,.8],[150,1.05],[228,.75],[300,.95]].forEach(([a,k])=>{ const t=a*Math.PI/180, px=Math.cos(t)*r, py=Math.sin(t)*r*.85; o+=`<ellipse cx="${px.toFixed(1)}" cy="${py.toFixed(1)}" rx="${(r*.42*k).toFixed(1)}" ry="${(r*.24*k).toFixed(1)}" transform="rotate(${a+90} ${px.toFixed(1)} ${py.toFixed(1)})" fill="#3b2208" opacity=".62"/>`; });
     return o+'</g>'; };
   const dot=(x,y,r)=>`<circle cx="${x}" cy="${y}" r="${r}" fill="#3b2208" opacity=".5"/>`;
-  return `<svg viewBox="0 0 120 120" aria-hidden="true"><defs>
+  let S=`<svg viewBox="0 0 120 120" aria-hidden="true"><defs>
     <radialGradient id="${u}b" cx="38%" cy="30%" r="78%"><stop offset="0" stop-color="#fff7e0" stop-opacity=".7"/><stop offset=".35" stop-color="#fbbf24" stop-opacity=".32"/><stop offset=".85" stop-color="#d97706" stop-opacity=".22"/><stop offset="1" stop-color="#92400e" stop-opacity=".45"/></radialGradient>
     <radialGradient id="${u}f" cx="50%" cy="40%" r="60%"><stop offset="0" stop-color="#fde68a" stop-opacity=".75"/><stop offset=".7" stop-color="#f59e0b" stop-opacity=".55"/><stop offset="1" stop-color="#b45309" stop-opacity=".6"/></radialGradient>
     <radialGradient id="${u}m" cx="50%" cy="35%" r="70%"><stop offset="0" stop-color="#fffbeb" stop-opacity=".9"/><stop offset="1" stop-color="#fde68a" stop-opacity=".55"/></radialGradient>
@@ -1466,7 +1470,10 @@ function leoBubbleSVG(){ const u='lp'+Math.random().toString(36).slice(2,8);
       <g stroke="#fff" stroke-opacity=".75" stroke-width="1" stroke-linecap="round"><path d="M48 73 L30 70 M48 76 L31 78 M72 73 L90 70 M72 76 L89 78"/></g>
     </g>
     <path d="M26 30 C33 20 44 15 54 15" fill="none" stroke="#fff" stroke-opacity=".8" stroke-width="4.5" stroke-linecap="round"/>
-    <circle cx="94" cy="28" r="3.6" fill="#fff" opacity=".55"/><ellipse cx="88" cy="96" rx="9" ry="3" fill="#fff" opacity=".18" transform="rotate(-35 88 96)"/></svg>`; }
+    <circle cx="94" cy="28" r="3.6" fill="#fff" opacity=".55"/><ellipse cx="88" cy="96" rx="9" ry="3" fill="#fff" opacity=".18" transform="rotate(-35 88 96)"/></svg>`;
+  if(map) for(const k in map) S=S.split(k).join(map[k]);   // världens färger (snöleopard m.m.)
+  if(extra) S=S.replace(/<\/svg>$/, extra+'</svg>');       // tillbehör: hjälm, krona, blomsterkrans
+  return S; }
 // stänk av leopardfläckar, tassar och gnistor
 function leoRain(cx,cy){
   const party=document.getElementById('party'); if(!party) return;
@@ -1494,6 +1501,7 @@ function showPopStats(){ popWeekCheck(); const W=popWeeks(), k=popWk(), ks=Objec
     <div class="pst-top"><div><b>${popCount}</b><small>nu</small></div><div><b>${W[k]||0}</b><small>den här veckan</small></div><div><b>${best?W[best]:0}</b><small>🏆 bästa vecka${best?` (v. ${popWeekNo(best)})`:''}</small></div></div>
     <div class="pst-bars">${last.map(([key,v])=>`<div class="pst-b ${key===k?'cur':''} ${key===best&&v?'rec':''}"><i style="height:${Math.max(3,Math.round(v/mx*100))}%"></i><span>${v||''}</span><small>v.${popWeekNo(key)}</small></div>`).join('')}</div>
     <div class="setnote">Totalt sedan start: <b>${all}</b> · 🐆 500 · ❤️ 100 · ⭐ 10 · 🐬 5 · 🫧 1</div>
+    ${typeof SCENES!=='undefined'?`<button class="pst-shop" data-act="bgshop"><span>✨ Bubbelvärldar</span><small>${SCENES.kassa()} 🫧 i kassan${SCENES.affordable()?' · något att låsa upp!':''}</small></button>`:''}
     <button id="popAuto" class="pst-auto ${auto?'on':''}" aria-pressed="${auto}"><span>🗓️ Nollställ automatiskt varje måndag</span><b>${auto?'På':'Av'}</b></button>
     <div class="btns" style="flex-direction:column"><button id="popReset">🔄 Nollställ nu</button><button class="pri" data-act="close">Klar</button></div>
     <small style="opacity:.75">Veckostatistiken och rekordet sparas även när du nollställer.</small>`,'popstats');
@@ -2603,7 +2611,7 @@ function lobbyHTML(){
 }
 function updateFrBadge(){ const n=(typeof FR!=='undefined')?FR.unread():0; document.querySelectorAll('[data-frbadge]').forEach(el=>{ el.textContent=n||''; el.classList.toggle('on',n>0); }); }
 function topbarLobby(){
-  return `<div class="topbar"><button class="popc" id="popc" title="Bubbelpoäng – tryck för statistik">🫧 ${popCount}</button><div class="tb-title" style="font-size:12px">Poppa bubblorna! 🫧</div>
+  return `<div class="topbar"><button class="popc ${typeof SCENES!=='undefined'&&SCENES.affordable()?'canbuy':''}" id="popc" title="Bubbelpoäng – tryck för statistik och bubbelvärldar">🫧 ${popCount}</button><div class="tb-title" style="font-size:12px">Poppa bubblorna! 🫧</div>
     ${netDotHTML()}<button class="iconbtn sgbtn" data-act="sgopen" aria-label="Pågående spel">🎮<i class="cbadge ${sgCount()?'on':''}" data-sgbadge>${sgCount()||''}</i></button><button class="iconbtn" data-act="settings" aria-label="Inställningar">⚙️</button></div>`;
 }
 function playersHTML(){
@@ -2719,6 +2727,7 @@ document.addEventListener('click', e=>{
   const a=b.dataset.act;
   unlockAudio();
   if(typeof STYLE!=='undefined' && /^sty/.test(a) && STYLE.act(a,b)) return;
+  if(typeof SCENES!=='undefined' && /^bg/.test(a) && SCENES.act(a,b)) return;
   if(typeof WELCOME!=='undefined' && /^ob/.test(a) && WELCOME.act(a,b)) return;
   if(a==='crashretry'){ render(); return; }
   if(a==='crashhome'){ try{ if(mode==='online') stopNet(); }catch(e){} mode=null; G=null; gameId=null; view='lobby'; try{ lsSet('ry_where',''); }catch(e){} render(); return; }
