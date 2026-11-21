@@ -8,7 +8,7 @@
 <title>FrauLeins game board</title>
 <meta name="theme-color" content="#071a45">
 <meta name="description" content="Svensk Yatzy i rymden och havet">
-<script src="boot.js?v=2026.11.22.1-dev"></script>
+<script src="boot.js?v=2026.11.22.2-dev"></script>
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="icon-192.png">
 <link rel="apple-touch-icon" href="icon-180.png">
@@ -218,6 +218,41 @@ button.popc.canbuy{box-shadow:0 0 0 2px #fde047,0 0 14px rgba(253,224,71,.55);an
 .pst-shop{display:flex;flex-direction:column;align-items:flex-start;gap:2px;width:100%;margin:10px 0 0;padding:11px 14px;border-radius:14px;background:linear-gradient(135deg,rgba(168,85,247,.32),rgba(56,189,248,.24));border:1px solid var(--line);text-align:left;color:inherit;font:inherit}
 .pst-shop span{font-weight:700}.pst-shop small{opacity:.85;font-size:12px}
 .sty-shop{float:right;font-size:12px;padding:2px 10px;border-radius:999px;background:rgba(255,255,255,.12);font-weight:600}
+/* julnatt */
+.jl-moon{top:7%;right:12%;width:56px;height:56px;background:radial-gradient(circle at 40% 38%,#fffdf5,#fff3d6 55%,#f5dca8);box-shadow:0 0 50px 14px rgba(255,236,190,.28)}
+.jl-sleigh{position:absolute;left:0;top:0;width:min(62vw,300px);animation:jlFly 30s linear infinite}
+@keyframes jlFly{0%{transform:translate(-75vw,27vh) rotate(-3deg)}55%{transform:translate(110vw,7vh) rotate(-8deg)}100%{transform:translate(110vw,7vh) rotate(-8deg)}}
+.jl-sleigh svg{display:block;width:100%;height:auto;overflow:visible}
+.jl-bob{animation:drBob 2.4s ease-in-out infinite alternate}
+.jl-trail{position:absolute;left:12%;top:66%}
+.jl-trail i{position:absolute;width:5px;height:5px;border-radius:50%;background:#fff7cc;box-shadow:0 0 8px 2px rgba(253,224,71,.7);animation:jlTw .9s ease-in-out infinite alternate}
+@keyframes jlTw{from{opacity:.2;transform:scale(.6)}to{opacity:1;transform:scale(1.1)}}
+.jl-still{position:absolute;top:12%;left:28%;width:44%}
+.jl-leg1,.jl-leg2{transform-box:fill-box;transform-origin:50% 0;animation:nrL .5s ease-in-out infinite alternate}.jl-leg2{animation-delay:-.25s}
+.jl-wave{transform-box:view-box;transform-origin:134px 36px;animation:asW .9s ease-in-out infinite alternate}
+.jl-b{animation:jlB 1.4s steps(2,jump-none) infinite}.jl-b1{animation-delay:-.7s}.jl-b2{animation-delay:-.35s;animation-duration:1.9s}
+@keyframes jlB{from{opacity:1}to{opacity:.3}}
+.jl-star{transform-box:fill-box;transform-origin:center;animation:skP 2s ease-in-out infinite alternate}
+/* nyårsnatt */
+.ny-fw{position:absolute;width:0;height:0}
+.ny-tr{position:absolute;left:-1.5px;top:0;width:3px;height:16px;border-radius:2px;background:linear-gradient(#fff,rgba(255,255,255,0));opacity:0;animation:nyTr var(--d) linear infinite;animation-delay:var(--dl)}
+@keyframes nyTr{0%{transform:translateY(46vh);opacity:0}2%{opacity:1}18%{transform:translateY(0);opacity:1}19%,100%{opacity:0}}
+.ny-fl{position:absolute;left:-45px;top:-45px;width:90px;height:90px;border-radius:50%;background:radial-gradient(circle,var(--c),rgba(0,0,0,0) 65%);opacity:0;animation:nyFl var(--d) ease-out infinite;animation-delay:var(--dl)}
+@keyframes nyFl{0%,18%{opacity:0;transform:scale(.3)}20%{opacity:.8;transform:scale(1)}34%,100%{opacity:0;transform:scale(1.6)}}
+.ny-bu{position:absolute;left:0;top:0;animation:nyBu var(--d) linear infinite;animation-delay:var(--dl)}
+@keyframes nyBu{0%,19%{transform:translateY(0)}100%{transform:translateY(36px)}}
+.ny-bu i{position:absolute;left:0;top:0;width:0;height:0}
+.ny-bu b{position:absolute;right:0;top:-1.25px;height:2.5px;border-radius:2px;opacity:0;animation:nyP var(--d) cubic-bezier(.15,.7,.3,1) infinite;animation-delay:var(--dl)}
+@keyframes nyP{0%,19%{transform:translateX(0) scale(1);opacity:0}20%{opacity:1}45%{transform:translateX(var(--r)) scale(1);opacity:1}62%{opacity:.6}74%,100%{transform:translateX(calc(var(--r) * 1.08)) scale(.4);opacity:0}}
+.ny-fw.still b{opacity:1;transform:translateX(var(--r))}.ny-fw.still .ny-fl{opacity:.5}
+.ny-wheel{transform-box:fill-box;transform-origin:center;animation:kzWh 46s linear infinite}
+.ny-ref{animation:nrR 2.4s ease-in-out infinite alternate}.ny-ref1{animation-delay:-.8s}.ny-ref2{animation-duration:3.4s}
+.ny-gl i{width:3px;height:3px;border-radius:50%;background:#fde68a;box-shadow:0 0 6px rgba(253,224,71,.8);opacity:.7;animation:scnFall linear infinite}
+.scn-th .jl-moon{width:14px;height:14px;box-shadow:none}.scn-th .jl-still{width:50%;top:6%;left:24%}.scn-th .ny-fw{transform:scale(.3)}
+.drop.dk-fw{width:6px;height:6px;margin:-3px;box-shadow:0 0 10px 2px rgba(255,255,255,.5)}.popring.dk-fw{border-color:rgba(253,224,71,.9)}
+.bgw-scroll{max-height:60vh;overflow:auto;padding:2px}.bgw-scroll .bgw-grid{max-height:none;overflow:visible}
+.bgw-h{font-weight:700;font-size:13px;margin:4px 2px 8px;opacity:.9}.bgw-scroll .bgw-grid+.bgw-h{margin-top:14px}
+.musvol{display:flex;align-items:center;gap:8px;margin-top:8px;font-size:14px}.musvol input{flex:1}
 .sty-w.bgx.lk{opacity:.72}.sty-w.bgx small{display:block;font-size:10px;font-weight:600;opacity:.9}
 
 /* ---------- Layout ---------- */
@@ -1034,38 +1069,39 @@ body.mo-av svg.dolph .dtl{animation:none}
 <div id="party"></div>
 <div id="modal"></div>
 
-<script src="dolphin.js?v=2026.11.22.1-dev"></script>
-<script src="app.js?v=2026.11.22.1-dev"></script>
-<script src="games.js?v=2026.11.22.1-dev"></script>
-<script src="kina.js?v=2026.11.22.1-dev"></script>
-<script src="ordfajt.js?v=2026.11.22.1-dev"></script>
-<script src="pong.js?v=2026.11.22.1-dev"></script>
-<script src="duel.js?v=2026.11.22.1-dev"></script>
-<script src="kit.js?v=2026.11.22.1-dev"></script>
-<script src="strat.js?v=2026.11.22.1-dev"></script>
-<script src="family.js?v=2026.11.22.1-dev"></script>
-<script src="cards.js?v=2026.11.22.1-dev"></script>
-<script src="puzzle.js?v=2026.11.22.1-dev"></script>
-<script src="mahjong.js?v=2026.11.22.1-dev"></script>
-<script src="drone.js?v=2026.11.22.1-dev"></script>
-<script src="replay.js?v=2026.11.22.1-dev"></script>
-<script src="weather.js?v=2026.11.22.1-dev"></script>
-<script src="mountain.js?v=2026.11.22.1-dev"></script>
-<script src="slalomgl.js?v=2026.11.22.1-dev"></script>
-<script src="slalom.js?v=2026.11.22.1-dev"></script>
-<script src="biathlon.js?v=2026.11.22.1-dev"></script>
-<script src="invaders.js?v=2026.11.22.1-dev"></script>
-<script src="cars3d.js?v=2026.11.22.1-dev"></script>
-<script src="race.js?v=2026.11.22.1-dev"></script>
-<script src="chat.js?v=2026.11.22.1-dev"></script>
-<script src="call.js?v=2026.11.22.1-dev"></script>
-<script src="gcall.js?v=2026.11.22.1-dev"></script>
-<script src="backup.js?v=2026.11.22.1-dev"></script>
-<script src="today.js?v=2026.11.22.1-dev"></script>
-<script src="scenes.js?v=2026.11.22.1-dev"></script>
-<script src="style.js?v=2026.11.22.1-dev"></script>
-<script src="welcome.js?v=2026.11.22.1-dev"></script>
-<script src="pins.js?v=2026.11.22.1-dev"></script>
-<script src="fr.js?v=2026.11.22.1-dev"></script>
+<script src="dolphin.js?v=2026.11.22.2-dev"></script>
+<script src="app.js?v=2026.11.22.2-dev"></script>
+<script src="games.js?v=2026.11.22.2-dev"></script>
+<script src="kina.js?v=2026.11.22.2-dev"></script>
+<script src="ordfajt.js?v=2026.11.22.2-dev"></script>
+<script src="pong.js?v=2026.11.22.2-dev"></script>
+<script src="duel.js?v=2026.11.22.2-dev"></script>
+<script src="kit.js?v=2026.11.22.2-dev"></script>
+<script src="strat.js?v=2026.11.22.2-dev"></script>
+<script src="family.js?v=2026.11.22.2-dev"></script>
+<script src="cards.js?v=2026.11.22.2-dev"></script>
+<script src="puzzle.js?v=2026.11.22.2-dev"></script>
+<script src="mahjong.js?v=2026.11.22.2-dev"></script>
+<script src="drone.js?v=2026.11.22.2-dev"></script>
+<script src="replay.js?v=2026.11.22.2-dev"></script>
+<script src="weather.js?v=2026.11.22.2-dev"></script>
+<script src="mountain.js?v=2026.11.22.2-dev"></script>
+<script src="slalomgl.js?v=2026.11.22.2-dev"></script>
+<script src="slalom.js?v=2026.11.22.2-dev"></script>
+<script src="biathlon.js?v=2026.11.22.2-dev"></script>
+<script src="invaders.js?v=2026.11.22.2-dev"></script>
+<script src="cars3d.js?v=2026.11.22.2-dev"></script>
+<script src="race.js?v=2026.11.22.2-dev"></script>
+<script src="chat.js?v=2026.11.22.2-dev"></script>
+<script src="call.js?v=2026.11.22.2-dev"></script>
+<script src="gcall.js?v=2026.11.22.2-dev"></script>
+<script src="backup.js?v=2026.11.22.2-dev"></script>
+<script src="today.js?v=2026.11.22.2-dev"></script>
+<script src="amb.js?v=2026.11.22.2-dev"></script>
+<script src="scenes.js?v=2026.11.22.2-dev"></script>
+<script src="style.js?v=2026.11.22.2-dev"></script>
+<script src="welcome.js?v=2026.11.22.2-dev"></script>
+<script src="pins.js?v=2026.11.22.2-dev"></script>
+<script src="fr.js?v=2026.11.22.2-dev"></script>
 </body>
 </html>

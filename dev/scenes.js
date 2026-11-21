@@ -33,7 +33,7 @@ const SCENES = (() => {
   const total = () => +(lsGet('ry_pops_all') || 0) || (typeof popCount !== 'undefined' ? popCount : 0);
   const spent = () => +(lsGet('ry_bg_spent') || 0);
   const kassa = () => Math.max(0, total() - spent());
-  const owned = k => !W[k] || J('ry_bg_own', []).includes(k);
+  const owned = k => !W[k] || (W[k].season ? avail(k) : J('ry_bg_own', []).includes(k));
   const cur = () => { try { const k = STYLE.get().world; return W[k] && owned(k) ? k : null; } catch (e) { return null; } };
   function buy(k) {
     if (!W[k] || owned(k) || kassa() < W[k].price) return false;
@@ -512,6 +512,181 @@ const SCENES = (() => {
     }
   };
 
+
+  /* ================= säsongsvärldar: jul och nyår ================= */
+  // tillgängliga gratis under sin tid på året; byts in automatiskt en gång per säsong
+  Object.assign(W, {
+    jul:  { name: 'Julnatt', ic: '🎄', season: { from: [11, 15], to: [1, 6], auto: [[11, 15], [12, 26]] }, desc: 'Tomtens släde över ett snöigt land med tända fönster. Bubblorna blir julgranskulor.',
+            bg: ['#040b1e', '#0b1d3f', '#22406f'], glow: ['rgba(255,200,120,.22)', 'rgba(120,170,255,.3)'], acc: '#fca5a5', acc2: '#fde68a', txt: '#fff8f0', dim: '#c9d2e6', glass: 'rgba(255,230,200,.09)', line: 'rgba(255,220,180,.24)', scene: 1 },
+    nyar: { name: 'Nyårsnatt', ic: '🎆', season: { from: [12, 20], to: [1, 10], auto: [[12, 27], [1, 6]] }, desc: 'Fyrverkerier över en stad vid vattnet. Bubblorna blir champagnebubblor.',
+            bg: ['#03030d', '#0d0b2a', '#22144c'], glow: ['rgba(250,204,21,.22)', 'rgba(236,72,153,.28)'], acc: '#fde047', acc2: '#f0abfc', txt: '#fffbeb', dim: '#cbbfe0', glass: 'rgba(253,224,71,.08)', line: 'rgba(253,224,71,.24)', scene: 1 }
+  });
+  const NOW = () => (typeof window !== 'undefined' && window.__NOW) ? new Date(window.__NOW) : new Date();
+  const md = d => (d.getMonth() + 1) * 100 + d.getDate();
+  const inWin = (d, a, b) => { const x = md(d), A = a[0] * 100 + a[1], B = b[0] * 100 + b[1]; return A <= B ? x >= A && x <= B : x >= A || x <= B; };
+  const avail = k => !!W[k] && !!W[k].season && inWin(NOW(), W[k].season.from, W[k].season.to);
+  const autoNow = () => ['nyar', 'jul'].find(k => inWin(NOW(), W[k].season.auto[0], W[k].season.auto[1])) || null;
+  const sYear = d => d.getMonth() < 6 ? d.getFullYear() - 1 : d.getFullYear();
+  const MON = ['jan', 'feb', 'mar', 'apr', 'maj', 'jun', 'jul', 'aug', 'sep', 'okt', 'nov', 'dec'];
+  const seasonLabel = k => { const s = W[k].season; return avail(k) ? `Säsong · till ${s.to[1]} ${MON[s.to[0] - 1]}` : `Kommer ${s.from[1]} ${MON[s.from[0] - 1]}`; };
+  function seasonCheck() {
+    let st; try { st = STYLE.get(); } catch (e) { return; }
+    const want = autoNow(), tag = want ? want + '-' + sYear(NOW()) : '';
+    if (want && lsGet('ry_season_done') !== tag) {
+      lsSet('ry_season_done', tag); if (!(W[st.world] && W[st.world].season)) lsSet('ry_season_prev', st.world);
+      if (st.world !== want) { STYLE.set('world', want); try { if (typeof render === 'function' && typeof view !== 'undefined' && view === 'lobby') render(); } catch (e) {}
+        setTimeout(() => { try { toast(`${W[want].ic} ${W[want].name} är här! Du kan byta värld i Inställningar → Utseende.`, 5000); } catch (e) {} }, 1800); }
+      return;
+    }
+    if (W[st.world] && W[st.world].season && !avail(st.world)) { const pv = lsGet('ry_season_prev'); STYLE.set('world', pv && !(W[pv] && (W[pv].season || (W[pv].price && !owned(pv)))) ? pv : 'rymd'); }
+  }
+
+  /* ---------- Julnatt ---------- */
+  const SLEIGH = `<svg viewBox="0 0 330 110" aria-hidden="true"><defs>
+    <linearGradient id="jsl" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ef4444"/><stop offset="1" stop-color="#7f1d1d"/></linearGradient>
+    <radialGradient id="jsk" cx="40%" cy="35%" r="70%"><stop offset="0" stop-color="#d6a76a"/><stop offset="1" stop-color="#7c4a1e"/></radialGradient></defs>
+    ${[[250, 52], [292, 40], [210, 62]].map(([x, y], i) => `<g class="jl-deer" style="animation-delay:-${i * .17}s" transform="translate(${x} ${y})"><path d="M-16 -2 C-16 -10 10 -12 14 -4 L16 2 C8 6 -10 6 -16 2Z" fill="#7c4a2a"/><path d="M10 -6 L18 -18 L25 -17 L22 -10 L14 -2Z" fill="#7c4a2a"/><ellipse cx="23" cy="-16" rx="4.5" ry="2.8" fill="#7c4a2a"/><circle cx="27" cy="-16" r="1.4" fill="#3b1d0e"/>
+      <path d="M19 -20 C16 -27 18 -31 14 -34 M17 -26 L12 -27 M22 -20 C24 -27 29 -30 28 -35 M26 -26 L31 -28" stroke="#e7d3b0" stroke-width="1.5" fill="none" stroke-linecap="round"/><path d="M-16 0 l-4 1" stroke="#7c4a2a" stroke-width="2.4" stroke-linecap="round"/>
+      <g stroke="#7c4a2a" stroke-width="2.2" stroke-linecap="round"><path class="jl-leg1" d="M-11 3 L-17 11 M9 3 L4 11"/><path class="jl-leg2" d="M-6 3 L-2 12 M13 2 L19 9"/></g>
+      <path d="M-8 -6 C0 -2 6 -3 12 -7" stroke="#b91c1c" stroke-width="2.6" fill="none"/><circle cx="2" cy="-3.6" r="1.6" fill="#fde047"/><circle cx="7" cy="-4.4" r="1.6" fill="#fde047"/></g>`).join('')}
+    <path d="M150 64 C180 58 200 56 232 50 M150 64 C190 64 220 60 270 42" stroke="#fde68a" stroke-width="1.2" fill="none" opacity=".85"/>
+    <g transform="translate(0 4)">
+      <path d="M58 40 C50 18 74 6 92 18 L96 30Z" fill="url(#jsk)"/><path d="M60 30 C66 26 78 26 86 30" stroke="#5b3413" stroke-width="2" fill="none"/>
+      <rect x="62" y="6" width="14" height="14" rx="2" fill="#22c55e" transform="rotate(-14 69 13)"/><path d="M69 5 v16 M61 13 h16" stroke="#fde047" stroke-width="2" transform="rotate(-14 69 13)"/>
+      <rect x="78" y="2" width="12" height="16" rx="2" fill="#3b82f6" transform="rotate(10 84 10)"/><path d="M84 2 v16 M78 10 h12" stroke="#f9a8d4" stroke-width="2" transform="rotate(10 84 10)"/>
+      <rect x="70" y="-4" width="10" height="10" rx="2" fill="#f472b6" transform="rotate(-4 75 1)"/><path d="M75 -4 v10 M70 1 h10" stroke="#fff" stroke-width="1.6"/>
+      <circle cx="122" cy="22" r="10" fill="#ef4444"/><path d="M112 18 C112 6 126 2 134 10 L140 4 L138 14 C136 18 130 16 126 16Z" fill="#ef4444"/><circle cx="140" cy="4" r="3.6" fill="#fff"/><path d="M110 18 C116 15 128 15 134 18" stroke="#fff" stroke-width="4" stroke-linecap="round"/>
+      <circle cx="126" cy="24" r="6" fill="#fcd9b6"/><path d="M118 26 C118 38 132 40 134 28 C130 31 122 31 118 26Z" fill="#fff"/><circle cx="128" cy="22.5" r="1" fill="#1e293b"/><circle cx="131" cy="25.5" r="1.8" fill="#fca5a5"/>
+      <path class="jl-wave" d="M134 32 C142 28 146 20 150 14" stroke="#ef4444" stroke-width="5.5" stroke-linecap="round" fill="none"/><circle class="jl-wave" cx="150" cy="13" r="3" fill="#fff"/>
+      <path d="M44 34 L150 34 C156 34 158 40 156 46 L150 62 L58 62 C46 62 40 50 44 34Z" fill="url(#jsl)" stroke="#fbbf24" stroke-width="2"/><path d="M54 40 C70 46 120 46 146 40" stroke="#fbbf24" stroke-width="1.6" fill="none"/><path d="M60 54 q6 -6 12 0 q6 6 12 0 q6 -6 12 0 q6 6 12 0 q6 -6 12 0" stroke="#fde68a" stroke-width="1.4" fill="none" opacity=".8"/>
+      <path d="M38 72 L160 72 C170 72 174 64 168 58" stroke="#fbbf24" stroke-width="3.2" fill="none" stroke-linecap="round"/><path d="M62 62 V72 M138 62 V72" stroke="#fbbf24" stroke-width="2.6"/><path d="M38 72 C30 72 28 64 34 62" stroke="#fbbf24" stroke-width="3.2" fill="none" stroke-linecap="round"/></g></svg>`;
+  BUILD.jul = (p, o, R) => {
+    const r = rng(101);
+    let L = `<defs><linearGradient id="${p}hb" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#bcd0ee"/><stop offset=".5" stop-color="#7f9cc9"/><stop offset="1" stop-color="#40598a"/></linearGradient>
+      <linearGradient id="${p}fg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#e3ecfb"/><stop offset=".6" stop-color="#a8bde0"/><stop offset="1" stop-color="#6f88b8"/></linearGradient>
+      <radialGradient id="${p}win"><stop offset="0" stop-color="#ffe2a0" stop-opacity=".85"/><stop offset="1" stop-color="#ffb347" stop-opacity="0"/></radialGradient>
+      <radialGradient id="${p}st"><stop offset="0" stop-color="#fff7cc"/><stop offset=".4" stop-color="#fde047" stop-opacity=".7"/><stop offset="1" stop-color="#fde047" stop-opacity="0"/></radialGradient></defs>`;
+    L += range([[0, 190], [120, 140], [260, 186], [420, 120], [560, 182], [720, 132], [860, 186], [1000, 128], [1200, 176]], 400, '#2a4372', 'rgba(10,20,50,.25)', '#c9d8f0', .4, r);
+    for (let x = -10; x < 1210; x += 11 + r() * 9) { const h = 22 + r() * 22; L += fir(x, 232 + Math.sin(x / 70) * 8, h, '#10233d', '#b9cbe8'); }
+    L += `<path d="M0 238 C180 226 360 244 600 236 S1000 226 1200 240 V400 H0Z" fill="url(#${p}hb)"/>`;
+    const lit = (x, y, w, h) => `<circle cx="${x + w / 2}" cy="${y + h / 2}" r="${w * 1.6}" fill="url(#${p}win)"/><rect x="${x}" y="${y}" width="${w}" height="${h}" fill="#ffd27a" stroke="#fff" stroke-width="1.2"/><path d="M${x + w / 2} ${y}v${h}M${x} ${y + h / 2}h${w}" stroke="#fff" stroke-width=".9"/>`;
+    const house = (x, y, s, col, lights) => { let h = `<g transform="translate(${x} ${y}) scale(${s})"><rect x="-26" y="-26" width="52" height="28" fill="${col}"/><rect x="-26" y="-26" width="3" height="28" fill="#f8fafc"/><rect x="23" y="-26" width="3" height="28" fill="#f8fafc"/>
+      <path d="M-32 -24 L0 -48 L32 -24Z" fill="#334155"/><path d="M-34 -23 L0 -50 L34 -23 L29 -21 L0 -43 L-29 -21Z" fill="#eef4ff"/><rect x="12" y="-52" width="6" height="14" fill="#475569"/><rect x="11" y="-54" width="8" height="3" fill="#eef4ff"/>
+      ${lit(-18, -18, 10, 10)}${lit(8, -18, 10, 10)}<rect x="-4" y="-14" width="8" height="16" fill="#3b1d1d"/><path d="M-30 2 Q0 -2 30 2" stroke="#eef4ff" stroke-width="4" fill="none" stroke-linecap="round"/>`;
+      if (lights) { const C = ['#ef4444', '#fde047', '#22c55e', '#60a5fa', '#f472b6']; for (let i = 0; i <= 10; i++) { const t = i / 10, px = -30 + 60 * t, py = -23 - (1 - Math.abs(t - .5) * 2) * 25 + 2; h += `<circle class="jl-b jl-b${i % 2}" cx="${f1(px)}" cy="${f1(py)}" r="1.9" fill="${C[i % 5]}"/>`; } }
+      return h + '</g>'; };
+    L += house(440, 268, 1, '#8b2323', 1) + house(520, 258, .78, '#b45309', 0) + house(820, 266, .95, '#8b2323', 1) + house(1000, 262, .8, '#e2d6b8', 0) + house(250, 262, .85, '#b45309', 1) + house(130, 270, .7, '#8b2323', 0);
+    // kyrkan
+    L += `<g transform="translate(626 262)"><rect x="-26" y="-34" width="52" height="36" fill="#eef1f6"/><path d="M-32 -32 L0 -56 L32 -32Z" fill="#334155"/><path d="M-34 -31 L0 -58 L34 -31 L29 -29 L0 -51 L-29 -29Z" fill="#eef4ff"/>
+      <rect x="-12" y="-76" width="24" height="44" fill="#eef1f6"/><path d="M-15 -74 L0 -110 L15 -74Z" fill="#334155"/><path d="M0 -110 V-122 M-5 -117 H5" stroke="#fde68a" stroke-width="2"/>
+      <circle cy="-62" r="10" fill="url(#${p}win)"/><path d="M-5 -56 V-66 a5 5 0 0 1 10 0 V-56Z" fill="#ffd27a"/>${[-17, -3, 11].map(x => `<path d="M${x} -6 V-20 a3 3 0 0 1 6 0 V-6Z" fill="#ffd27a"/><circle cx="${x + 3}" cy="-13" r="8" fill="url(#${p}win)"/>`).join('')}<rect x="-4" y="-10" width="8" height="12" fill="#5b3a29"/></g>`;
+    // julgranen på torget med ljusslinga och stjärna
+    L += `<g transform="translate(724 300)"><circle cy="-64" r="40" fill="url(#${p}win)" opacity=".55"/>${fir(0, 4, 92, '#0f3d2a', '#e8f0fb')}`;
+    const C = ['#ef4444', '#fde047', '#60a5fa', '#f472b6', '#fff7cc'];
+    for (let i = 0; i < 34; i++) { const t = i / 34, y = -82 + t * 80, w = 4 + t * 32, x = Math.sin(t * 19) * w; L += `<circle class="jl-b jl-b${i % 3}" cx="${f1(x)}" cy="${f1(y)}" r="2.1" fill="${C[i % 5]}"/>`; }
+    L += `<circle cy="-92" r="16" fill="url(#${p}st)" class="jl-star"/><path d="M0 -102 l3 7 7.4 .6 -5.6 4.8 1.8 7.2 -6.6 -4 -6.6 4 1.8 -7.2 -5.6 -4.8 7.4 -.6z" fill="#fde047" stroke="#fff7cc" stroke-width=".8"/></g>`;
+    // ljusslinga mellan stolparna
+    const sx = [330, 380, 560, 590], C2 = ['#ef4444', '#fde047', '#22c55e', '#60a5fa', '#f472b6'];
+    [[330, 382], [560, 596]].forEach(([a, b], k) => { L += `<path d="M${a} 284 V250 M${b} 284 V250" stroke="#1e293b" stroke-width="2.4"/>`; for (let i = 0; i <= 9; i++) { const t = i / 9, x = a + (b - a) * t, y = 250 + Math.sin(Math.PI * t) * 9; L += `<circle class="jl-b jl-b${(i + k) % 2}" cx="${f1(x)}" cy="${f1(y)}" r="2" fill="${C2[i % 5]}"/>`; } });
+    // lyktstolpe och upplysta granar
+    L += `<g transform="translate(900 300)"><circle cy="-52" r="22" fill="url(#${p}win)"/><path d="M0 0 V-48" stroke="#1e293b" stroke-width="3"/><path d="M-6 -48 h12 l-2 -10 h-8z" fill="#ffd27a" stroke="#1e293b" stroke-width="1.5"/><path d="M-8 -58 h16 l-8 -6z" fill="#1e293b"/></g>`;
+    [[360, 300, 46], [1080, 300, 50], [180, 296, 40]].forEach(([x, y, h]) => { L += fir(x, y, h, '#123a2b', '#e3ecfb'); for (let i = 0; i < 12; i++) { const t = i / 12; L += `<circle class="jl-b jl-b${i % 2}" cx="${f1(x + Math.sin(t * 14) * (2 + t * h * .3))}" cy="${f1(y - h * .9 + t * h * .82)}" r="1.5" fill="#fff3c4"/>`; } });
+    if (!o.still) for (const [cx, cy] of [[452, 210], [530, 216], [832, 209], [262, 214]]) for (let i = 0; i < 3; i++) L += `<circle class="mv vt-smoke" style="animation-delay:-${i * 2.1}s" cx="${cx}" cy="${cy}" r="4" fill="#c7d3e8"/>`;
+    L += `<path d="M0 330 C200 316 420 340 640 332 S1000 316 1200 334 V400 H0Z" fill="url(#${p}fg)"/><path d="M500 400 C560 360 640 346 700 334" stroke="#91a8d2" stroke-width="10" fill="none" opacity=".45"/>`;
+    [[40, 392, 70], [100, 398, 56], [1120, 396, 74], [1170, 400, 60], [980, 392, 40]].forEach(([x, y, h]) => L += fir(x, y, h, '#0f2a24', '#f1f5fb'));
+    let h = div('scn-moon jl-moon', '') + stars(o.few ? 40 : 80, 50, R) + land(p, L, 46);
+    if (!o.still) {
+      h += div('mv jl-sleigh', '', `<div class="jl-bob">${SLEIGH}</div><div class="jl-trail">${[...Array(10)].map((_, i) => `<i style="left:${-i * 15}px;top:${f1(Math.sin(i * .9) * 5 + i * 1.5)}px;animation-delay:-${(i * .13).toFixed(2)}s;opacity:${(1 - i / 11).toFixed(2)}"></i>`).join('')}</div>`);
+      h += parts('vt-snow', o.few ? 34 : 70, R, (i, R) => { const s = 2 + R() * (R() < .2 ? 5 : 3); return `<i style="left:${f1(R() * 100)}%;width:${f1(s)}px;height:${f1(s)}px;opacity:${(.5 + R() * .5).toFixed(2)};--sx:${f1(R() * 60 - 30)}px;animation-duration:${f1(9 + R() * 10)}s;animation-delay:-${f1(R() * 20)}s"></i>`; });
+    } else h += div('jl-sleigh jl-still', '', SLEIGH);
+    return h;
+  };
+
+  /* ---------- Nyårsnatt ---------- */
+  BUILD.nyar = (p, o, R) => {
+    const r = rng(131);
+    let L = `<defs><linearGradient id="${p}wt" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#1a1440"/><stop offset="1" stop-color="#05040f"/></linearGradient>
+      <linearGradient id="${p}bd" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#211b45"/><stop offset="1" stop-color="#110d26"/></linearGradient>
+      <radialGradient id="${p}cl" cx="50%" cy="50%" r="50%"><stop offset="0" stop-color="#fffbeb"/><stop offset=".85" stop-color="#fde68a"/><stop offset="1" stop-color="#b45309"/></radialGradient></defs>`;
+    // stadssiluett med tända fönster
+    let x = 0; while (x < 1200) { const w = 30 + r() * 50, h = 50 + r() * (Math.abs(x - 600) < 200 ? 60 : 110), y = 300 - h;
+      if (!(x > 560 && x < 650)) { L += `<rect x="${f1(x)}" y="${f1(y)}" width="${f1(w)}" height="${f1(h)}" fill="url(#${p}bd)"/>`;
+        for (let wy = y + 8; wy < 292; wy += 11) for (let wx = x + 5; wx < x + w - 6; wx += 9) if (r() < .32) L += `<rect x="${f1(wx)}" y="${f1(wy)}" width="4" height="5" fill="${r() < .75 ? '#ffd27a' : '#dbeafe'}" opacity="${(.5 + r() * .5).toFixed(2)}"/>`;
+        if (r() < .25) L += `<path d="M${f1(x + w / 2)} ${f1(y)} v-14" stroke="#211b45" stroke-width="2"/><circle class="kz-blink" cx="${f1(x + w / 2)}" cy="${f1(y - 14)}" r="1.8" fill="#ef4444"/>`; }
+      x += w + 2; }
+    // klocktornet: visarna står på tolv
+    L += `<g transform="translate(605 300)"><rect x="-22" y="-150" width="44" height="150" fill="url(#${p}bd)"/><path d="M-26 -150 L0 -196 L26 -150Z" fill="#1a1538"/><path d="M0 -196 v-12" stroke="#fde68a" stroke-width="2"/>
+      <circle cy="-122" r="24" fill="#fde68a" opacity=".25"/><circle cy="-122" r="17" fill="url(#${p}cl)" stroke="#78350f" stroke-width="1.6"/>${[...Array(12)].map((_, i) => `<path transform="rotate(${i * 30} 0 -122)" d="M0 -137 v3" stroke="#78350f" stroke-width="1.4"/>`).join('')}
+      <path d="M0 -122 V-136" stroke="#1e1b4b" stroke-width="2.4" stroke-linecap="round"/><path d="M0 -122 V-132" stroke="#1e1b4b" stroke-width="3.4" stroke-linecap="round"/><circle cy="-122" r="1.8" fill="#1e1b4b"/>
+      ${[-70, -40, -10].map(y => `<rect x="-6" y="${y - 12}" width="12" height="16" rx="6" fill="#ffd27a" opacity=".85"/>`).join('')}</g>`;
+    // pariserhjul med lampor som snurrar
+    const wh = `<g class="ny-wheel">${[...Array(16)].map((_, i) => { const a = i / 16 * Math.PI * 2; return `<path d="M0 0 L${f1(Math.cos(a) * 52)} ${f1(Math.sin(a) * 52)}" stroke="#c4b5fd" stroke-width=".8" opacity=".6"/><circle class="jl-b jl-b${i % 2}" cx="${f1(Math.cos(a) * 52)}" cy="${f1(Math.sin(a) * 52)}" r="3" fill="${['#fde047', '#f472b6', '#67e8f9', '#a3e635'][i % 4]}"/>`; }).join('')}<circle r="52" fill="none" stroke="#c4b5fd" stroke-width="1.6" opacity=".7"/><circle r="5" fill="#c4b5fd"/></g>`;
+    L += `<g transform="translate(790 230)">${wh}<path d="M0 0 L-24 70 M0 0 L24 70" stroke="#c4b5fd" stroke-width="2.4" opacity=".8"/></g>`;
+    // vattnet med speglingar
+    L += `<rect x="0" y="300" width="1200" height="100" fill="url(#${p}wt)"/><path d="M0 300 H1200" stroke="#fde68a" stroke-opacity=".25"/>`;
+    for (let i = 0; i < 70; i++) { const xx = r() * 1200, w = 6 + r() * 24; L += `<rect class="ny-ref ny-ref${i % 3}" x="${f1(xx)}" y="${f1(304 + r() * 90)}" width="${f1(w)}" height="1.6" rx=".8" fill="${pick(['#ffd27a', '#fde68a', '#f9a8d4', '#a5f3fc'], r)}" opacity="${(.25 + r() * .5).toFixed(2)}"/>`; }
+    let h = stars(o.few ? 30 : 60, 45, R);
+    // fyrverkerier: raketer som stiger och slår ut i gnistregn, i otakt
+    const FW = [['#fde047', '#fb923c'], ['#f472b6', '#c084fc'], ['#67e8f9', '#a5f3fc'], ['#a3e635', '#fde047'], ['#f87171', '#fde68a'], ['#c084fc', '#f0abfc'], ['#ffffff', '#fde68a']];
+    const nfw = o.still ? 3 : o.few ? 5 : 7;
+    for (let i = 0; i < nfw; i++) { const c = FW[i % FW.length], n = 34 + Math.floor(R() * 14), rad = 55 + R() * 55, d = 4.6 + R() * 3.2, x0 = 8 + R() * 84, y0 = 8 + R() * 30;
+      let b = ''; for (let k = 0; k < n; k++) { const col = k % 3 ? c[0] : c[1], rr = rad * (k % 4 === 0 ? R(.35, .6) : R(.78, 1.08)); b += `<i style="transform:rotate(${f1(k / n * 360 + R() * 8)}deg)"><b style="--r:${f1(rr)}px;width:${f1(8 + R() * 10)}px;background:linear-gradient(90deg,rgba(255,255,255,0),${col} 60%,#fff);box-shadow:0 0 6px ${col}"></b></i>`; }
+      h += `<div class="ny-fw ${o.still ? 'still' : ''}" style="left:${f1(x0)}%;top:${f1(y0)}%;--d:${f1(d)}s;--dl:-${f1(R() * d)}s;--c:${c[0]}"><span class="ny-tr"></span><span class="ny-fl"></span><div class="ny-bu">${b}</div></div>`; }
+    h += land(p, L, 40);
+    if (!o.still) h += parts('ny-gl', o.few ? 14 : 30, R, (i, R) => `<i style="left:${f1(R() * 100)}%;--sx:${f1(R() * 40 - 20)}px;animation-duration:${f1(10 + R() * 10)}s;animation-delay:-${f1(R() * 20)}s"></i>`);
+    return h;
+  };
+
+  /* ---------- bubblorna ---------- */
+  function bauble(c, pat) {
+    const id = U();
+    const deco = pat === 0 ? `<path d="M10 56 Q50 66 90 56" stroke="${c[3]}" stroke-width="7" fill="none"/>${[22, 36, 50, 64, 78].map(x => `<circle cx="${x}" cy="${f1(59 + Math.sin((x - 10) / 80 * Math.PI) * 3)}" r="2.2" fill="#fff"/>`).join('')}`
+      : pat === 1 ? `<g stroke="#fff" stroke-opacity=".8" stroke-width="1.8" stroke-linecap="round" transform="translate(50 58)">${[0, 60, 120].map(a => `<path transform="rotate(${a})" d="M0 -13 V13 M0 -8 l-4 -3 M0 -8 l4 -3 M0 8 l-4 3 M0 8 l4 3"/>`).join('')}</g>`
+      : `${[...Array(16)].map((_, i) => `<circle cx="${f1(22 + (i * 37) % 58)}" cy="${f1(36 + (i * 23) % 44)}" r="${(1 + (i % 3) * .6).toFixed(1)}" fill="#fff" opacity=".7"/>`).join('')}`;
+    return `<svg viewBox="0 0 100 112" aria-hidden="true"><defs><radialGradient id="${id}" cx="36%" cy="34%" r="75%"><stop offset="0" stop-color="#fff" stop-opacity=".95"/><stop offset=".2" stop-color="${c[0]}"/><stop offset=".75" stop-color="${c[1]}"/><stop offset="1" stop-color="${c[2]}"/></radialGradient>
+      <clipPath id="${id}c"><circle cx="50" cy="60" r="40"/></clipPath></defs>
+      <path d="M50 2 a5 5 0 1 1 0.01 0" fill="none" stroke="#cbd5e1" stroke-width="2"/><rect x="40" y="10" width="20" height="12" rx="3" fill="#e5c770" stroke="#a16207"/><path d="M43 12 v8 M47 12 v8 M51 12 v8 M55 12 v8" stroke="#a16207" stroke-width=".8"/>
+      <circle cx="50" cy="60" r="40" fill="url(#${id})"/><g clip-path="url(#${id}c)">${deco}</g>
+      <ellipse cx="36" cy="44" rx="10" ry="6" fill="#fff" opacity=".55" transform="rotate(-35 36 44)"/><circle cx="70" cy="80" r="3" fill="#fff" opacity=".3"/></svg>`;
+  }
+  const STAR5 = (fill, stroke) => `<svg viewBox="0 0 100 100" aria-hidden="true" class="sk-spin"><defs><radialGradient id="st5" cx="40%" cy="35%" r="70%"><stop offset="0" stop-color="#fffbeb"/><stop offset=".5" stop-color="${fill}"/><stop offset="1" stop-color="${stroke}"/></radialGradient></defs>
+    <path d="M50 4 L62 36 L96 37 L69 58 L79 92 L50 72 L21 92 L31 58 L4 37 L38 36Z" fill="url(#st5)" stroke="${stroke}" stroke-width="2.4" stroke-linejoin="round"/><path d="M50 4 L50 72 M4 37 L69 58 M96 37 L31 58" stroke="#fff" stroke-opacity=".35" stroke-width="1.4"/><circle cx="40" cy="34" r="4" fill="#fff" opacity=".7"/></svg>`;
+  const CANE = `<svg viewBox="0 0 70 120" aria-hidden="true"><defs><clipPath id="cnc"><path d="M22 116 V40 a22 22 0 0 1 44 0 v8 h-12 v-8 a10 10 0 0 0 -20 0 v76Z"/></clipPath></defs><path d="M22 116 V40 a22 22 0 0 1 44 0 v8 h-12 v-8 a10 10 0 0 0 -20 0 v76Z" fill="#fff" stroke="#e2e8f0"/>
+    <g clip-path="url(#cnc)">${[...Array(14)].map((_, i) => `<path d="M-10 ${i * 12 - 20} L80 ${i * 12 - 50}" stroke="#ef4444" stroke-width="5"/>`).join('')}</g><path d="M28 112 V42" stroke="#fff" stroke-width="2" opacity=".6"/></svg>`;
+  const HAT = `<g transform="translate(60 18) rotate(-12)"><path d="M-28 12 C-24 -14 10 -26 30 -18 C20 -12 14 -2 14 12Z" fill="#ef4444" stroke="#991b1b" stroke-width="1.4"/><path d="M-30 12 Q-8 4 18 12 L18 20 Q-8 12 -30 20Z" fill="#fff"/><circle cx="31" cy="-18" r="6" fill="#fff"/></g>`;
+  const PHAT = `<g transform="translate(60 18) rotate(8)"><path d="M-14 12 L2 -30 L18 12Z" fill="#a855f7"/><path d="M-9 0 L13 0 M-5 -12 L9 -12 M-1 -22 L5 -22" stroke="#fde047" stroke-width="3"/><circle cx="2" cy="-31" r="4.5" fill="#f472b6"/></g>${[[18, 30, '#fde047'], [100, 40, '#67e8f9'], [16, 90, '#f472b6'], [104, 86, '#a3e635'], [92, 18, '#fb923c']].map(([x, y, c], i) => `<rect x="${x}" y="${y}" width="7" height="3" rx="1.5" fill="${c}" transform="rotate(${i * 40} ${x} ${y})"/>`).join('')}`;
+  const yearNext = () => { const d = NOW(); return d.getMonth() >= 6 ? d.getFullYear() + 1 : d.getFullYear(); };
+  Object.assign(SKIN, {
+    jul: {
+      lab: { gold: 'Julstjärna', pink: 'Polkagris', heart: 'Pepparkakshjärta', leo: 'Tomteleopard' },
+      bub(k) {
+        if (k === 'gold') return STAR5('#fbbf24', '#b45309');
+        if (k === 'pink') return CANE;
+        if (k === 'heart') { const id = U(); return `<svg viewBox="0 0 100 90" aria-hidden="true"><defs><radialGradient id="${id}" cx="40%" cy="35%" r="75%"><stop offset="0" stop-color="#d9a066"/><stop offset=".7" stop-color="#a0612c"/><stop offset="1" stop-color="#6b3a16"/></radialGradient></defs>
+          <path d="${HEART}" fill="url(#${id})" stroke="#5b2e10" stroke-width="2"/><path d="M50 76 C47 73 14 52 14 30 C14 19 22 12 31 12 C39 12 45 17 50 24 C55 17 61 12 69 12 C78 12 86 19 86 30 C86 52 53 73 50 76Z" fill="none" stroke="#fff" stroke-width="3" stroke-dasharray="1 6" stroke-linecap="round"/>
+          <text x="50" y="47" text-anchor="middle" font-size="13" font-weight="700" fill="#fff" font-family="Fredoka,system-ui">God Jul</text><path d="M30 56 q4 4 8 0 q4 -4 8 0 q4 4 8 0 q4 -4 8 0 q4 4 8 0" stroke="#fff" stroke-width="2" fill="none"/></svg>`; }
+        if (k === 'leo') return leo({ '#fcd34d': '#fca5a5' }, HAT);
+        return bauble(pick([['#fca5a5', '#dc2626', '#7f1d1d', '#fde68a'], ['#fde68a', '#d4a017', '#7c5a03', '#fff'], ['#86efac', '#16a34a', '#14532d', '#fde68a'], ['#93c5fd', '#2563eb', '#1e3a8a', '#e0f2fe'], ['#f1f5f9', '#94a3b8', '#334155', '#fca5a5'], ['#e9d5ff', '#9333ea', '#4c1d95', '#fde68a']]), Math.floor(Math.random() * 3));
+      }, drop: 'snow'
+    },
+    nyar: {
+      lab: { gold: 'Nyårsmynt', pink: 'Smällkaramell', heart: 'Glitterhjärta', leo: 'Festleopard' },
+      bub(k) {
+        if (k === 'gold') { const id = U(); return `<svg viewBox="0 0 100 100" aria-hidden="true"><defs><radialGradient id="${id}" cx="38%" cy="32%" r="75%"><stop offset="0" stop-color="#fffbeb"/><stop offset=".45" stop-color="#fbbf24"/><stop offset="1" stop-color="#92400e"/></radialGradient></defs>
+          <circle cx="50" cy="50" r="46" fill="url(#${id})" stroke="#b45309" stroke-width="2.4"/><circle cx="50" cy="50" r="37" fill="none" stroke="#fde68a" stroke-width="1.6" stroke-dasharray="2 3"/><text x="50" y="58" text-anchor="middle" font-size="22" font-weight="700" fill="#78350f" font-family="Fredoka,system-ui">${yearNext()}</text><ellipse cx="34" cy="28" rx="10" ry="5" fill="#fff" opacity=".5" transform="rotate(-30 34 28)"/></svg>`; }
+        if (k === 'pink') return `<svg viewBox="0 0 130 60" aria-hidden="true"><path d="M36 30 L6 8 L12 30 L6 52Z M94 30 L124 8 L118 30 L124 52Z" fill="#f472b6" stroke="#be185d" stroke-width="1.5"/><rect x="34" y="14" width="62" height="32" rx="10" fill="#ec4899" stroke="#be185d" stroke-width="1.5"/>
+          ${[44, 56, 68, 80].map(x => `<path d="M${x} 14 l8 32" stroke="#fde047" stroke-width="3"/>`).join('')}<path d="M40 20 Q60 16 84 20" stroke="#fff" stroke-width="3" fill="none" opacity=".6" stroke-linecap="round"/><g fill="#fde047"><circle cx="20" cy="12" r="2"/><circle cx="112" cy="50" r="2"/></g></svg>`;
+        if (k === 'heart') { const id = U(); return `<svg viewBox="0 0 100 90" aria-hidden="true"><defs><linearGradient id="${id}" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#fde68a"/><stop offset=".5" stop-color="#f472b6"/><stop offset="1" stop-color="#a855f7"/></linearGradient></defs><path d="${HEART}" fill="url(#${id})" fill-opacity=".8" stroke="#fef3c7" stroke-width="2.4"/>
+          ${[...Array(26)].map((_, i) => `<circle cx="${f1(18 + (i * 29) % 64)}" cy="${f1(14 + (i * 17) % 50)}" r="${(1 + (i % 3) * .7).toFixed(1)}" fill="#fff" opacity="${(.4 + (i % 4) * .15).toFixed(2)}"/>`).join('')}<path d="M22 18 C27 13 35 13 39 18" fill="none" stroke="#fff" stroke-opacity=".8" stroke-width="4" stroke-linecap="round"/></svg>`; }
+        if (k === 'leo') return leo({ '#fcd34d': '#fde047' }, PHAT);
+        if (Math.random() < .2) return `<svg viewBox="0 0 100 100" aria-hidden="true" class="sk-spin"><g stroke="#fde68a" stroke-linecap="round">${[...Array(12)].map((_, i) => `<path transform="rotate(${i * 30} 50 50)" d="M50 ${i % 2 ? 22 : 10} V40" stroke-width="${i % 2 ? 2 : 3}"/>`).join('')}</g><circle cx="50" cy="50" r="10" fill="#fff7cc"/><circle cx="50" cy="50" r="18" fill="#fde047" opacity=".3"/></svg>`;
+        const id = U(); return `<svg viewBox="0 0 100 100" aria-hidden="true"><defs><radialGradient id="${id}" cx="36%" cy="30%" r="75%"><stop offset="0" stop-color="#fffbeb" stop-opacity=".9"/><stop offset=".35" stop-color="#fde68a" stop-opacity=".35"/><stop offset=".85" stop-color="#f59e0b" stop-opacity=".2"/><stop offset="1" stop-color="#d97706" stop-opacity=".5"/></radialGradient></defs>
+          <circle cx="50" cy="50" r="46" fill="url(#${id})" stroke="#fde68a" stroke-opacity=".9" stroke-width="2"/>${[[62, 66, 5], [44, 74, 3.5], [70, 46, 3], [56, 82, 2.4], [34, 60, 2]].map(([x, y, s]) => `<circle cx="${x}" cy="${y}" r="${s}" fill="none" stroke="#fef3c7" stroke-opacity=".8" stroke-width="1.2"/>`).join('')}
+          <path d="M26 34 Q34 20 50 18" stroke="#fff" stroke-width="4" fill="none" stroke-linecap="round" opacity=".8"/></svg>`;
+      }, drop: 'fw'
+    }
+  });
+
   function bubble(kind) {
     const w = cur(); if (!w || !SKIN[w]) return null;
     try { return { w, html: SKIN[w].bub(kind || ''), drop: SKIN[w].drop }; } catch (e) { return null; }
@@ -532,10 +707,14 @@ const SCENES = (() => {
           : can ? `<button class="bgw-b buy" data-act="bgbuy" data-k="${k}">🔓 Lås upp ${fmt(w.price)}</button>`
           : `<div class="bgw-pr"><i style="width:${pct}%"></i><span>🔒 ${fmt(kv)} / ${fmt(w.price)} 🫧</span></div>`}</div>`;
     }).join('');
+    const seas = ['jul', 'nyar'].map(k => { const w = W[k], av = avail(k), on = now === k;
+      return `<div class="bgw ${on ? 'on' : ''} ${av ? 'own' : 'lock'} seas" data-k="${k}">${thumb(k)}<div class="bgw-t"><b>${w.ic} ${w.name}</b><small>${w.desc}</small></div>
+        ${on ? `<div class="bgw-st">✓ Används</div>` : av ? `<button class="bgw-b" data-act="bguse" data-k="${k}">Använd · gratis</button>` : `<div class="bgw-pr"><span>📅 ${seasonLabel(k)}</span></div>`}</div>`; }).join('');
     const special = W[now] && owned(now);
     openModal(`<h3>✨ Bubbelvärldar</h3>
       <div class="bgw-kassa"><b>${fmt(kv)} 🫧</b><small>i din bubbelkassa – allt du har poppat. Att nollställa räknaren påverkar inte kassan.</small></div>
-      <div class="bgw-grid">${cards}</div>
+      <div class="bgw-scroll"><div class="bgw-h">🎁 Säsong – gratis just nu</div><div class="bgw-grid">${seas}</div>
+      <div class="bgw-h">🫧 Lås upp med bubblor</div><div class="bgw-grid">${cards}</div></div>
       <div class="btns">${special ? '<button class="ghost" data-act="bgoff">Tillbaka till vanlig värld</button>' : ''}<button class="pri" data-act="close">Klar</button></div>`, 'bgshop');
     if (focus) setTimeout(() => { const el = document.querySelector(`.bgw[data-k="${focus}"]`); if (el) el.scrollIntoView({ block: 'center', behavior: 'smooth' }); }, 60);
   }
@@ -563,5 +742,5 @@ const SCENES = (() => {
     setTimeout(() => toast(`✨ Du kan låsa upp ${W[k].ic} ${W[k].name}! Tryck på 🫧`, 4200), 900);
   }
   const affordable = () => ORDER.some(k => !owned(k) && kassa() >= W[k].price);
-  return { worlds: W, ORDER, build, bubble, label, dropCls, owned, kassa, buy, shop, act, check, affordable, cur };
+  return { seasonCheck, avail, seasonLabel, worlds: W, ORDER, build, bubble, label, dropCls, owned, kassa, buy, shop, act, check, affordable, cur };
 })();

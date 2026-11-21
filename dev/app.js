@@ -21,7 +21,7 @@
   if(!same || !/[?&]bot=1/.test(location.search)){ document.documentElement.innerHTML=''; throw new Error('Inramning blockerad'); }
 })();
 /* ================= Version & utvecklingsläge ================= */
-const APP_VERSION='2026.11.22.1-dev';
+const APP_VERSION='2026.11.22.2-dev';
 const DEV = /\/dev(\/|$)/.test(location.pathname);      // testversionen ligger i mappen /dev/
 const BOT = /[?&]bot=1/.test(location.search) && window.parent!==window;   // osynlig ekokompis i en ram
 const LSP = DEV ? (BOT ? 'dev:bot:' : 'dev:') : (BOT ? 'bot:' : '');    // egen sparad data i testversionen
@@ -172,12 +172,17 @@ const MOTIFS=[
 const BEAT=.72;
 function impulse(sec){ const n=Math.floor(AC.sampleRate*sec), b=AC.createBuffer(2,n,AC.sampleRate);
   for(let c=0;c<2;c++){ const d=b.getChannelData(c); let lp=0; for(let i=0;i<n;i++){ const t=i/n; lp+=((Math.random()*2-1)-lp)*(.6-.45*t); d[i]=lp*Math.pow(1-t,2.4); } } return b; }
+// varje värld har sitt eget temaljud (amb.js); grundvärlden Rymd & hav har den här musiken
+const musVol = () => { const v=parseFloat(lsGet('ry_music_vol')); return isNaN(v)?.7:v; };
+function themeWorld(){ try{ return STYLE.world(); }catch(e){ return 'rymd'; } }
+function musicWorld(){ if(MUS && (MUS.amb?MUS.amb.world:'rymd')!==themeWorld()){ stopMusic(); setTimeout(()=>{ if(musicOn) startMusic(); },700); } }
 function startMusic(){
   if(!AC || MUS || !musicOn) return;
   if(typeof spPlaying!=='undefined' && spPlaying && spDuck) return;
+  const tw=themeWorld(); if(typeof AMB!=='undefined' && AMB.has(tw)){ const a=AMB.start(tw); if(a) MUS={amb:a}; return; }
   try{
     const t0=AC.currentTime, G=v=>{ const g=AC.createGain(); g.gain.value=v; return g; }, F=(type,f,q)=>{ const x=AC.createBiquadFilter(); x.type=type; x.frequency.value=f; if(q) x.Q.value=q; return x; };
-    const out=G(0); out.gain.setValueAtTime(0,t0); out.gain.linearRampToValueAtTime(.85,t0+5);
+    const out=G(0); out.gain.setValueAtTime(0,t0); out.gain.linearRampToValueAtTime(.85*musVol(),t0+5);
     const comp=AC.createDynamicsCompressor(); comp.threshold.value=-18; comp.ratio.value=3; out.connect(comp); comp.connect(AC.destination);
     const rev=AC.createConvolver(); rev.buffer=impulse(4.5); const wet=G(.55); rev.connect(wet); wet.connect(out);
     // eko som studsar mellan vänster och höger
@@ -231,7 +236,7 @@ function schedMusic(){
   }
 }
 function stopMusic(){
-  if(!MUS) return; const m=MUS; MUS=null; clearInterval(m.timer);
+  if(!MUS) return; const m=MUS; MUS=null; if(m.amb){ m.amb.stop(); return; } clearInterval(m.timer);
   try{ m.out.gain.cancelScheduledValues(AC.currentTime); m.out.gain.setValueAtTime(m.out.gain.value,AC.currentTime); m.out.gain.linearRampToValueAtTime(0,AC.currentTime+1.2); }catch(e){}
   setTimeout(()=>{ try{ m.src.forEach(n=>n.stop()); m.out.disconnect(); }catch(e){} },1400);
 }
@@ -1418,7 +1423,7 @@ function popBubble(b,kind,sz){
   const ring=document.createElement('div'); ring.className='popring '+dk; ring.style.left=cx+'px'; ring.style.top=cy+'px'; ring.style.width=ring.style.height=sz+'px';
   party.appendChild(ring); setTimeout(()=>ring.remove(),450);
   for(let i=0;i<8;i++){
-    const d=document.createElement('div'); d.className='drop '+dk; if(dk==='dk-sprinkle') d.style.background=['#fde047','#f472b6','#60a5fa','#4ade80','#fb923c','#fff'][i%6]; const a=i/8*Math.PI*2+Math.random()*.4, rr=sz*.6+Math.random()*24;
+    const d=document.createElement('div'); d.className='drop '+dk; if(dk==='dk-sprinkle'||dk==='dk-fw') d.style.background=['#fde047','#f472b6','#60a5fa','#4ade80','#fb923c','#fff'][i%6]; const a=i/8*Math.PI*2+Math.random()*.4, rr=sz*.6+Math.random()*24;
     d.style.left=cx+'px'; d.style.top=cy+'px'; d.style.setProperty('--dx',Math.cos(a)*rr+'px'); d.style.setProperty('--dy',Math.sin(a)*rr+'px');
     party.appendChild(d); setTimeout(()=>d.remove(),550);
   }
@@ -1509,6 +1514,8 @@ function showPopStats(){ popWeekCheck(); const W=popWeeks(), k=popWk(), ks=Objec
   document.getElementById('popReset').onclick=e=>{ const b=e.target; if(!b.dataset.sure){ b.dataset.sure='1'; b.textContent='Säker? Tryck igen för att nollställa'; b.classList.add('danger'); return; }
     popCount=0; lsSet('ry_pops','0'); sfx.unbubble(); toast('Bubbelpoängen nollställd 🫧'); showPopStats(); const c=document.getElementById('popc'); if(c) c.textContent='🫧 0'; }; }
 document.addEventListener('click',e=>{ if(e.target.closest('#popc')) showPopStats(); });
+document.addEventListener('input',e=>{ const r=e.target.closest&&e.target.closest('[data-musvol]'); if(!r) return; lsSet('ry_music_vol',r.value);
+  if(MUS){ if(MUS.amb) MUS.amb.vol(+r.value); else if(MUS.out&&AC) MUS.out.gain.setTargetAtTime(.85*+r.value,AC.currentTime,.2); } });
 // stänkregn av små hjärtan
 function heartRain(cx,cy){
   const party=document.getElementById('party'); if(!party) return;
@@ -2396,7 +2403,7 @@ function showSettings(){
   const permTxt = perm==='granted' ? '🔔 Påslagna' : perm==='denied' ? 'Nekade i webbläsaren' : perm==='unsupported' ? 'Stöds inte här' : 'Inte påslagna än';
   const onoff=(act,on)=>`<div class="seg"><button data-act="${act}" data-v="1" class="${on?'sel':''}">På</button><button data-act="${act}" data-v="0" class="${on?'':'sel'}">Av</button></div>`;
   openModal(`<h3>⚙️ Inställningar</h3>
-    <div class="setrow"><div class="lbl">🎵 Bakgrundsmusik</div>${onoff('setmusic',musicOn)}</div>
+    <div class="setrow"><div class="lbl">🎵 Temaljud</div>${onoff('setmusic',musicOn)}<label class="musvol">🔈 <input type="range" min="0.1" max="1" step="0.05" value="${musVol()}" data-musvol></label><div class="setnote">Varje värld har sitt eget ljud och sin egen musik.</div></div>
     <div class="setrow"><div class="lbl">🔊 Ljudeffekter</div>${onoff('setsfx',!muted)}</div>
     <div class="setrow"><div class="lbl">🎧 Ljudeffekter även när Spotify spelar</div>${onoff('spsfx',spSfx)}</div>
     <div class="setrow"><div class="lbl">🎲 Ljud när tärningarna kastas (tryck för att lyssna)</div>
@@ -2612,7 +2619,7 @@ function lobbyHTML(){
 function updateFrBadge(){ const n=(typeof FR!=='undefined')?FR.unread():0; document.querySelectorAll('[data-frbadge]').forEach(el=>{ el.textContent=n||''; el.classList.toggle('on',n>0); }); }
 function topbarLobby(){
   return `<div class="topbar"><button class="popc ${typeof SCENES!=='undefined'&&SCENES.affordable()?'canbuy':''}" id="popc" title="Bubbelpoäng – tryck för statistik och bubbelvärldar">🫧 ${popCount}</button><div class="tb-title" style="font-size:12px">Poppa bubblorna! 🫧</div>
-    ${netDotHTML()}<button class="iconbtn sgbtn" data-act="sgopen" aria-label="Pågående spel">🎮<i class="cbadge ${sgCount()?'on':''}" data-sgbadge>${sgCount()||''}</i></button><button class="iconbtn" data-act="settings" aria-label="Inställningar">⚙️</button></div>`;
+    ${netDotHTML()}<button class="iconbtn musbtn" data-act="musq" aria-label="Temaljud">${musicOn?'🔊':'🔇'}</button><button class="iconbtn sgbtn" data-act="sgopen" aria-label="Pågående spel">🎮<i class="cbadge ${sgCount()?'on':''}" data-sgbadge>${sgCount()||''}</i></button><button class="iconbtn" data-act="settings" aria-label="Inställningar">⚙️</button></div>`;
 }
 function playersHTML(){
   const cards = G.names.map((nm,i)=>{
@@ -2783,6 +2790,7 @@ document.addEventListener('click', e=>{
     case 'invite': invite(); break;
     case 'emo': sendEmoji(b.dataset.e); break;
     case 'poke': sendPoke(); break;
+    case 'musq': unlockAudio(); musicOn=!musicOn; lsSet('ry_music',musicOn?'1':'0'); musicOn?startMusic():stopMusic(); b.textContent=musicOn?'🔊':'🔇'; toast(musicOn?'Temaljud på 🔊':'Temaljud av 🔇'); break;
     case 'setmusic': musicOn=b.dataset.v==='1'; lsSet('ry_music',musicOn?'1':'0'); musicOn?startMusic():stopMusic(); showSettings(); break;
     case 'setsfx': muted=b.dataset.v==='0'; lsSet('ry_mute',muted?'1':'0'); if(!muted) sfx.bubble(); showSettings(); break;
     case 'setdice': diceSound=b.dataset.k; lsSet('ry_dsnd',diceSound); { const m=muted; muted=false; sfx.roll(); muted=m; } showSettings(); break;

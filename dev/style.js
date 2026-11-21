@@ -17,7 +17,7 @@ const STYLE = (() => {
   };
   // bubbelvärldar (scenes.js) som låses upp med bubbelpoäng
   if (typeof SCENES !== 'undefined') Object.assign(WORLDS, SCENES.worlds);
-  const locked = k => !!(WORLDS[k] && WORLDS[k].price) && !(typeof SCENES !== 'undefined' && SCENES.owned(k));
+  const locked = k => !!(WORLDS[k] && (WORLDS[k].price || WORLDS[k].season)) && !(typeof SCENES !== 'undefined' && SCENES.owned(k));
   const ACCENTS = { auto: null, rosa: ['#f9a8d4', '#f472b6'], lila: ['#c4b5fd', '#a855f7'], turkos: ['#5eead4', '#22d3ee'], guld: ['#fde68a', '#f59e0b'], korall: ['#fda4af', '#fb7185'], mint: ['#bbf7d0', '#34d399'] };
   const DEF = { world: 'rymd', acc: 'auto', size: 'normal', motion: 'auto', decor: 'lite', icons: 'ritade', dice: 'klassisk' };
   const DICE = { klassisk: 'Klassisk', parlemor: 'Pärlemor', hav: 'Havsglas', leopard: 'Leopard', neon: 'Neon', natt: 'Midnatt' };
@@ -30,7 +30,7 @@ const STYLE = (() => {
   const set = (k, v) => { const s = get(); s[k] = v; lsSet('style', JSON.stringify(s)); apply(); };
 
   /* ---------- tillämpa ---------- */
-  let skyKey = '';
+  let skyKey = '', curWorld = 'rymd';
   function apply() {
     const s = get(); if (!WORLDS[s.world] || locked(s.world)) s.world = 'rymd'; const w = WORLDS[s.world], a = ACCENTS[s.acc], r = document.documentElement.style, b = document.body;
     r.setProperty('--deep', w.bg[0]); r.setProperty('--bg1', w.bg[0]); r.setProperty('--bg2', w.bg[1]); r.setProperty('--bg3', w.bg[2]);
@@ -49,6 +49,7 @@ const STYLE = (() => {
     const z = s.size === 'stor' ? 1.1 : s.size === 'xstor' ? 1.22 : 1; b.style.zoom = z === 1 ? '' : z;
     const mc = document.querySelector('meta[name=theme-color]'); if (mc) mc.setAttribute('content', w.bg[0]);
     try { const v = {}; ['--deep', '--bg1', '--bg2', '--bg3', '--glow1', '--glow2', '--aqua', '--acc', '--acc2', '--txt', '--dim', '--glass', '--glass2', '--line'].forEach(k => v[k] = r.getPropertyValue(k)); lsSet('style_cache', JSON.stringify({ v, bg: w.bg[0] })); } catch (e) {}
+    const wch = curWorld !== s.world; curWorld = s.world; if (wch) setTimeout(() => { try { if (typeof musicWorld === 'function') musicWorld(); } catch (e) {} }, 0);
     const k = s.world + s.decor + mo; if (k !== skyKey) { skyKey = k; sky(w, s, mo); b.classList.toggle('w-scene', !!w.scene); }
   }
   // himlen/havet bakom allt – byggs om bara när världen eller dekoren ändras
@@ -143,13 +144,15 @@ const STYLE = (() => {
   /* ---------- inställningsfönstret med förhandsvisning ---------- */
   function show() {
     const s = get(), seg = (k, opts) => `<div class="seg">${opts.map(([v, l]) => `<button data-act="styset" data-k="${k}" data-v="${v}" class="${s[k] === v ? 'sel' : ''}">${l}</button>`).join('')}</div>`;
-    const worlds = Object.entries(WORLDS).filter(([k, w]) => !w.price).map(([k, w]) => `<button class="sty-w ${s.world === k ? 'on' : ''}" data-act="styset" data-k="world" data-v="${k}" style="--a:${w.bg[0]};--b:${w.bg[1]};--c:${w.bg[2]};--g:${w.glow[0]};--t:${w.txt}"><i>${w.ic}</i><b>${w.name}</b></button>`).join('');
+    const worlds = Object.entries(WORLDS).filter(([k, w]) => !w.price && !w.season).map(([k, w]) => `<button class="sty-w ${s.world === k ? 'on' : ''}" data-act="styset" data-k="world" data-v="${k}" style="--a:${w.bg[0]};--b:${w.bg[1]};--c:${w.bg[2]};--g:${w.glow[0]};--t:${w.txt}"><i>${w.ic}</i><b>${w.name}</b></button>`).join('');
     const bw = typeof SCENES === 'undefined' ? '' : Object.entries(WORLDS).filter(([k, w]) => w.price).map(([k, w]) => { const lk = locked(k); return `<button class="sty-w bgx ${s.world === k ? 'on' : ''} ${lk ? 'lk' : ''}" data-act="${lk ? 'bgshop' : 'styset'}" data-k="${lk ? '' : 'world'}" data-v="${k}" ${lk ? `data-kk="${k}"` : ''} style="--a:${w.bg[0]};--b:${w.bg[1]};--c:${w.bg[2]};--g:${w.glow[0]};--t:${w.txt}"><i>${w.ic}</i><b>${w.name}</b>${lk ? `<small>🔒 ${w.price} 🫧</small>` : ''}</button>`; }).join('');
+    const sw = typeof SCENES === 'undefined' ? '' : Object.entries(WORLDS).filter(([k, w]) => w.season).map(([k, w]) => { const lk = locked(k); return `<button class="sty-w bgx ${s.world === k ? 'on' : ''} ${lk ? 'lk' : ''}" data-act="${lk ? 'bgshop' : 'styset'}" data-k="${lk ? '' : 'world'}" data-v="${k}" ${lk ? `data-kk="${k}"` : ''} style="--a:${w.bg[0]};--b:${w.bg[1]};--c:${w.bg[2]};--g:${w.glow[0]};--t:${w.txt}"><i>${w.ic}</i><b>${w.name}</b><small>📅 ${SCENES.seasonLabel(k)}</small></button>`; }).join('');
     const accs = Object.entries(ACCENTS).map(([k, a]) => `<button class="sty-a ${s.acc === k ? 'on' : ''}" data-act="styset" data-k="acc" data-v="${k}" title="${k}" style="--c:${a ? `linear-gradient(135deg,${a[0]},${a[1]})` : 'conic-gradient(#f9a8d4,#c4b5fd,#5eead4,#fde68a,#f9a8d4)'}">${k === 'auto' ? '<span>auto</span>' : ''}</button>`).join('');
     const prev = ['yatzy', 'sol', 'race', 'kina'].map(k => { const gi = typeof GINFO !== 'undefined' && GINFO[k]; const grad = { yatzy: 'linear-gradient(135deg,#22d3ee,#6366f1 60%,#a855f7)', race: 'linear-gradient(135deg,#f97316,#e11d48 45%,#4c1d95)', sol: 'linear-gradient(135deg,#e3b064,#9a6a2f)' }[k] || (gi && gi.grad); return `<div class="tile mini" style="--tg:${grad};--motif:${motif(k).replace(/"/g, '&quot;')}">${icon(k, '🎲')}</div>`; }).join('');
     openModal(`<h3>🎨 Utseende</h3>
       <div class="sty-prev">${prev}</div>
       <div class="setrow"><div class="lbl">Värld</div><div class="sty-ws">${worlds}</div></div>
+      ${sw ? `<div class="setrow"><div class="lbl">🎁 Säsongsvärldar</div><div class="sty-ws">${sw}</div><div class="setnote">Gratis under sin tid på året – julen till 6 januari, nyåret till 10 januari.</div></div>` : ''}
       ${bw ? `<div class="setrow"><div class="lbl">✨ Bubbelvärldar <button class="sty-shop" data-act="bgshop">Visa alla</button></div><div class="sty-ws">${bw}</div><div class="setnote">Lås upp med bubbelpoäng – poppa bubblor i lobbyn.</div></div>` : ''}
       <div class="setrow"><div class="lbl">Accentfärg</div><div class="sty-as">${accs}</div></div>
       <div class="setrow"><div class="lbl">Dekor</div>${seg('decor', [['mycket', 'Mycket'], ['lite', 'Lite'], ['ingen', 'Ingen']])}<div class="setnote">Stjärnor, bubblor och simmande delfiner i bakgrunden.</div></div>
@@ -168,5 +171,7 @@ const STYLE = (() => {
     return false;
   }
   apply();
-  return { apply, get, set, show, act, icon, motif, decorateTile, gameCtx, gradOf, ICONS, WORLDS };
+  // säsong: jul och nyår byts in automatiskt en gång per säsong och försvinner efteråt
+  if (typeof SCENES !== 'undefined') { setTimeout(() => { try { SCENES.seasonCheck(); } catch (e) {} }, 0); setInterval(() => { try { SCENES.seasonCheck(); } catch (e) {} }, 3600e3); }
+  return { world: () => curWorld, apply, get, set, show, act, icon, motif, decorateTile, gameCtx, gradOf, ICONS, WORLDS };
 })();
