@@ -145,6 +145,13 @@ const SCENES = (() => {
     <path d="M38 88 L36 108 M62 88 L64 108" stroke="url(#ass)" stroke-width="13" stroke-linecap="round"/><rect x="28" y="104" width="16" height="9" rx="4" fill="#64748b"/><rect x="56" y="104" width="16" height="9" rx="4" fill="#64748b"/>
     <circle cx="50" cy="32" r="22" fill="url(#ass)" stroke="#94a3b8" stroke-width="1.5"/><ellipse cx="50" cy="33" rx="16" ry="13" fill="url(#asv)"/><path d="M40 27 C43 23 49 22 53 23" stroke="#fff" stroke-width="2.6" fill="none" stroke-linecap="round" opacity=".85"/><circle cx="60" cy="38" r="1.8" fill="#fff" opacity=".7"/>
     <rect x="44" y="50" width="12" height="4" rx="2" fill="#f472b6"/></svg>`;
+  // flaggan på månen: Sverige, Norge eller Jämtland, slumpas varje gång
+  const FLAG = () => {
+    const x = 1, y = -46, w = 30, h = 18, rect = (x0, y0, ww, hh, c) => `<rect x="${f1(x0)}" y="${f1(y0)}" width="${f1(ww)}" height="${f1(hh)}" fill="${c}"/>`, k = Math.floor(Math.random() * 3);
+    if (k === 0) { const u = w / 16, v = h / 10; return rect(x, y, w, h, '#006aa7') + rect(x + 5 * u, y, 2 * u, h, '#fecc02') + rect(x, y + 4 * v, w, 2 * v, '#fecc02'); }   // Sverige
+    if (k === 1) { const u = w / 22, v = h / 16; return rect(x, y, w, h, '#ba0c2f') + rect(x + 6 * u, y, 4 * u, h, '#fff') + rect(x, y + 6 * v, w, 4 * v, '#fff') + rect(x + 7 * u, y, 2 * u, h, '#00205b') + rect(x, y + 7 * v, w, 2 * v, '#00205b'); }   // Norge
+    return rect(x, y, w, h / 3, '#1f5fae') + rect(x, y + h / 3, w, h / 3, '#fff') + rect(x, y + 2 * h / 3, w, h / 3, '#2e8b3a');   // Jämtland
+  };
   BUILD.kosmos = (p, o, R) => {
     const r = rng(23);
     let L = `<defs><linearGradient id="${p}gr" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#7a7299"/><stop offset=".35" stop-color="#4a4468"/><stop offset="1" stop-color="#1d1a2e"/></linearGradient>
@@ -160,7 +167,7 @@ const SCENES = (() => {
       <path d="M-14 2 A30 30 0 0 1 46 2Z" fill="url(#${p}dome)" stroke="#e0f2fe" stroke-width="1.6"/><path d="M16 2 V-28 M-6 -4 Q16 -20 38 -4" stroke="#e0f2fe" stroke-opacity=".6" stroke-width="1" fill="none"/>
       <path d="M2 -6 q4 -10 10 -6 q2 -8 8 -3 l0 9z" fill="#22c55e" opacity=".85"/><path d="M58 2 V-34" stroke="#94a3b8" stroke-width="2"/><path d="M48 -40 A12 12 0 0 0 68 -28" fill="#e2e8f0" stroke="#94a3b8"/><circle class="mv kz-blink" cx="58" cy="-36" r="2.4" fill="#f43f5e"/></g>`;
     // flagga med egen stjärna
-    L += `<g transform="translate(700 300)"><path d="M0 0 V-46" stroke="#e2e8f0" stroke-width="2"/><g class="mv kz-flag"><path d="M1 -46 h30 v18 h-30z" fill="#f472b6"/><path d="M16 -42 l1.8 4 4.4 .4 -3.3 3 1 4.3 -3.9 -2.3 -3.9 2.3 1 -4.3 -3.3 -3 4.4 -.4z" fill="#fff7cc"/></g></g>`;
+    L += `<g transform="translate(700 300)"><path d="M0 0 V-46" stroke="#e2e8f0" stroke-width="2"/><g class="mv kz-flag">${FLAG()}</g></g>`;
     // rover
     const rover = `<g><rect x="-22" y="-20" width="44" height="12" rx="4" fill="#e2e8f0" stroke="#64748b"/><rect x="-16" y="-27" width="18" height="8" rx="2" fill="#38bdf8" opacity=".85"/><path d="M14 -20 V-36" stroke="#94a3b8" stroke-width="1.5"/><circle class="kz-blink" cx="14" cy="-37" r="2.2" fill="#fbbf24"/>
       ${[-15, 0, 15].map(x => `<g class="kz-wheel" style="transform-origin:${x}px -4px"><circle cx="${x}" cy="-4" r="6" fill="#334155" stroke="#94a3b8" stroke-width="1.5"/><path d="M${x - 5} -4 h10 M${x} -9 v10" stroke="#94a3b8" stroke-width="1"/></g>`).join('')}</g>`;
