@@ -1,0 +1,65 @@
+name: Bygg Android-appen
+
+on:
+  push:
+    branches: [android]
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.10.2"
+
+      - name: Bygg osignerade APK:er (main och dev)
+        id: build
+        continue-on-error: true
+        run: gradle assembleRelease --no-daemon --stacktrace > build.log 2>&1
+
+      - name: Samla resultat och kontrollrapport
+        if: always()
+        run: |
+          mkdir -p ut
+          cp build.log ut/build.log || true
+          echo "bygge: ${{ steps.build.outcome }}" > ut/RAPPORT.txt
+          BT=$(ls -d $ANDROID_HOME/build-tools/* | sort -V | tail -1)
+          echo "build-tools: $BT" >> ut/RAPPORT.txt
+          for f in vanlig dev; do
+            A=app/build/outputs/apk/$f/release/app-$f-release-unsigned.apk
+            if [ -f "$A" ]; then
+              cp "$A" ut/FrauLeins-$f-osignerad.apk
+              echo "== $f" >> ut/RAPPORT.txt
+              $BT/aapt2 dump badging "$A" >> ut/RAPPORT.txt 2>&1 || true
+              $BT/zipalign -c -P 16 -v 4 "$A" > /dev/null 2>&1 && echo "zipalign: ok" >> ut/RAPPORT.txt || echo "zipalign: FEL" >> ut/RAPPORT.txt
+              $BT/aapt2 dump xmltree "$A" --file AndroidManifest.xml > ut/manifest-$f.txt 2>&1 || true
+            fi
+          done
+          # vilka metadatanamn läser biblioteket? (för kontroll av manifestet)
+          J=$(find ~/.gradle -name "androidbrowserhelper-2.5.0*.aar" | head -1); echo "aar: $J" >> ut/RAPPORT.txt
+          if [ -n "$J" ]; then mkdir -p /tmp/aar && unzip -o -q "$J" -d /tmp/aar && unzip -o -q /tmp/aar/classes.jar -d /tmp/aar/c && grep -rhoa "android\.support\.customtabs\.trusted\.[A-Z_]*\|androidx\.browser\.trusted\.[A-Z_]*" /tmp/aar/c | sort -u > ut/metadata-nycklar.txt; ls /tmp/aar/c/com/google/androidbrowserhelper/trusted/ > ut/klasser.txt; fi
+          tail -40 build.log >> ut/RAPPORT.txt || true
+
+      - name: Lägg resultatet i grenen android-ut
+        if: always()
+        run: |
+          git config user.name "android-bygge"
+          git config user.email "android-bygge@users.noreply.github.com"
+          cp -r ut /tmp/ut
+          git checkout --orphan android-ut
+          git rm -rqf . || true
+          rm -rf ./* .github || true
+          cp -r /tmp/ut/* .
+          git add -A
+          git commit -qm "Android-bygge ${{ github.run_number }} (${{ steps.build.outcome }})"
+          git push -f origin android-ut
