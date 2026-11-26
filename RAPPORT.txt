@@ -1,0 +1,263 @@
+bygge: success
+build-tools: /usr/local/lib/android/sdk/build-tools/37.0.0
+== vanlig
+package: name='se.frauleins.board' versionCode='1' versionName='1.0' platformBuildVersionName='15' platformBuildVersionCode='35' compileSdkVersion='35' compileSdkVersionCodename='15'
+minSdkVersion:'24'
+targetSdkVersion:'35'
+uses-permission: name='android.permission.POST_NOTIFICATIONS'
+application-label:'FrauLeins'
+application-label-af:'FrauLeins'
+application-label-am:'FrauLeins'
+application-label-ar:'FrauLeins'
+application-label-as:'FrauLeins'
+application-label-az:'FrauLeins'
+application-label-be:'FrauLeins'
+application-label-bg:'FrauLeins'
+application-label-bn:'FrauLeins'
+application-label-bs:'FrauLeins'
+application-label-ca:'FrauLeins'
+application-label-cs:'FrauLeins'
+application-label-da:'FrauLeins'
+application-label-de:'FrauLeins'
+application-label-el:'FrauLeins'
+application-label-en-AU:'FrauLeins'
+application-label-en-CA:'FrauLeins'
+application-label-en-GB:'FrauLeins'
+application-label-en-IN:'FrauLeins'
+application-label-en-XC:'FrauLeins'
+application-label-es:'FrauLeins'
+application-label-es-US:'FrauLeins'
+application-label-et:'FrauLeins'
+application-label-eu:'FrauLeins'
+application-label-fa:'FrauLeins'
+application-label-fi:'FrauLeins'
+application-label-fr:'FrauLeins'
+application-label-fr-CA:'FrauLeins'
+application-label-gl:'FrauLeins'
+application-label-gu:'FrauLeins'
+application-label-hi:'FrauLeins'
+application-label-hr:'FrauLeins'
+application-label-hu:'FrauLeins'
+application-label-hy:'FrauLeins'
+application-label-in:'FrauLeins'
+application-label-is:'FrauLeins'
+application-label-it:'FrauLeins'
+application-label-iw:'FrauLeins'
+application-label-ja:'FrauLeins'
+application-label-ka:'FrauLeins'
+application-label-kk:'FrauLeins'
+application-label-km:'FrauLeins'
+application-label-kn:'FrauLeins'
+application-label-ko:'FrauLeins'
+application-label-ky:'FrauLeins'
+application-label-lo:'FrauLeins'
+application-label-lt:'FrauLeins'
+application-label-lv:'FrauLeins'
+application-label-mk:'FrauLeins'
+application-label-ml:'FrauLeins'
+application-label-mn:'FrauLeins'
+application-label-mr:'FrauLeins'
+application-label-ms:'FrauLeins'
+application-label-my:'FrauLeins'
+application-label-nb:'FrauLeins'
+application-label-ne:'FrauLeins'
+application-label-nl:'FrauLeins'
+application-label-or:'FrauLeins'
+application-label-pa:'FrauLeins'
+application-label-pl:'FrauLeins'
+application-label-pt:'FrauLeins'
+application-label-pt-BR:'FrauLeins'
+application-label-pt-PT:'FrauLeins'
+application-label-ro:'FrauLeins'
+application-label-ru:'FrauLeins'
+application-label-si:'FrauLeins'
+application-label-sk:'FrauLeins'
+application-label-sl:'FrauLeins'
+application-label-sq:'FrauLeins'
+application-label-sr:'FrauLeins'
+application-label-sr-Latn:'FrauLeins'
+application-label-sv:'FrauLeins'
+application-label-sw:'FrauLeins'
+application-label-ta:'FrauLeins'
+application-label-te:'FrauLeins'
+application-label-th:'FrauLeins'
+application-label-tl:'FrauLeins'
+application-label-tr:'FrauLeins'
+application-label-uk:'FrauLeins'
+application-label-ur:'FrauLeins'
+application-label-uz:'FrauLeins'
+application-label-vi:'FrauLeins'
+application-label-zh-CN:'FrauLeins'
+application-label-zh-HK:'FrauLeins'
+application-label-zh-TW:'FrauLeins'
+application-label-zu:'FrauLeins'
+application-icon-160:'res/BW.xml'
+application-icon-240:'res/BW.xml'
+application-icon-320:'res/BW.xml'
+application-icon-480:'res/BW.xml'
+application-icon-640:'res/BW.xml'
+application-icon-65534:'res/BW.xml'
+application: label='FrauLeins' icon='res/BW.xml'
+launchable-activity: name='com.google.androidbrowserhelper.trusted.LauncherActivity'  label='FrauLeins' icon=''
+feature-group: label=''
+  uses-feature: name='android.hardware.faketouch'
+  uses-implied-feature: name='android.hardware.faketouch' reason='default feature for all apps'
+main
+other-activities
+other-services
+supports-screens: 'small' 'normal' 'large' 'xlarge'
+supports-any-density: 'true'
+locales: '--_--' 'af' 'am' 'ar' 'as' 'az' 'be' 'bg' 'bn' 'bs' 'ca' 'cs' 'da' 'de' 'el' 'en-AU' 'en-CA' 'en-GB' 'en-IN' 'en-XC' 'es' 'es-US' 'et' 'eu' 'fa' 'fi' 'fr' 'fr-CA' 'gl' 'gu' 'hi' 'hr' 'hu' 'hy' 'in' 'is' 'it' 'iw' 'ja' 'ka' 'kk' 'km' 'kn' 'ko' 'ky' 'lo' 'lt' 'lv' 'mk' 'ml' 'mn' 'mr' 'ms' 'my' 'nb' 'ne' 'nl' 'or' 'pa' 'pl' 'pt' 'pt-BR' 'pt-PT' 'ro' 'ru' 'si' 'sk' 'sl' 'sq' 'sr' 'sr-Latn' 'sv' 'sw' 'ta' 'te' 'th' 'tl' 'tr' 'uk' 'ur' 'uz' 'vi' 'zh-CN' 'zh-HK' 'zh-TW' 'zu'
+densities: '160' '240' '320' '480' '640' '65534'
+zipalign: ok
+== dev
+package: name='se.frauleins.board.dev' versionCode='1' versionName='1.0' platformBuildVersionName='15' platformBuildVersionCode='35' compileSdkVersion='35' compileSdkVersionCodename='15'
+minSdkVersion:'24'
+targetSdkVersion:'35'
+uses-permission: name='android.permission.POST_NOTIFICATIONS'
+application-label:'FrauLeins DEV'
+application-label-af:'FrauLeins DEV'
+application-label-am:'FrauLeins DEV'
+application-label-ar:'FrauLeins DEV'
+application-label-as:'FrauLeins DEV'
+application-label-az:'FrauLeins DEV'
+application-label-be:'FrauLeins DEV'
+application-label-bg:'FrauLeins DEV'
+application-label-bn:'FrauLeins DEV'
+application-label-bs:'FrauLeins DEV'
+application-label-ca:'FrauLeins DEV'
+application-label-cs:'FrauLeins DEV'
+application-label-da:'FrauLeins DEV'
+application-label-de:'FrauLeins DEV'
+application-label-el:'FrauLeins DEV'
+application-label-en-AU:'FrauLeins DEV'
+application-label-en-CA:'FrauLeins DEV'
+application-label-en-GB:'FrauLeins DEV'
+application-label-en-IN:'FrauLeins DEV'
+application-label-en-XC:'FrauLeins DEV'
+application-label-es:'FrauLeins DEV'
+application-label-es-US:'FrauLeins DEV'
+application-label-et:'FrauLeins DEV'
+application-label-eu:'FrauLeins DEV'
+application-label-fa:'FrauLeins DEV'
+application-label-fi:'FrauLeins DEV'
+application-label-fr:'FrauLeins DEV'
+application-label-fr-CA:'FrauLeins DEV'
+application-label-gl:'FrauLeins DEV'
+application-label-gu:'FrauLeins DEV'
+application-label-hi:'FrauLeins DEV'
+application-label-hr:'FrauLeins DEV'
+application-label-hu:'FrauLeins DEV'
+application-label-hy:'FrauLeins DEV'
+application-label-in:'FrauLeins DEV'
+application-label-is:'FrauLeins DEV'
+application-label-it:'FrauLeins DEV'
+application-label-iw:'FrauLeins DEV'
+application-label-ja:'FrauLeins DEV'
+application-label-ka:'FrauLeins DEV'
+application-label-kk:'FrauLeins DEV'
+application-label-km:'FrauLeins DEV'
+application-label-kn:'FrauLeins DEV'
+application-label-ko:'FrauLeins DEV'
+application-label-ky:'FrauLeins DEV'
+application-label-lo:'FrauLeins DEV'
+application-label-lt:'FrauLeins DEV'
+application-label-lv:'FrauLeins DEV'
+application-label-mk:'FrauLeins DEV'
+application-label-ml:'FrauLeins DEV'
+application-label-mn:'FrauLeins DEV'
+application-label-mr:'FrauLeins DEV'
+application-label-ms:'FrauLeins DEV'
+application-label-my:'FrauLeins DEV'
+application-label-nb:'FrauLeins DEV'
+application-label-ne:'FrauLeins DEV'
+application-label-nl:'FrauLeins DEV'
+application-label-or:'FrauLeins DEV'
+application-label-pa:'FrauLeins DEV'
+application-label-pl:'FrauLeins DEV'
+application-label-pt:'FrauLeins DEV'
+application-label-pt-BR:'FrauLeins DEV'
+application-label-pt-PT:'FrauLeins DEV'
+application-label-ro:'FrauLeins DEV'
+application-label-ru:'FrauLeins DEV'
+application-label-si:'FrauLeins DEV'
+application-label-sk:'FrauLeins DEV'
+application-label-sl:'FrauLeins DEV'
+application-label-sq:'FrauLeins DEV'
+application-label-sr:'FrauLeins DEV'
+application-label-sr-Latn:'FrauLeins DEV'
+application-label-sv:'FrauLeins DEV'
+application-label-sw:'FrauLeins DEV'
+application-label-ta:'FrauLeins DEV'
+application-label-te:'FrauLeins DEV'
+application-label-th:'FrauLeins DEV'
+application-label-tl:'FrauLeins DEV'
+application-label-tr:'FrauLeins DEV'
+application-label-uk:'FrauLeins DEV'
+application-label-ur:'FrauLeins DEV'
+application-label-uz:'FrauLeins DEV'
+application-label-vi:'FrauLeins DEV'
+application-label-zh-CN:'FrauLeins DEV'
+application-label-zh-HK:'FrauLeins DEV'
+application-label-zh-TW:'FrauLeins DEV'
+application-label-zu:'FrauLeins DEV'
+application-icon-160:'res/BW.xml'
+application-icon-240:'res/BW.xml'
+application-icon-320:'res/BW.xml'
+application-icon-480:'res/BW.xml'
+application-icon-640:'res/BW.xml'
+application-icon-65534:'res/BW.xml'
+application: label='FrauLeins DEV' icon='res/BW.xml'
+launchable-activity: name='com.google.androidbrowserhelper.trusted.LauncherActivity'  label='FrauLeins DEV' icon=''
+feature-group: label=''
+  uses-feature: name='android.hardware.faketouch'
+  uses-implied-feature: name='android.hardware.faketouch' reason='default feature for all apps'
+main
+other-activities
+other-services
+supports-screens: 'small' 'normal' 'large' 'xlarge'
+supports-any-density: 'true'
+locales: '--_--' 'af' 'am' 'ar' 'as' 'az' 'be' 'bg' 'bn' 'bs' 'ca' 'cs' 'da' 'de' 'el' 'en-AU' 'en-CA' 'en-GB' 'en-IN' 'en-XC' 'es' 'es-US' 'et' 'eu' 'fa' 'fi' 'fr' 'fr-CA' 'gl' 'gu' 'hi' 'hr' 'hu' 'hy' 'in' 'is' 'it' 'iw' 'ja' 'ka' 'kk' 'km' 'kn' 'ko' 'ky' 'lo' 'lt' 'lv' 'mk' 'ml' 'mn' 'mr' 'ms' 'my' 'nb' 'ne' 'nl' 'or' 'pa' 'pl' 'pt' 'pt-BR' 'pt-PT' 'ro' 'ru' 'si' 'sk' 'sl' 'sq' 'sr' 'sr-Latn' 'sv' 'sw' 'ta' 'te' 'th' 'tl' 'tr' 'uk' 'ur' 'uz' 'vi' 'zh-CN' 'zh-HK' 'zh-TW' 'zu'
+densities: '160' '240' '320' '480' '640' '65534'
+zipalign: ok
+aar: /home/runner/.gradle/caches/modules-2/files-2.1/com.google.androidbrowserhelper/androidbrowserhelper/2.5.0/80539080c793281b1fbc73b4ec7570856ef05e6f/androidbrowserhelper-2.5.0.aar
+> Task :app:processVanligReleaseManifest
+> Task :app:parseVanligReleaseLocalResources
+> Task :app:desugarVanligReleaseFileDependencies
+> Task :app:mergeVanligReleaseStartupProfile
+> Task :app:processVanligReleaseManifestForPackage
+> Task :app:mergeDexDevRelease
+> Task :app:compileDevReleaseArtProfile
+> Task :app:mergeVanligReleaseArtProfile
+> Task :app:mergeVanligReleaseShaders
+> Task :app:compileVanligReleaseShaders NO-SOURCE
+> Task :app:generateVanligReleaseAssets UP-TO-DATE
+> Task :app:mergeVanligReleaseAssets
+> Task :app:compressVanligReleaseAssets
+> Task :app:extractVanligReleaseVersionControlInfo
+> Task :app:processVanligReleaseJavaRes NO-SOURCE
+> Task :app:packageDevRelease
+> Task :app:createDevReleaseApkListingFileRedirect
+> Task :app:assembleDevRelease
+> Task :app:collectVanligReleaseDependencies
+> Task :app:sdkVanligReleaseDependencyData
+> Task :app:writeVanligReleaseAppMetadata
+> Task :app:mergeVanligReleaseJavaResource
+> Task :app:writeVanligReleaseSigningConfigVersions
+> Task :app:mergeExtDexVanligRelease
+> Task :app:mergeVanligReleaseResources
+> Task :app:processVanligReleaseResources
+> Task :app:compileVanligReleaseJavaWithJavac NO-SOURCE
+> Task :app:dexBuilderVanligRelease
+> Task :app:mergeVanligReleaseGlobalSynthetics
+> Task :app:optimizeVanligReleaseResources
+> Task :app:mergeDexVanligRelease
+> Task :app:compileVanligReleaseArtProfile
+> Task :app:packageVanligRelease
+> Task :app:createVanligReleaseApkListingFileRedirect
+> Task :app:assembleVanligRelease
+> Task :app:assembleRelease
+gradle/actions: Writing build results to /home/runner/work/_temp/.gradle-actions/build-results/build-1795679381785.json
+
+BUILD SUCCESSFUL in 54s
+72 actionable tasks: 72 executed

@@ -1,0 +1,110 @@
+
+Welcome to Gradle 8.10.2!
+
+Here are the highlights of this release:
+ - Support for Java 23
+ - Faster configuration cache
+ - Better configuration cache reports
+
+For more details see https://docs.gradle.org/8.10.2/release-notes.html
+
+To honour the JVM settings for this build a single-use Daemon process will be forked. For more on this, please refer to https://docs.gradle.org/8.10.2/userguide/gradle_daemon.html#sec:disabling_the_daemon in the Gradle documentation.
+Daemon will be stopped at the end of the build 
+> Task :app:preBuild UP-TO-DATE
+> Task :app:preDevReleaseBuild UP-TO-DATE
+> Task :app:mergeDevReleaseJniLibFolders
+> Task :app:mergeDevReleaseNativeLibs NO-SOURCE
+> Task :app:stripDevReleaseDebugSymbols NO-SOURCE
+> Task :app:extractDevReleaseNativeSymbolTables NO-SOURCE
+> Task :app:mergeDevReleaseNativeDebugMetadata NO-SOURCE
+> Task :app:mergeDevReleaseArtProfile
+> Task :app:desugarDevReleaseFileDependencies
+> Task :app:javaPreCompileDevRelease
+> Task :app:checkDevReleaseAarMetadata
+> Task :app:generateDevReleaseResValues
+> Task :app:mapDevReleaseSourceSetPaths
+> Task :app:generateDevReleaseResources
+> Task :app:packageDevReleaseResources
+> Task :app:mergeDevReleaseResources
+> Task :app:createDevReleaseCompatibleScreenManifests
+> Task :app:extractDeepLinksDevRelease
+> Task :app:parseDevReleaseLocalResources
+> Task :app:processDevReleaseMainManifest
+> Task :app:processDevReleaseManifest
+> Task :app:mergeDevReleaseStartupProfile
+> Task :app:mergeDevReleaseShaders
+> Task :app:checkDevReleaseDuplicateClasses
+> Task :app:compileDevReleaseShaders NO-SOURCE
+> Task :app:processDevReleaseManifestForPackage
+> Task :app:processDevReleaseResources
+> Task :app:compileDevReleaseJavaWithJavac NO-SOURCE
+> Task :app:dexBuilderDevRelease
+> Task :app:generateDevReleaseAssets UP-TO-DATE
+> Task :app:mergeDevReleaseGlobalSynthetics
+> Task :app:mergeDevReleaseAssets
+> Task :app:compressDevReleaseAssets
+> Task :app:extractDevReleaseVersionControlInfo
+> Task :app:processDevReleaseJavaRes NO-SOURCE
+> Task :app:collectDevReleaseDependencies
+> Task :app:optimizeDevReleaseResources
+> Task :app:sdkDevReleaseDependencyData
+> Task :app:writeDevReleaseAppMetadata
+> Task :app:writeDevReleaseSigningConfigVersions
+> Task :app:preVanligReleaseBuild UP-TO-DATE
+> Task :app:mergeVanligReleaseJniLibFolders
+> Task :app:mergeVanligReleaseNativeLibs NO-SOURCE
+> Task :app:stripVanligReleaseDebugSymbols NO-SOURCE
+> Task :app:extractVanligReleaseNativeSymbolTables NO-SOURCE
+> Task :app:mergeVanligReleaseNativeDebugMetadata NO-SOURCE
+> Task :app:mergeDevReleaseJavaResource
+> Task :app:checkVanligReleaseDuplicateClasses
+> Task :app:javaPreCompileVanligRelease
+> Task :app:checkVanligReleaseAarMetadata
+> Task :app:generateVanligReleaseResValues
+> Task :app:mapVanligReleaseSourceSetPaths
+> Task :app:generateVanligReleaseResources
+> Task :app:mergeExtDexDevRelease
+> Task :app:packageVanligReleaseResources
+> Task :app:createVanligReleaseCompatibleScreenManifests
+> Task :app:extractDeepLinksVanligRelease
+> Task :app:processVanligReleaseMainManifest
+> Task :app:processVanligReleaseManifest
+> Task :app:parseVanligReleaseLocalResources
+> Task :app:desugarVanligReleaseFileDependencies
+> Task :app:mergeVanligReleaseStartupProfile
+> Task :app:processVanligReleaseManifestForPackage
+> Task :app:mergeDexDevRelease
+> Task :app:compileDevReleaseArtProfile
+> Task :app:mergeVanligReleaseArtProfile
+> Task :app:mergeVanligReleaseShaders
+> Task :app:compileVanligReleaseShaders NO-SOURCE
+> Task :app:generateVanligReleaseAssets UP-TO-DATE
+> Task :app:mergeVanligReleaseAssets
+> Task :app:compressVanligReleaseAssets
+> Task :app:extractVanligReleaseVersionControlInfo
+> Task :app:processVanligReleaseJavaRes NO-SOURCE
+> Task :app:packageDevRelease
+> Task :app:createDevReleaseApkListingFileRedirect
+> Task :app:assembleDevRelease
+> Task :app:collectVanligReleaseDependencies
+> Task :app:sdkVanligReleaseDependencyData
+> Task :app:writeVanligReleaseAppMetadata
+> Task :app:mergeVanligReleaseJavaResource
+> Task :app:writeVanligReleaseSigningConfigVersions
+> Task :app:mergeExtDexVanligRelease
+> Task :app:mergeVanligReleaseResources
+> Task :app:processVanligReleaseResources
+> Task :app:compileVanligReleaseJavaWithJavac NO-SOURCE
+> Task :app:dexBuilderVanligRelease
+> Task :app:mergeVanligReleaseGlobalSynthetics
+> Task :app:optimizeVanligReleaseResources
+> Task :app:mergeDexVanligRelease
+> Task :app:compileVanligReleaseArtProfile
+> Task :app:packageVanligRelease
+> Task :app:createVanligReleaseApkListingFileRedirect
+> Task :app:assembleVanligRelease
+> Task :app:assembleRelease
+gradle/actions: Writing build results to /home/runner/work/_temp/.gradle-actions/build-results/build-1795679381785.json
+
+BUILD SUCCESSFUL in 54s
+72 actionable tasks: 72 executed
