@@ -1,0 +1,18 @@
+name: Kontrollera Digital Asset Links
+on:
+  push:
+    branches: [android-kontroll]
+permissions:
+  contents: write
+jobs:
+  k:
+    runs-on: ubuntu-latest
+    steps:
+      - run: |
+          for i in 1 2 3 4 5 6 7 8 9 10; do c=$(curl -s -o /dev/null -w "%{http_code}" https://dadcoo1.github.io/.well-known/assetlinks.json); [ "$c" = 200 ] && break; sleep 20; done
+          { echo "== HTTP $c, content-type:"; curl -sI https://dadcoo1.github.io/.well-known/assetlinks.json | grep -i "content-type\|^HTTP"; echo "== fil:"; curl -s https://dadcoo1.github.io/.well-known/assetlinks.json; echo
+            for p in se.frauleins.board se.frauleins.board.dev; do echo "== Googles kontroll för $p:"
+              curl -s "https://digitalassetlinks.googleapis.com/v1/assetlinks:check?source.web.site=https://dadcoo1.github.io&relation=delegate_permission/common.handle_all_urls&target.android_app.package_name=$p&target.android_app.certificate.sha256_fingerprint=3C:4D:6D:D5:15:55:EC:B3:2B:50:C8:15:4C:EF:EA:E2:C2:B3:68:FC:02:54:60:A1:92:80:AA:9B:D0:8C:A8:3A"; echo; done
+            echo "== startsida:"; curl -s -o /dev/null -w "%{http_code}\n" https://dadcoo1.github.io/; } > K.txt
+          git init -q; git config user.name k; git config user.email k@users.noreply.github.com; git checkout -q -b ut; git add K.txt; git commit -qm k
+          git push -f "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}" ut:android-kontroll-ut
