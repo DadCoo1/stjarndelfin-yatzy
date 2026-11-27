@@ -1,0 +1,34 @@
+== HTTP 200, content-type:
+HTTP/2 200 
+content-type: application/json; charset=utf-8
+== fil:
+[{
+  "relation": ["delegate_permission/common.handle_all_urls"],
+  "target": {
+    "namespace": "android_app",
+    "package_name": "se.frauleins.board",
+    "sha256_cert_fingerprints": ["3C:4D:6D:D5:15:55:EC:B3:2B:50:C8:15:4C:EF:EA:E2:C2:B3:68:FC:02:54:60:A1:92:80:AA:9B:D0:8C:A8:3A"]
+  }
+}, {
+  "relation": ["delegate_permission/common.handle_all_urls"],
+  "target": {
+    "namespace": "android_app",
+    "package_name": "se.frauleins.board.dev",
+    "sha256_cert_fingerprints": ["3C:4D:6D:D5:15:55:EC:B3:2B:50:C8:15:4C:EF:EA:E2:C2:B3:68:FC:02:54:60:A1:92:80:AA:9B:D0:8C:A8:3A"]
+  }
+}]
+
+== Googles kontroll för se.frauleins.board:
+{
+  "linked": true,
+  "maxAge": "3599.998353188s"
+}
+
+== Googles kontroll för se.frauleins.board.dev:
+{
+  "linked": true,
+  "maxAge": "3599.998841094s"
+}
+
+== startsida:
+200
